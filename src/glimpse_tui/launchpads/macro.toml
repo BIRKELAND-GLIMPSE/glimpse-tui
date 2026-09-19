@@ -1,0 +1,5 @@
+# The markets around Bitcoin: the curve, liquidity, FX, commodities and indices, each labelled with its delay.
+name = "MACRO"
+layout = { split = "col", weights = [1.0, 1.0], panes = [
+  { split = "row", weights = [1.0, 1.0, 1.0], panes = ["RATES", "MACRO", "FX"] },
+  { split = "row", weights = [1.0, 1.0, 1.0], panes = ["GLCO", "WEI", "QM GLOBAL"] } ] }

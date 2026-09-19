@@ -1,0 +1,5 @@
+# Companies that hold Bitcoin: treasuries, ETFs, the relative value of BTC, and the filings as they land.
+name = "TREASURY"
+layout = { split = "col", weights = [3.0, 2.0], panes = [
+  { split = "row", weights = [3.0, 2.0], panes = ["TRSY", "ETF"] },
+  { split = "row", weights = [1.0, 1.0], panes = ["RV", "N"] } ] }

@@ -352,17 +352,20 @@ command that opens it.
 - [~] SEC EDGAR blocked on the contact email (D38, question 1)
 
 **Phase 1: the shell**
-- [ ] Data core: `data/core.py` (provenance, token buckets, memory and SQLite cache, backoff, health), `data/http.py` (pools, User-Agent, SOCKS5)
-- [ ] Function registry `term/registry.py`; instruments `term/instruments.py`; config `term/config.py`
-- [ ] GO bar `term/gobar.py`: grammar, classes, autocomplete, history kept between sessions
-- [ ] Panes and launchpads `term/panes.py`: tiling, focus, zoom, even, `LP <name>`, `LP SAVE <name>`, six shipped launchpads
-- [ ] Status bar and tape `term/tape.py`: clocks, session states, block flash
-- [ ] `HELP` · `HELP <FUNC>` · F1
-- [ ] `FIND <text>`
-- [ ] `SRC`
-- [ ] `SET` · `SET <setting> <value>`
-- [ ] `MKT`, `HM`, `SLIP`, `PORT`, `BOTS` open today's screens with every key unchanged
-- [ ] Phase check: old keys work, `LP BTC` opens four panes, the tape ticks from live sources
+- [x] Data core: `data/core.py` (provenance, token buckets, memory and SQLite cache, backoff, health), `data/http.py` (pools, User-Agent, SOCKS5)
+- [x] Function registry `term/registry.py`; instruments `term/instruments.py`; config `term/config.py`; the hub `term/hub.py`; the shell `term/shell.py`
+- [x] GO bar `term/gobar.py`: grammar, classes, autocomplete, history kept between sessions
+- [x] Panes and launchpads `term/panes.py`: tiling, focus, zoom, even, `LP <name>`, `LP SAVE <name>`, six shipped launchpads
+- [x] Status bar and tape `term/tape.py`: clocks, session states, block flash
+- [x] Live loops `data/feeds.py`: the mempool WebSocket with polling fallback, and the quote board (`data/quotes.py`)
+- [x] `HELP` · `HELP <FUNC>` · F1
+- [x] `FIND <text>`
+- [x] `SRC`
+- [x] `SET` · `SET <setting> <value>` (takes effect without a restart)
+- [x] `MKT`, `HM`, `SLIP`, `PORT`, `BOTS` open today's screens with every key unchanged (D31)
+- [x] Phase check: old keys work (tests/test_term_shell.py), `LP BTC` opens four panes, the tape ticked from live sources on 2026-09-19
+      (BTC composite, fees and tip over the WebSocket, SPX, USDJPY, XAU by proxy, BRENT, DXY computed)
+- Launch: `uv run glimpse-tui` (default launchpad) · `uv run glimpse-tui MEMP` (any GO command) · `uv run glimpse-tui --markets` (the old opening screen)
 
 **Phase 2: inside Bitcoin** (section 5)
 - [ ] Clients: `data/mempool.py` (REST and WebSocket), `data/bitview.py`, `data/esplora.py`, `data/electrum.py`, `data/core_rpc.py`

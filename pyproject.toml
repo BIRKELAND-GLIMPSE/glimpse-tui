@@ -7,12 +7,16 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
+    "embit>=0.8",
     "glimpse-markets>=0.1.0",
+    "httpx[socks]>=0.27",
     "keyring>=25.7.0",
     "numpy>=2.5.3",
     "pandas>=2.2",
     "scipy>=1.18.1",
+    "segno>=1.6",
     "textual>=1.0",
+    "websockets>=13",
 ]
 
 [project.scripts]

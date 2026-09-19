@@ -30,5 +30,10 @@ def main() -> None:
     # can draw 24-bit colour but does not advertise it (or the reverse) still gets the right palette.
     os.environ.setdefault("TEXTUAL_COLOR_SYSTEM", "truecolor" if wants_truecolor(saved=auth.load_state().get("colors", "")) else "256")
     from .app import Terminal
+    from .term import config
 
-    Terminal().run()
+    # `glimpse-tui` opens the default launchpad. `glimpse-tui MEMP`, `glimpse-tui MSTR DES` or `glimpse-tui LP MACRO` opens
+    # on that GO bar command. `glimpse-tui --markets` opens on the markets and ladder, as the terminal did before launchpads.
+    words = [a for a in sys.argv[1:] if not a.startswith("-")]
+    launchpad = None if "--markets" in sys.argv[1:] else (config.load().get("default_launchpad") or "BTC")
+    Terminal(launchpad=launchpad, go=" ".join(words)).run()

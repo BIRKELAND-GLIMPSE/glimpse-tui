@@ -1,0 +1,5 @@
+# The default launchpad (TERMINAL.md 3.5): the price into the Glimpse forecast, the mempool, on-chain, and the news.
+name = "BTC"
+layout = { split = "col", weights = [3.0, 2.0], panes = [
+  { split = "row", weights = [3.0, 2.0], panes = ["GP BTC", "MEMP"] },
+  { split = "row", weights = [3.0, 2.0], panes = ["ONCH", "TOP"] } ] }

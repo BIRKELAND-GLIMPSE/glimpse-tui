@@ -1,0 +1,5 @@
+# Mining: pools, hashrate and difficulty, hashprice, and the public miners.
+name = "MINER"
+layout = { split = "col", weights = [1.0, 1.0], panes = [
+  { split = "row", weights = [1.0, 1.0], panes = ["MINE", "HASH"] },
+  { split = "row", weights = [1.0, 1.0, 1.0], panes = ["DIFF", "HASHP", "MINR"] } ] }

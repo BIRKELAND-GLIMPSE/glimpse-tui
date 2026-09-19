@@ -66,6 +66,21 @@ KEYMAP: dict[str, list[tuple[str, list[tuple[str, str]]]]] = {
         ("RUN", [("enter", "run / stop this bot"), ("e", "budget"), ("x", "stop"), ("L", "log in to trade real sats")]),
         ("MORE", [("r", "re-read the market")]),
     ],
+    "term": [
+        ("GO", [("` :", "the GO bar"), ("BTC <GO>", "a security"), ("MEMP <GO>", "a function"), ("MSTR FA <GO>", "both"),
+                ("F1", "help on this pane"), ("HELP", "every function")]),
+        ("PANES", [("tab", "next pane"), ("ctrl-w h j k l", "move"), ("ctrl-w s v", "split"), ("ctrl-w q", "close"),
+                   ("ctrl-w o", "zoom"), ("ctrl-w =", "even"), ("LP <name>", "launchpad"), ("LP SAVE <name>", "save")]),
+        ("PAGE", [("j k", "scroll or move"), ("g G", "top / bottom"), ("enter", "open the row"), ("1-9", "menu item"),
+                  ("EXP", "export to CSV")]),
+        ("MORE", [("f", "forecast heatmap"), ("p", "portfolio"), ("B", "bots"), ("L O", "log in / out"), ("c", "colours"), ("q", "quit")]),
+    ],
+    "go": [
+        ("GO", [("enter", "GO"), ("tab", "complete"), ("↑ ↓", "pick, or walk history"), ("esc", "leave"),
+                ("ctrl-u ctrl-w", "clear line / word")]),
+        ("TRY", [("BTC", "the Bitcoin page"), ("MEMP", "the mempool"), ("TX <txid>", "a transaction"), ("GP BTC XAU SPX", "compare"),
+                 ("MSTR DES", "a company"), ("LP MACRO", "a launchpad"), ("FIND <text>", "search everything")]),
+    ],
     "slip": [
         ("EDIT", [(VERT, "field"), (SIDE + " · - +", "step it"), ("5l", "counts"), ("enter", "type a value")]),
         ("TRADE", [("b", "BET"), ("tab esc", "back to the chart")]),
@@ -135,7 +150,8 @@ def brand_bar(t: Terminal, width: int) -> Text:
 def tabs(t: Terminal) -> list[tuple[str, str, str, bool]]:
     """(label, short label, key that reaches it from here, showing now) for each screen."""
     back = {"heatmap": "f", "bots": "B", "portfolio": "p"}.get(t.view, "")
-    return [("FORECAST", "FCST", "f", t.view == "heatmap"), ("LADDER", "LDR", back or "f", t.view == "main"),
+    return [("TERMINAL", "TERM", "t", t.view == "term"), ("FORECAST", "FCST", "f", t.view == "heatmap"),
+            ("LADDER", "LDR", back or "f", t.view == "main"),
             ("BOTS", "BOTS", "B", t.view == "bots"), ("PORTFOLIO", "PORT", "p", t.view == "portfolio")]
 
 
@@ -185,7 +201,7 @@ def header(t: Terminal, width: int) -> Text:
 
 def status_line(t: Terminal, mode: str, width: int) -> Text:
     """vim's status line: the mode, any message, and on the right the keys typed so far (5 then j, 12 then |)."""
-    colour = {"NORMAL": DIM, "VISUAL": ORANGE, "SLIP": GREEN}[mode]
+    colour = {"NORMAL": DIM, "VISUAL": ORANGE, "SLIP": GREEN, "GO": ORANGE}[mode]
     left = Text(no_wrap=True)
     left.append(f" -- {mode} -- ", style=f"bold {INK} on {colour}")
     if t.flash:

@@ -18,13 +18,15 @@ from textual.widget import Widget
 from textual.widgets import Input, Static
 
 from . import api as api_mod
-from . import auth, bots, botsview, chrome, fmt
+from . import auth, bots, botsview, charts, chrome, fmt
 from . import pricing as P
 from .api import ApiError, Batch, Book, Candle, Glimpse, MarketRow, Order, Position, Summary, Wallet, parse_bin
 from .botsview import SORTS, TABS, BotDetailPane, BotListPane, BotLogPane, Scan
 from .heatmap import ANSI256, P_FLOOR, TRUECOLOR, ZOOMS, Grid, HeatmapPane, fit_zoom, origin, scales, wants_truecolor
 from .slip import WIDTH as SLIP_WIDTH
 from .slip import SlipPane
+from .term.panes import Workspace
+from .term.shell import Shell
 from .theme import BURNT, DIM, FAINT, GREEN, ORANGE, RED, RULE, TEXT
 
 BOOK_EVERY, LIST_EVERY, ACCOUNT_EVERY, SPOT_EVERY, CANDLES_EVERY = 5, 60, 15, 10, 120
@@ -385,6 +387,9 @@ class Terminal(App):
     CSS = f"""
     Screen {{ background: #0D0D0D; color: {TEXT}; }}
     #head {{ height: 2; }}
+    #gobar {{ height: 1; display: none; }}
+    #suggest {{ height: auto; max-height: 9; display: none; background: #111111; }}
+    #term {{ display: none; }}
     #foot {{ height: auto; max-height: 9; color: {DIM}; }}
     Pane, SlipPane {{ border: round {RULE}; border-title-color: {DIM}; }}
     SlipPane.active {{ border: round {ORANGE}; border-title-color: {ORANGE}; }}
@@ -415,8 +420,11 @@ class Terminal(App):
     Input:focus {{ border: tall {ORANGE}; }}
     """
 
-    def __init__(self) -> None:
+    def __init__(self, launchpad: str | None = None, go: str = "") -> None:
         super().__init__()
+        self.launchpad = launchpad      # the launchpad to open on; None opens on the markets and ladder, as before
+        self.go = go                    # a GO bar command to run at launch: `glimpse-tui MEMP`
+        self.shell = Shell(self)        # the GO bar, the panes and the hub (TERMINAL.md); idle until a launchpad shows
         key, self.key_source = auth.load_key()
         self.key_mask = auth.mask(key)
         self.api = Glimpse(key, os.environ.get("GLIMPSE_BASE_URL"))
@@ -429,7 +437,7 @@ class Terminal(App):
         self.anchor: int | None = None
         self.contracts = 21.0
         self.pane = 0                   # 0 markets, 1 ladder
-        self.view = "main"              # main | heatmap | portfolio | bots
+        self.view = "main"              # main | heatmap | portfolio | bots | term (the launchpad)
         self.wallet: Wallet | None = None
         self.summary: Summary | None = None
         self.positions: list[Position] = []
@@ -474,6 +482,7 @@ class Terminal(App):
         self.hm_median = True                           # draw the median trace through the forecast
         self.slip_focus, self.slip_cur = False, 0       # keyboard focus on the bet slip, and the field under it
         self.truecolor = wants_truecolor(saved=auth.load_state().get("colors", ""))
+        charts.truecolor = self.truecolor
         self._hm_ticket: tuple[tuple, P.Ticket | None] | None = None
         self._hm_hist: tuple[tuple, list[Candle]] | None = None
         self._hm_groups: tuple[tuple, tuple[list[int], list[int], list[int]]] | None = None
@@ -668,6 +677,9 @@ class Terminal(App):
 
         self.truecolor = not self.truecolor
         self.console._color_system = ColorSystem.TRUECOLOR if self.truecolor else ColorSystem.EIGHT_BIT
+        charts.truecolor = self.truecolor
+        for p in self.shell.ws.panes:
+            p.bump()
         self.query_one("#heatmap", HeatmapPane).palette = TRUECOLOR if self.truecolor else ANSI256
         auth.save_state({**auth.load_state(), "colors": "truecolor" if self.truecolor else "256"})
         self.say("24-bit colour. If the chart now looks wrong, press c again." if self.truecolor else "256-colour palette.")
@@ -946,8 +958,11 @@ class Terminal(App):
 
     def compose(self) -> ComposeResult:
         yield Static(id="head")
+        yield Static(id="gobar")
+        yield Static(id="suggest")
         with Horizontal(id="body"):
             with Vertical(id="stage"):
+                yield Workspace("term")
                 with Horizontal(id="main"):
                     yield MarketsPane("markets")
                     yield LadderPane("ladder")
@@ -972,10 +987,16 @@ class Terminal(App):
         self.set_interval(SPOT_EVERY, self.load_spot)
         self.set_interval(CANDLES_EVERY, lambda: self.view == "heatmap" and self.load_candles())
         self.load_account()
+        if self.launchpad:
+            self.shell.show(self.launchpad)
+        if self.go:
+            self.shell.run(self.go)
+        self.paint()
 
     def tick(self) -> None:
         if self.flash and time.time() > self.flash_until:
             self.flash = ""
+        self.shell.tick()
         self.paint()
 
     def say(self, msg: str, seconds: float = 6) -> None:
@@ -985,11 +1006,21 @@ class Terminal(App):
     def paint(self) -> None:
         if not self.query("#head"):
             return                      # shutting down: a cancelled worker's last paint lands after the screen is gone
-        w = self.size.width
-        self.query_one("#head", Static).update(chrome.header(self, w))
+        w, sh = self.size.width, self.shell
+        term = self.view == "term"
+        self.query_one("#head", Static).update(sh.header(w) if term else chrome.header(self, w))
+        go, sug = self.query_one("#gobar", Static), self.query_one("#suggest", Static)
+        go.display = term or sh.go_focus
+        if go.display:
+            go.update(sh.go_line(w))
+        sug.display = sh.go_focus and bool(sh.line.picks)
+        if sug.display:
+            sug.update(sh.suggestions(w))
+        self.query_one("#term").display = term
         visual = (self.hm_anchor if self.view == "heatmap" else self.anchor) is not None
-        mode = "SLIP" if self.slip_focus else "VISUAL" if visual and self.view in ("main", "heatmap") else "NORMAL"
-        view = "slip" if self.slip_focus else "bots-forecast" if self.view == "bots" and self.bot_pane == 1 else self.view
+        mode = "GO" if sh.go_focus else "SLIP" if self.slip_focus else "VISUAL" if visual and self.view in ("main", "heatmap") else "NORMAL"
+        view = ("go" if sh.go_focus else "slip" if self.slip_focus else "bots-forecast" if self.view == "bots" and self.bot_pane == 1
+                else self.view)
         rows = 8 if self.size.height >= 40 else 4 if self.size.height >= 26 else 2
         foot = Text("\n", no_wrap=True).join([chrome.status_line(self, mode, w), chrome.legend(view, w, rows)])
         self.query_one("#foot", Static).update(foot)
@@ -1215,6 +1246,22 @@ class Terminal(App):
             return
         k, ch = e.key, e.character
         e.stop()
+        if self.shell.go_focus:                         # the GO bar owns every key until Enter or Esc
+            self.shell.go_key(k, ch)
+            self.paint()
+            return
+        if self.view == "term":
+            if self.shell.key(k, ch):
+                self.paint()
+                return
+        elif ch == "t" and not self.pending and not self.slip_focus:
+            self.shell.show()                           # t: the launchpad, from any of today's screens
+            self.paint()
+            return
+        elif ch == "`" and not self.pending and self.view != "heatmap":
+            self.shell.focus_go()                       # on the heatmap ` still jumps to a mark; : reaches the GO bar there
+            self.paint()
+            return
         if k in WASD and not self.pending:
             k, ch = WASD[k], None                       # w a s d are the arrow keys everywhere; ma, zh and 'a still chord
         if self.slip_focus and not self.pending and not (ch and ch.isdigit()) and self.slip_key(k, ch, int(self.count or 1)):
@@ -1345,7 +1392,7 @@ class Terminal(App):
             self.hm_clear_selection()
             self.anchor = None
         else:
-            self.say(f"Not a command: {cmd}")
+            self.shell.run(cmd)                         # anything else is a GO bar command: MEMP, BTC, LP MACRO, TX <txid>
         self.paint()
 
     def normal_key(self, k: str, ch: str | None, n: int, counted: bool) -> None:
@@ -1970,4 +2017,5 @@ class Terminal(App):
     async def on_unmount(self) -> None:
         for r in self.runners.values():
             r.stop()
+        await self.shell.stop()
         await self.api.close()

@@ -1,0 +1,5 @@
+# Inside Bitcoin: the mempool, recent blocks, fees and replacements.
+name = "CHAIN"
+layout = { split = "row", weights = [3.0, 2.0], panes = [
+  { split = "col", weights = [3.0, 2.0], panes = ["MEMP", "BLK"] },
+  { split = "col", weights = [1.0, 1.0], panes = ["FEES", "RBF"] } ] }
