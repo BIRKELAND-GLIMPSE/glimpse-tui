@@ -248,7 +248,7 @@ small ticket, which also settles F11.
 
 **State.** Branch `terminal`, eight local commits on top of `8ca2b18` (Phases 0, 1, 2, 3, 4, 6, 7, then 5: the companies family
 finished last). Nothing is pushed. `uv run pytest`: 650 passed (435 before). `uv run ruff check .`: clean. No test touches the network.
-66 functions are registered. `uv run glimpse-tui` opens the `BTC` launchpad; `uv run glimpse-tui --markets` opens the old first screen.
+59 functions are registered. `uv run glimpse-tui` opens the `BTC` launchpad; `uv run glimpse-tui --markets` opens the old first screen.
 
 **What works.** The shell (GO bar with grammar, autocomplete and history; nine tiled panes; six launchpads; status bar, tape, clocks;
 `HELP`, `FIND`, `SRC`, `SET`, `EXP`), every Bitcoin function except `NODE`, every on-chain, markets, Glimpse, wallet and tools function,
