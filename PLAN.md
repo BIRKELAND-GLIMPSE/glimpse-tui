@@ -383,12 +383,23 @@ command that opens it.
   app on recorded data; they have not been eyeballed live by James.
 
 **Phase 3: on-chain research** (section 6)
-- [ ] `charts.py`: braille lines, candles, bands, bars, sparklines, histograms, half-block pixels, stacked bands, both palettes
-- [ ] `FLDS <words>` · [ ] `GP <series or tickers>` · [ ] `ONCH` · [ ] `URPD` · [ ] `WAVE` · [ ] `CYC` · [ ] `CORR`
+- [x] `charts.py`: braille lines, candles, bands, bars, sparklines, histograms, half-block pixels, stacked bands, QR, both palettes
+- [~] `heatmap.py` and `botsview.chart()` were NOT moved onto `charts.py` (brief 4.1). They draw what they always drew; moving them
+      risks the heatmap's tuned redraw cost for no visible gain. Left as a follow-up.
+- [x] `FLDS <words>` (fills the GO bar's series autocomplete) · [x] `GP <tickers or series> [1H|1D|1Y|MAX] [LOG] [CANDLES]` (`GP BTC XAU SPX`,
+      `GP mvrv`, `GP BTC realized_price`; `GP BTC` hourly continues into the Glimpse forecast)
+- [x] `ONCH` · [x] `URPD [cohort] [date]` (`c` cohort, `[` `]` dates, `l` log or linear) · [x] `WAVE` · [x] `CYC` · [x] `CORR`
+- Facts found while building: a Bitview bulk request is refused above a weight of 320,000 (`weight_exceeded`), so all-history HODL waves
+  use the weekly index. Requests use `start=-61` and `-401` so 60 and 400 complete days remain after today's forming point is dropped.
+  The dollar index has no history of its own, so `CORR` computes it from the six FX legs.
 
 **Phase 4: markets and macro** (section 7)
-- [ ] Clients: `data/prices.py`, `data/fred.py`, `data/treasury.py`, `data/fx_ref.py`, `data/deribit.py`, `data/quotes.py`; Pyth optional (D36)
-- [ ] `QM [list]` · [ ] `WEI` · [ ] `FX` · [ ] `GLCO` · [ ] `RATES` · [ ] `MACRO` · [ ] `ECO` · [ ] `HMAP` · [ ] `RV` · [ ] `DVOL`
+- [x] Clients: `data/prices.py`, `data/fred.py`, `data/treasury.py`, `data/fx_ref.py`, `data/deribit.py`, `data/sentiment.py`, `data/quotes.py`
+- [ ] `data/pyth.py`: not built. Pyth needs a key (D36). The verified feed ids wait in `instruments.toml` under `keyed`.
+- [x] `QM [list]` · [x] `WEI` · [x] `FX` · [x] `GLCO` · [x] `RATES` · [x] `MACRO` · [x] `ECO` · [x] `HMAP` · [x] `RV` · [x] `DVOL`
+- Every row carries one of: `live`, `closed`, `daily <date>`, `monthly <month>`, `proxy <ticker>`, `computed`, `no open source`.
+  `LP MACRO` was run in the app on recorded data at 132×36 (each pane is 40×12 inside). `ECO` takes real GDP from FRED `GDPC1`,
+  which answered live but is not in SOURCES.md's series table. The release calendar needs a FRED key and is not shown.
 
 **Phase 5: companies** (section 9)
 - [ ] Client: `data/sec.py` (tickers, submissions, company facts, full-text search, documents as clean text)

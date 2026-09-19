@@ -61,7 +61,7 @@ def parse_csv(text: str) -> tuple[list[float], list[float]]:
 
 class Fred(Source):
     def __init__(self) -> None:
-        super().__init__(name="fred", base_url=URL, delay=DAILY, rate=2.0, burst=6,      # a page of ten daily series fills in seconds; each is then cached for six hours
+        super().__init__(name="fred", base_url=URL, delay=DAILY, rate=2.0, burst=6,      # ten series fill in seconds, then cache for hours
                          serves="US rates, Fed balance sheet, M2, spot oil, FX and index daily closes")
 
     async def series(self, series_id: str, start: str = "") -> Series:
