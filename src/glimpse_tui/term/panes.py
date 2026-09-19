@@ -270,7 +270,7 @@ class FuncPane(Widget):
         self.provs: list[Provenance] = []               # every source behind what is on screen
         self.error = ""
         self.loaded_at = 0.0
-        self.loading = False
+        self.fetching = False
         self.cur, self.top, self.n_rows = 0, 0, 0       # row cursor, first visible line, selectable rows
         self.version = 0
         self._cache: tuple[tuple, Text] | None = None
@@ -317,9 +317,9 @@ class FuncPane(Widget):
     # loading ────────────────────────────────────────────────
 
     async def reload(self) -> None:
-        if self.loading:
+        if self.fetching:
             return
-        self.loading = True
+        self.fetching = True
         try:
             await self.load()
             self.error = ""
@@ -328,16 +328,19 @@ class FuncPane(Widget):
         except Exception as e:                          # a page bug must not take the terminal down; show it in the frame
             self.error = f"{type(e).__name__}: {e}"[:120]
         finally:
-            self.loading, self.loaded_at = False, time.time()
+            self.fetching, self.loaded_at = False, time.time()
             self.bump()
 
     def due(self, now: float) -> bool:
-        return not self.loading and (self.loaded_at == 0 or (self.every > 0 and now - self.loaded_at >= self.every))
+        return not self.fetching and (self.loaded_at == 0 or (self.every > 0 and now - self.loaded_at >= self.every))
 
     def bump(self) -> None:
         self.version += 1
         if self.is_attached:
-            self.refresh()
+            try:
+                self.refresh()
+            except Exception:           # a load that finishes while the app is closing has no screen to paint on
+                pass
 
     # keys the base owns ─────────────────────────────────────
 
@@ -385,9 +388,14 @@ class FuncPane(Widget):
                 right.append(f" {label} · stale {ago(max(p.age(now) for p in stale))} ", style=f"bold {RED}")
             else:
                 right.append(f" {label} ", style=DIM)
-        elif self.loading or not self.loaded_at:
+        elif self.fetching or not self.loaded_at:
             right.append(" loading ", style=FAINT)
         room = w - out.cell_len - right.cell_len - 1
+        if room < 1 and self.provs and not self.error:      # too narrow for the names: keep the delay, and above all keep "stale"
+            stale = [p for p in self.provs if p.stale(now)]
+            short = f" stale {ago(max(p.age(now) for p in stale))} " if stale else f" {self.provs[0].delay} "
+            right = Text(short, style=f"bold {RED}" if stale else DIM)
+            room = w - out.cell_len - right.cell_len - 1
         if room < 1:
             right = Text("")
             room = w - out.cell_len - 1

@@ -368,11 +368,19 @@ command that opens it.
 - Launch: `uv run glimpse-tui` (default launchpad) · `uv run glimpse-tui MEMP` (any GO command) · `uv run glimpse-tui --markets` (the old opening screen)
 
 **Phase 2: inside Bitcoin** (section 5)
-- [ ] Clients: `data/mempool.py` (REST and WebSocket), `data/bitview.py`, `data/esplora.py`, `data/electrum.py`, `data/core_rpc.py`
-- [ ] `BTC` · [ ] `MEMP` (the next block as a picture) · [ ] `FEES` · [ ] `BLK [height or hash]` · [ ] `TX <txid>` · [ ] `ADDR <address>`
-- [ ] `RBF` · [ ] `MINE` · [ ] `HASH` · [ ] `DIFF` · [ ] `HASHP` · [ ] `HALV` · [ ] `SUPL` · [ ] `LN` · [ ] `ORCL`
+- [x] Clients: `data/mempool.py` (REST and WebSocket), `data/bitview.py`, `data/esplora.py`; arithmetic in `data/btcmath.py`
+- [~] `data/electrum.py` and `data/core_rpc.py` are built and unit-tested as standalone clients (TLS, `ssl+insecure://` for self-signed,
+      SOCKS5, cookie auth, credentials never in errors). They are NOT yet wired into `bitcoin.order`: the resolver walks mempool-shaped
+      backends only (mempool, bitview, esplora). Next step: adapters exposing `fees()`, `tip_height()`, `block()`, `tx()`, `address()`.
+      The Electrum `scripthash.*` reply shapes are untested against a server (no public server is contacted, D41).
+- [x] `BTC` · [x] `MEMP` (the next block as a picture, from `track-mempool-block`; fee bands when polling) · [x] `FEES [in out script]`
+- [x] `BLK [height or hash]` (pages with `]` `[`) · [x] `TX <txid>` · [x] `ADDR <address>` (`w` watches it) · [x] `RBF` (`f` full-RBF only)
+- [x] `MINE [period | slug]` · [x] `HASH` · [x] `DIFF` (never falls back to Bitview silently) · [x] `HASHP` · [x] `HALV` · [x] `SUPL` · [x] `LN` (says STALE with its date) · [x] `ORCL`
 - [ ] `NODE` (no source: D41)
-- [ ] Privacy line on the first public lookup; backend switch without a restart
+- [x] Privacy line on the first public lookup (`privacy_ack`); backend switch without a restart (`SET bitcoin.mempool …`, tested)
+- Verified live on 2026-09-19: the WebSocket streamed fees, tip and projected blocks into the status bar and `MEMP`; `GP BTC` drew live
+  Coinbase candles into the real Glimpse forecast. The agents that built `BLK`, `TX`, `ADDR`, `RBF` and the mining pages drove them in the
+  app on recorded data; they have not been eyeballed live by James.
 
 **Phase 3: on-chain research** (section 6)
 - [ ] `charts.py`: braille lines, candles, bands, bars, sparklines, histograms, half-block pixels, stacked bands, both palettes

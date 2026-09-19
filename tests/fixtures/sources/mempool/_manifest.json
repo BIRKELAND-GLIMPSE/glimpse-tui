@@ -460,6 +460,77 @@
    "trimmed": "",
    "bytes": 110,
    "notes": "Arrived unrequested, one second before the block. Safe to ignore."
+  },
+  "mining_blocks_fee_rates_24h.json": {
+   "url": "https://mempool.space/api/v1/mining/blocks/fee-rates/24h",
+   "status": 200,
+   "seconds": 0.1,
+   "trimmed": "last 48 of 140 rows",
+   "bytes": 0
+  },
+  "blocks_from_967728.json": {
+   "url": "https://mempool.space/api/v1/blocks/967728",
+   "status": 200,
+   "seconds": 0.873101,
+   "trimmed": "first 3 of 15 blocks",
+   "bytes": 6117,
+   "notes": "`/api/v1/blocks/{start_height}`: 15 blocks from that height down, same shape as `/api/v1/blocks`. BLK pages to older blocks with it."
+  },
+  "block_height_967730.txt": {
+   "url": "https://mempool.space/api/block-height/967730",
+   "status": 200,
+   "seconds": 0.068389,
+   "trimmed": "",
+   "bytes": 64,
+   "notes": "Plain text block hash. `BLK 967730` resolves the height with it."
+  },
+  "tx_opreturn_outspends.json": {
+   "url": "https://mempool.space/api/tx/025cc8e573dc2b1ea5db8b66c8257a058e6eb8af82d83e0bdf8329e89909cd07/outspends",
+   "status": 200,
+   "seconds": 0.069257,
+   "trimmed": "",
+   "bytes": 33,
+   "notes": "Both outputs unspent; the OP_RETURN output can never be spent."
+  },
+  "cpfp_opreturn.json": {
+   "url": "https://mempool.space/api/v1/cpfp/025cc8e573dc2b1ea5db8b66c8257a058e6eb8af82d83e0bdf8329e89909cd07",
+   "status": 200,
+   "seconds": 0.705913,
+   "trimmed": "",
+   "bytes": 16,
+   "notes": "Confirmed tx with no package."
+  },
+  "tx_opreturn_rbf.json": {
+   "url": "https://mempool.space/api/v1/tx/025cc8e573dc2b1ea5db8b66c8257a058e6eb8af82d83e0bdf8329e89909cd07/rbf",
+   "status": 200,
+   "seconds": 0.066769,
+   "trimmed": "",
+   "bytes": 37,
+   "notes": "No RBF history."
+  },
+  "tx_replacement_outspends_404.txt": {
+   "url": "https://mempool.space/api/tx/d31456f50785aea9ad8eef987b654f82a3fc50754d8cc05b66c3fb520c5d1365/outspends",
+   "status": 404,
+   "seconds": 0.067247,
+   "trimmed": "",
+   "bytes": 21,
+   "notes": "HTTP 404, plain text `Transaction not found`: the recorded mempool replacement had itself left the mempool by the time outspends was asked for. TX must draw without outspends."
+  },
+  "address_txs_chain.json": {
+   "url": "https://mempool.space/api/address/12cbQLTFMXRnSzktFkuoG3eHoMeFtpTu3S/txs/chain/0841452a3006f3380212cbcc750a7c617ef6e62af4c751c05f2d6bb72742ef24",
+   "status": 200,
+   "seconds": 0.223366,
+   "trimmed": "first 3 txs under 3.5 KB of the 25 returned",
+   "bytes": 7257,
+   "notes": "`/txs/chain/{last_seen_txid}`: the next page of confirmed history, older than the txid given. ADDR pages with it."
+  },
+  "mining_hashrate_1y.json": {
+   "url": "https://mempool.space/api/v1/mining/hashrate/1y",
+   "status": 200,
+   "seconds": 0.084217,
+   "trimmed": "",
+   "bytes": 24917,
+   "notes": "HASH's default window. Same shape as hashrate/3m: 365 daily `hashrates`, 26 `difficulty` rows, `currentHashrate`, `currentDifficulty`. Recorded later on 19 Sep 2026 than the rest, byte-for-byte as received."
   }
  }
 }

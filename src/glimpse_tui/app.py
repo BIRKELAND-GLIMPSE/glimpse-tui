@@ -1246,6 +1246,9 @@ class Terminal(App):
             return
         k, ch = e.key, e.character
         e.stop()
+        if getattr(self.shell, "demo", False):          # any key stops the tour, and is otherwise swallowed
+            self.shell.demo = False
+            return
         if self.shell.go_focus:                         # the GO bar owns every key until Enter or Esc
             self.shell.go_key(k, ch)
             self.paint()

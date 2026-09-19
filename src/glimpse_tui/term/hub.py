@@ -83,6 +83,13 @@ class Hub:
         self.projected_version = 0
         self.rbf_latest: list[dict[str, Any]] = []
         self.stream_commands: asyncio.Queue = asyncio.Queue()
+        # The Glimpse market's own forecast for hourly BTC, as (close time, median, band low, band high), nearest first.
+        # The shell wires this to the app's loaded closes; without the app (tests, scripts) it is empty.
+        self.forecast: Callable[[], list[tuple[float, float, float, float]]] = list
+        self.account: Callable[[], dict[str, Any]] = dict       # the Glimpse account as the app last loaded it, for WAL
+        # OMON's selection, handed to the heatmap as a box: (close index, lowest bin, highest bin). The order itself goes
+        # through the heatmap's bet slip, Confirm and estimate gate, unchanged.
+        self.handoff: Callable[[int, int, int], None] = lambda close, lo, hi: None
         self._tracking: dict[str, int] = {"block": 0, "rbf": 0}     # how many panes want each heavy subscription
         self._tasks: list[asyncio.Task] = []
         self._stopping = False

@@ -390,19 +390,23 @@ class Plot:
 
     def _time_axis(self, x_lo: float, x_hi: float, pw: int) -> Text:
         axis = [" "] * pw
+        marks: list[tuple[int, str, str]] = []                  # a rule's label (NOW) claims its place first
+        for x, colour, label in self.vlines:
+            c = round((x - x_lo) / (x_hi - x_lo) * (pw - 1)) if x_hi > x_lo else 0
+            if label and 0 <= c < pw and len(label) <= pw:
+                at = min(max(c - len(label) // 2, 0), pw - len(label))
+                axis[at:at + len(label)] = label
+                marks.append((at, label, colour))
         if self.times and x_hi > x_lo:
             span, n = x_hi - x_lo, max(pw // 22, 2)
             for i in range(n + 1):
                 label = time_label(x_lo + span * i / n, span)
-                at = min(max(round((pw - 1) * i / n) - (len(label) if i == n else len(label) // 2 if i else 0), 0), pw - len(label))
-                if all(ch == " " for ch in axis[max(at - 1, 0):at + len(label) + 1]):
+                at = min(max(round((pw - 1) * i / n) - (len(label) if i == n else len(label) // 2 if i else 0), 0), max(pw - len(label), 0))
+                if all(ch == " " for ch in axis[max(at - 2, 0):at + len(label) + 2]):
                     axis[at:at + len(label)] = label
-        out = Text("".join(axis), style=FAINT, no_wrap=True)
-        for x, colour, label in self.vlines:
-            c = round((x - x_lo) / (x_hi - x_lo) * (pw - 1)) if x_hi > x_lo else 0
-            if label and 0 <= c < pw:
-                at = min(max(c - len(label) // 2, 0), pw - len(label))
-                out = Text.assemble(out[:max(at - 1, 0)], " " if at else "", (label, f"bold {snap(colour)}"), " ", out[at + len(label) + 1:])
+        out = Text("".join(axis)[:pw], style=FAINT, no_wrap=True)
+        for at, label, colour in marks:
+            out.stylize(f"bold {snap(colour)}", at, at + len(label))
         return out
 
     def legend(self) -> Text:

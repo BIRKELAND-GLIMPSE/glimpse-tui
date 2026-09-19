@@ -146,7 +146,7 @@ async def test_every_function_has_a_help_page_and_a_category():
     for f in registry.every():
         assert f.category in registry.CATEGORIES and f.summary and len(f.help) > 80, f.code
         assert "—" not in f.help + f.summary, f"{f.code}: house style has no em-dashes"
-        assert f.make is not None or f.legacy or f.code in ("EXP",), f.code
+        assert f.make is not None or f.legacy or f.code in ("EXP", "DEMO"), f.code     # these two the shell runs itself
 
 
 async def test_set_repoints_a_backend_without_a_restart(make, no_network):

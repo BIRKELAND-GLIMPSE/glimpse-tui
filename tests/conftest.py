@@ -26,3 +26,5 @@ def no_network(tmp_path, monkeypatch):
     monkeypatch.setattr(hub.Hub, "streams_default", False, raising=False)
     yield rec
     http.use_transport(None)
+    from glimpse_tui import charts
+    charts.truecolor = True             # an app started by a test sets the module's palette; the next test starts clean

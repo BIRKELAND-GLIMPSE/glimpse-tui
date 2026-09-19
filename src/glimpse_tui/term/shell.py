@@ -30,15 +30,50 @@ class Shell:
     def __init__(self, app: Terminal) -> None:
         self.app = app
         self.hub = Hub()
+        self.hub.forecast = self._forecast
+        self.hub.account = self._account
+        self.hub.handoff = self._handoff
         self.line = gobar.Line()
         self.line.load_history()
         self.go_focus = False
+        self.demo = False                       # the DEMO tour is running; any key stops it
         self.chord = ""                         # "ctrl+w" while waiting for its second key
         self.started = False
         self.lp_name = ""
         self._back_to = "term"                  # the view the GO bar was opened from, for Esc
 
     # wiring ─────────────────────────────────────────────────
+
+    def _forecast(self) -> list[tuple[float, float, float, float]]:
+        """The Glimpse market's median and 80% band for each loaded close, when the app is on hourly BTC."""
+        app = self.app
+        if app.asset != "BTC" or not app.hourly:
+            return []
+        return [(float(v.row.end_time_utc), v.median, v.band[0], v.band[1]) for v in app.views]
+
+    def _handoff(self, close: int, lo_bin: int, hi_bin: int) -> None:
+        """OMON's strike becomes a box on the heatmap: one close, bins lo to hi. Nothing is ordered here. The user is
+        left on the heatmap with the selection made, where the bet slip, Confirm and the estimate gate work as always."""
+        app = self.app
+        if not app.views:
+            return
+        close = max(0, min(close, len(app.views) - 1))
+        top = len(app.views[close].bins) - 1
+        lo_bin, hi_bin = max(0, min(lo_bin, top)), max(0, min(hi_bin, top))
+        app.view, app.slip_focus = "heatmap", False
+        app.hm_anchor, app.hm_col, app.hm_bin = (close, lo_bin), close, hi_bin
+        # One bin a cell, so the box is exactly the strikes OMON showed, and no auto-fit moves the cursor off it.
+        app.hm_bpc, app.hm_fit_pending, app.hm_touched = 1, False, True
+        app.hm_gtop = (lo_bin + hi_bin) // 2 + app.hm_cells_v // 2
+        app.hm_left = close
+        app.load_candles()
+        app.say("OMON handed this range to the heatmap. tab opens the bet slip, b bets after the usual confirmation.", 8)
+        app.paint()
+
+    def _account(self) -> dict[str, object]:
+        app = self.app
+        return {"authenticated": app.api.authenticated, "key_mask": app.key_mask, "wallet": app.wallet, "summary": app.summary,
+                "positions": list(app.positions), "views": list(app.views), "asset": app.asset, "hourly": app.hourly}
 
     @property
     def ws(self) -> Workspace:
@@ -60,7 +95,16 @@ class Shell:
         await self.hub.stop()
 
     def tick(self) -> None:
-        """Once a second from the app: reload any pane whose data is due. Rendering never waits for these."""
+        """Once a second from the app: check the alerts, then reload any pane whose data is due. Rendering never waits."""
+        if self.started:
+            try:
+                from ..funcs.toolbox import engine
+                fired = engine().evaluate(self.hub)     # cached state only: no request is ever made for an alert
+            except ImportError:
+                fired = []
+            for msg in fired:
+                self.app.say(msg, 10)
+                self.app.bell()
         if self.app.view != "term":
             return
         now = time.time()

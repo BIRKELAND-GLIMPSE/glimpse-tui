@@ -106,8 +106,9 @@ async def poll_chain_once(hub: Hub) -> None:
         c.mempool_count, c.mempool_vsize = int(info.get("count", 0)), float(info.get("vsize", 0))
         c.mempool_blocks, _ = await mp.mempool_blocks()
         blocks, _ = await mp.blocks()
+        had = bool(c.height)                            # the first poll fills the tip; only later ones can find a new block
         for b in reversed(blocks):
-            apply_block(hub, b, fresh=bool(c.height))
+            apply_block(hub, b, fresh=had)
         c.difficulty, _ = await mp.difficulty_adjustment()
         c.prov = prov
     except SourceError:

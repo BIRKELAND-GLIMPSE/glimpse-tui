@@ -93,7 +93,9 @@ class Mempool(Source):
     async def outspends(self, txid: str): return await self._j(f"/api/tx/{txid}/outspends", 60)
     async def cpfp(self, txid: str): return await self._j(f"/api/v1/cpfp/{txid}", 30)
     async def rbf(self, txid: str): return await self._j(f"/api/v1/tx/{txid}/rbf", 30)
-    async def tx_times(self, txids: list[str]): return await self._j("/api/v1/transaction-times", 300, params={"txId[]": txids})
+    async def tx_times(self, txids: list[str]):         # literal brackets: the API does not read the percent-encoded form
+        return await self._j("/api/v1/transaction-times?" + "&".join(f"txId[]={t}" for t in txids), 300)
+
     async def address(self, a: str): return await self._j(f"/api/address/{a}", 30)
     async def address_txs(self, a: str): return await self._j(f"/api/address/{a}/txs", 30)
     async def address_utxo(self, a: str): return await self._j(f"/api/address/{a}/utxo", 30)

@@ -23,6 +23,12 @@ EXTRA: dict[tuple[str, str], str] = {
     ("api.exchange.coinbase.com", "/products/ETH-USD/stats"): "coinbase/stats.json",
     ("www.bitstamp.net", "/api/v2/ticker/btcusd/"): "bitstamp/ticker_btcusd.json",
     ("api.kraken.com", "/0/public/OHLC"): "kraken/ohlc_xbtusd_1440.json",
+    ("api.exchange.coinbase.com", "/products/PAXG-USD/candles"): "coinbase/candles_paxgusd_1d.json",
+    ("www.deribit.com", "/api/v2/public/get_volatility_index_data"): "deribit/dvol_btc_1d.json",
+    ("www.deribit.com", "/api/v2/public/get_book_summary_by_currency"): "deribit/book_summary_btc_option.json",
+    ("www.deribit.com", "/api/v2/public/get_index_price"): "deribit/index_price_btc_usd.json",
+    ("www.deribit.com", "/api/v2/public/get_instruments"): "deribit/instruments_btc_option.json",
+    ("api.alternative.me", "/fng/"): "alternative_me/fng_limit30.json",
     ("www.ecb.europa.eu", "/stats/eurofxref/eurofxref-daily.xml"): "ecb/eurofxref-daily.xml",
     ("www.ecb.europa.eu", "/stats/eurofxref/eurofxref-hist-90d.xml"): "ecb/eurofxref-hist-90d.xml",
 }
@@ -81,7 +87,8 @@ class Recorded:
         if q.get("field_tdr_date_value_month"):
             f = ROOT / "treasury" / f"{kind}_202609.xml"
         else:
-            f = ROOT / "treasury" / f"{kind}_2026.xml"
+            f = ROOT / "treasury" / f"{kind}_{q.get('field_tdr_date_value', '2026')}.xml"      # 2025 for the curve a year ago
+            f = f if f.is_file() else ROOT / "treasury" / f"{kind}_2026.xml"
         return f if f.is_file() else None
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
@@ -92,7 +99,7 @@ class Recorded:
             return httpx.Response(503, text="down for the test")
         if u.netloc in self.limited:
             return httpx.Response(429, headers={"retry-after": "120"}, text="slow down")
-        f = self.by_url.get(url)
+        f = self.by_url.get(url) or self.by_url.get(url.replace("%2C", ","))     # httpx encodes the commas of a bulk request
         if u.netloc == "api.kraken.com" and u.path == "/0/public/Ticker":
             # One request names many pairs. Answer with the recorded rows for the pairs asked for, from whichever
             # recorded Ticker response holds each one. Values are untouched.
@@ -112,6 +119,10 @@ class Recorded:
             f = self._treasury(u)
         if f is None:
             f = self.by_path.get((u.netloc, u.path))
+        if f is None and u.netloc == "mempool.space" and u.path.startswith("/api/address/"):
+            # Any address answers with the one recorded address: enough to drive a gap-limit scan offline.
+            tail = u.path.rsplit("/", 1)[-1]
+            f = ROOT / "mempool" / {"txs": "address_txs.json", "utxo": "address_utxo.json"}.get(tail, "address.json")
         if f is None:
             self.missing.append(url)
             return httpx.Response(599, text=f"no fixture for {url}")

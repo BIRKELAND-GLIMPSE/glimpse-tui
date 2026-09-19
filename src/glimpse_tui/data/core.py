@@ -259,8 +259,9 @@ class Source:
                     wait = _retry_after(r, 30.0 * (attempt + 1))
                     self.health.paused_until = time.time() + wait
                     raise SourceError(f"{self.name}: rate limited, resting {int(wait)}s")
-                if r.status_code < 500:
-                    raise SourceError(last)             # 4xx: asking again will not help
+                if r.status_code < 500:                 # 4xx: asking again will not help. A short plain-text reason is worth showing.
+                    why = r.text.strip()[:80] if "html" not in r.headers.get("content-type", "") and len(r.text) < 300 else ""
+                    raise SourceError(f"{last} {why}".strip())
             if attempt < self.retries:
                 await asyncio.sleep(min(0.5 * 2 ** attempt, 8.0) * (0.5 + random.random()))
         raise SourceError(last)

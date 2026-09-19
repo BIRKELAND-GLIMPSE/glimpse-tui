@@ -38,9 +38,23 @@ def join(parts: Sequence[Text], sep: str = "   ") -> Text:
     return Text(sep, no_wrap=True).join(list(parts))
 
 
+def fit(parts: Sequence[Text | tuple[str, str] | str], width: int) -> Text:
+    """As many whole parts as fit in `width`, in order. A narrow pane loses the least important words, never half a word."""
+    out = Text(no_wrap=True, overflow="crop")
+    for p in parts:
+        piece = p if isinstance(p, Text) else Text(p[0], style=p[1]) if isinstance(p, tuple) else Text(p)
+        if out.cell_len + piece.cell_len > width:
+            break
+        out.append_text(piece)
+    return out
+
+
 def section(title: str, width: int, right: str = "") -> Text:
     """`FEES ───────────── sat/vB`: a section head with a thin rule."""
     out = Text(no_wrap=True, overflow="crop")
+    title = title[:max(width - 1, 1)]
+    if len(title) + len(right) + 4 > width:
+        right = ""                                      # a narrow pane keeps the title and drops the aside
     out.append(title + " ", style=f"bold {ORANGE}")
     out.append("─" * max(width - len(title) - 1 - (len(right) + 1 if right else 0), 0), style=RULE)
     if right:
