@@ -114,10 +114,8 @@ class Hub:
             if key in self.sources and b.get(key):
                 self.sources[key].point_at(b[key])
                 self.sources[key].name = self.sources[key].host
-        if ua := self.cfg.get("sec_user_agent", ""):
-            if "sec" in self.sources:
-                for s in (self.sources[k] for k in ("sec", "sec_www", "sec_efts") if k in self.sources):
-                    s.user_agent = ua
+        for s in (self.sources[k] for k in ("sec", "sec_www", "sec_efts") if k in self.sources):
+            s.user_agent = self.cfg.get("sec_user_agent", "") or ""        # clearing the setting clears it: nothing goes to the SEC
 
     def bitcoin_order(self) -> list[str]:
         return [k for k in self.cfg.get("bitcoin", {}).get("order", ["mempool", "bitview", "esplora"]) if k in self.sources]

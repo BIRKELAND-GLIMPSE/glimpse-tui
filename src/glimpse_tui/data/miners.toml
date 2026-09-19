@@ -15,8 +15,15 @@
 #                  Every filer_type below is an expectation to confirm from the
 #                  `form` values in the company's submissions JSON.
 #   xbrl_element   "" until a real companyfacts file has been searched. Never guess one.
+#   xbrl_element   as in treasuries.toml: MINR discovers the element at run time (PLAN D38); a value
+#                  here pins it.
 #   hashrate       self-reported, from monthly production updates (8-K / 6-K / press
-#                  release). No open feed exists. Manual until one does.
+#                  release). No open feed exists. Manual until one does. A company with no
+#                  sourced figure has no hashrate fields at all, and MINR shows a dash. To add one:
+#                    hashrate_eh = 0.0        energised hashrate in EH/s, as the company stated it
+#                    hashrate_as_of = ""      the date the update covers, YYYY-MM-DD
+#                    hashrate_url = ""        the 8-K, 6-K or press release it was read from
+#                  All three or none. A number without a source you fetched stays out.
 
 [[company]]
 name = "MARA Holdings"

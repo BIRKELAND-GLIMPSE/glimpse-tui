@@ -8,7 +8,9 @@
 # issuer_file verdicts (unclear is treated as not permitted):
 #   "forbidden"  the issuer's site terms forbid automated access or redistribution
 #   "unclear"    the terms could not be fetched or say nothing clear
-# No issuer was cleared. The ETF pane must use Pyth prices and SEC filings only.
+# No issuer was cleared. The ETF pane uses open quotes where one exists (Pyth needs a key since
+# PLAN D36, so mostly none) and SEC filings only. Holdings are discovered in each trust's own
+# company-facts file at run time (PLAN D38), never from an issuer's site.
 # Names and issuers of entries marked "unverified" are from general knowledge.
 
 [[etf]]

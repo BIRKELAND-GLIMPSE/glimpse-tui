@@ -1,0 +1,28 @@
+{
+ "_synthetic": "hand-built from the SEC's published API documentation on 2026-09-19; not a recorded response; values are illustrative",
+ "0": {
+  "cik_str": 1050446,
+  "ticker": "MSTR",
+  "title": "Strategy Inc"
+ },
+ "1": {
+  "cik_str": 1507605,
+  "ticker": "MARA",
+  "title": "MARA Holdings, Inc."
+ },
+ "2": {
+  "cik_str": 1167419,
+  "ticker": "RIOT",
+  "title": "Riot Platforms, Inc."
+ },
+ "3": {
+  "cik_str": 1763415,
+  "ticker": "BITB",
+  "title": "Bitwise Bitcoin ETF"
+ },
+ "4": {
+  "cik_str": 9999999,
+  "ticker": "ZZZT",
+  "title": "Synthetic Test Filer Inc"
+ }
+}

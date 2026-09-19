@@ -300,7 +300,9 @@ class Shell:
         elif k == "shift+tab":
             ws.cycle(-1)
         elif k == "escape":
-            if ws.zoomed:
+            if ws.pane and ws.pane.on_key_(k, ch):
+                pass                                    # the page had something to leave: a filing, a receive panel
+            elif ws.zoomed:
                 ws.zoomed = False
                 ws.relayout()
         elif ch and ch.isdigit() and ch != "0" and ws.pane and (menu := ws.pane.menu()):

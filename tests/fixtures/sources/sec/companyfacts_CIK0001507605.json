@@ -1,0 +1,62 @@
+{
+ "_synthetic": "hand-built from the SEC's published API documentation on 2026-09-19; not a recorded response; values are illustrative",
+ "cik": 1507605,
+ "entityName": "MARA Holdings, Inc.",
+ "facts": {
+  "dei": {
+   "EntityCommonStockSharesOutstanding": {
+    "label": "Entity Common Stock, Shares Outstanding",
+    "description": "Entity Common Stock, Shares Outstanding",
+    "units": {
+     "shares": [
+      {
+       "end": "2026-08-01",
+       "val": 350000000,
+       "accn": "0001507605-26-000051",
+       "fy": 2026,
+       "fp": "Q2",
+       "form": "10-Q",
+       "filed": "2026-08-06"
+      }
+     ]
+    }
+   }
+  },
+  "us-gaap": {
+   "CryptoAssetNumberOfUnits": {
+    "label": "Crypto Asset, Number of Units",
+    "description": "Crypto Asset, Number of Units",
+    "units": {
+     "BTC": [
+      {
+       "end": "2026-06-30",
+       "val": 50000,
+       "accn": "0001507605-26-000051",
+       "fy": 2026,
+       "fp": "Q2",
+       "form": "10-Q",
+       "filed": "2026-08-06"
+      }
+     ]
+    }
+   },
+   "CryptoAssetFairValueNoncurrent": {
+    "label": "Crypto Asset, Fair Value, Noncurrent",
+    "description": "Crypto Asset, Fair Value, Noncurrent",
+    "units": {
+     "USD": [
+      {
+       "end": "2026-06-30",
+       "val": 5300000000,
+       "accn": "0001507605-26-000051",
+       "fy": 2026,
+       "fp": "Q2",
+       "form": "10-Q",
+       "filed": "2026-08-06"
+      }
+     ]
+    }
+   }
+  }
+ }
+}

@@ -1,0 +1,47 @@
+{
+ "recorded": "never: see note",
+ "note": "SYNTHETIC. Every file here except error_403_www.html is hand-built from the SEC's published API documentation on 2026-09-19; not a recorded response; values are illustrative (PLAN D38). error_403_www.html is the real refusal recorded in Phase 0 on 2026-09-19, byte for byte. Record real responses once sec_user_agent is set, and replace these.",
+ "files": {
+  "company_tickers.json": {
+   "url": "https://www.sec.gov/files/company_tickers.json",
+   "status": 200,
+   "synthetic": true
+  },
+  "submissions_CIK0001050446.json": {
+   "url": "https://data.sec.gov/submissions/CIK0001050446.json",
+   "status": 200,
+   "synthetic": true
+  },
+  "submissions_CIK0001507605.json": {
+   "url": "https://data.sec.gov/submissions/CIK0001507605.json",
+   "status": 200,
+   "synthetic": true
+  },
+  "companyfacts_CIK0001050446.json": {
+   "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001050446.json",
+   "status": 200,
+   "synthetic": true
+  },
+  "companyfacts_CIK0001507605.json": {
+   "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001507605.json",
+   "status": 200,
+   "synthetic": true
+  },
+  "search_index_bitcoin_8k.json": {
+   "url": "https://efts.sec.gov/LATEST/search-index",
+   "status": 200,
+   "synthetic": true
+  },
+  "doc_mstr_8k.htm": {
+   "url": "https://www.sec.gov/Archives/edgar/data/1050446/000105044626000091/mstr-20260914.htm",
+   "status": 200,
+   "synthetic": true
+  },
+  "error_403_www.html": {
+   "url": "https://www.sec.gov/files/company_tickers.json",
+   "status": 403,
+   "synthetic": false,
+   "notes": "Real. The generic Akamai refusal page the SEC sends to a User-Agent without a contact."
+  }
+ }
+}

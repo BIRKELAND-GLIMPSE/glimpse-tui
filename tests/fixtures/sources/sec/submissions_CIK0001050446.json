@@ -1,0 +1,83 @@
+{
+ "_synthetic": "hand-built from the SEC's published API documentation on 2026-09-19; not a recorded response; values are illustrative",
+ "cik": "1050446",
+ "entityType": "operating",
+ "sic": "7372",
+ "sicDescription": "Services-Prepackaged Software",
+ "name": "Strategy Inc",
+ "tickers": [
+  "MSTR"
+ ],
+ "exchanges": [
+  "Nasdaq"
+ ],
+ "fiscalYearEnd": "1231",
+ "filings": {
+  "recent": {
+   "accessionNumber": [
+    "0001050446-26-000091",
+    "0001050446-26-000080",
+    "0001050446-26-000079",
+    "0001050446-26-000055",
+    "0001050446-26-000041",
+    "0001050446-26-000030",
+    "0001050446-26-000012"
+   ],
+   "filingDate": [
+    "2026-09-15",
+    "2026-08-04",
+    "2026-08-04",
+    "2026-06-02",
+    "2026-05-05",
+    "2026-04-20",
+    "2026-02-18"
+   ],
+   "reportDate": [
+    "2026-09-14",
+    "2026-06-30",
+    "2026-08-04",
+    "2026-06-01",
+    "2026-03-31",
+    "2026-06-10",
+    "2025-12-31"
+   ],
+   "form": [
+    "8-K",
+    "10-Q",
+    "8-K",
+    "4",
+    "10-Q",
+    "DEF 14A",
+    "10-K"
+   ],
+   "primaryDocument": [
+    "mstr-20260914.htm",
+    "mstr-20260630.htm",
+    "mstr-20260804.htm",
+    "xslF345X05/form4.xml",
+    "mstr-20260331.htm",
+    "mstr-def14a.htm",
+    "mstr-20251231.htm"
+   ],
+   "primaryDocDescription": [
+    "8-K",
+    "10-Q",
+    "8-K",
+    "FORM 4",
+    "10-Q",
+    "DEF 14A",
+    "10-K"
+   ],
+   "items": [
+    "8.01,9.01",
+    "",
+    "2.02,9.01",
+    "",
+    "",
+    "",
+    ""
+   ]
+  },
+  "files": []
+ }
+}

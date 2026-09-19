@@ -1,0 +1,48 @@
+{
+ "_synthetic": "hand-built from the SEC's published API documentation on 2026-09-19; not a recorded response; values are illustrative",
+ "cik": "1507605",
+ "entityType": "operating",
+ "sic": "6199",
+ "sicDescription": "Finance Services",
+ "name": "MARA Holdings, Inc.",
+ "tickers": [
+  "MARA"
+ ],
+ "exchanges": [
+  "Nasdaq"
+ ],
+ "fiscalYearEnd": "1231",
+ "filings": {
+  "recent": {
+   "accessionNumber": [
+    "0001507605-26-000066",
+    "0001507605-26-000051"
+   ],
+   "filingDate": [
+    "2026-09-03",
+    "2026-08-06"
+   ],
+   "reportDate": [
+    "2026-09-02",
+    "2026-06-30"
+   ],
+   "form": [
+    "8-K",
+    "10-Q"
+   ],
+   "primaryDocument": [
+    "mara-20260902.htm",
+    "mara-20260630.htm"
+   ],
+   "primaryDocDescription": [
+    "8-K",
+    "10-Q"
+   ],
+   "items": [
+    "7.01,9.01",
+    ""
+   ]
+  },
+  "files": []
+ }
+}

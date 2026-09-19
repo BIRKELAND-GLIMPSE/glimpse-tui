@@ -1,0 +1,43 @@
+{
+ "_synthetic": "hand-built from the SEC's published API documentation on 2026-09-19; not a recorded response; values are illustrative",
+ "took": 12,
+ "timed_out": false,
+ "hits": {
+  "total": {
+   "value": 2,
+   "relation": "eq"
+  },
+  "hits": [
+   {
+    "_index": "edgar_file",
+    "_id": "0001050446-26-000091:mstr-20260914.htm",
+    "_source": {
+     "ciks": [
+      "0001050446"
+     ],
+     "display_names": [
+      "Strategy Inc  (MSTR)  (CIK 0001050446)"
+     ],
+     "file_date": "2026-09-15",
+     "form": "8-K",
+     "adsh": "0001050446-26-000091"
+    }
+   },
+   {
+    "_index": "edgar_file",
+    "_id": "0001507605-26-000066:mara-20260902.htm",
+    "_source": {
+     "ciks": [
+      "0001507605"
+     ],
+     "display_names": [
+      "MARA Holdings, Inc.  (MARA)  (CIK 0001507605)"
+     ],
+     "file_date": "2026-09-03",
+     "form": "8-K",
+     "adsh": "0001507605-26-000066"
+    }
+   }
+  ]
+ }
+}

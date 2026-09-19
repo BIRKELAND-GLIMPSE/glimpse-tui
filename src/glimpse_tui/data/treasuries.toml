@@ -13,6 +13,11 @@
 #   holdings       "xbrl"   = read from SEC company facts (quarter-end values, so they lag)
 #                  "manual" = the btc / as_of / source_url fields below
 #   xbrl_element   "" until a real companyfacts file has been searched. Never guess one.
+#                  TRSY does not need it: data/sec.py searches each company's own facts file at
+#                  run time for crypto concepts and shows the element it found beside the number
+#                  (PLAN D38). A value here ("taxonomy:Concept", read from a live file) pins the
+#                  unit-count element for that company and overrides the search.
+#   short          optional. The name TRSY shows when the full one is too long for its column.
 #   btc = 0 with note = "unverified" means no official figure was fetched.
 #
 # Tickers and names of the entries marked "unverified" are from general knowledge
@@ -20,6 +25,7 @@
 
 [[company]]
 name = "Strategy Inc (formerly MicroStrategy)"
+short = "Strategy"
 ticker = "MSTR"
 cik = "0001050446"
 cik_status = "brief"
@@ -128,6 +134,7 @@ note = "unverified"
 
 [[company]]
 name = "Trump Media & Technology Group"
+short = "Trump Media"
 ticker = "DJT"
 cik = ""
 cik_status = "unverified"
@@ -161,6 +168,7 @@ note = "unverified"
 
 [[company]]
 name = "Capital B (formerly The Blockchain Group)"
+short = "Capital B"
 ticker = "ALCPB.PA"
 exchange = "Euronext Growth Paris"
 cik = ""
@@ -172,6 +180,7 @@ note = "unverified. Ticker code not confirmed."
 
 [[company]]
 name = "The Smarter Web Company"
+short = "Smarter Web"
 ticker = "SWC.L"
 exchange = "London"
 cik = ""

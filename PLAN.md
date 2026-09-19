@@ -244,8 +244,35 @@ small ticket, which also settles F11.
 
 ## 6d. The Bitcoin terminal (TERMINAL.md, branch `terminal`, started 2026-09-19)
 
-<!-- SUMMARY: written last, when the session stops. A fresh session starts here. -->
-SUMMARY_PLACEHOLDER
+### Summary (written 2026-09-19, when the first build session stopped). A fresh session starts here.
+
+**State.** Branch `terminal`, eight local commits on top of `8ca2b18` (Phases 0, 1, 2, 3, 4, 6, 7, then 5: the companies family
+finished last). Nothing is pushed. `uv run pytest`: 650 passed (435 before). `uv run ruff check .`: clean. No test touches the network.
+66 functions are registered. `uv run glimpse-tui` opens the `BTC` launchpad; `uv run glimpse-tui --markets` opens the old first screen.
+
+**What works.** The shell (GO bar with grammar, autocomplete and history; nine tiled panes; six launchpads; status bar, tape, clocks;
+`HELP`, `FIND`, `SRC`, `SET`, `EXP`), every Bitcoin function except `NODE`, every on-chain, markets, Glimpse, wallet and tools function,
+and the companies functions on synthetic data. Every key and screen that existed before still works and is tested (D31 to D33).
+Order and wallet code keeps every confirmation: Glimpse orders are untouched, `OMON` only hands a box to the heatmap, and a barkd send
+needs the fee shown, the amount typed back and a final yes.
+
+**Verified live on 2026-09-19.** Every source in SOURCES.md. The hub: the mempool WebSocket (fees, tip, projected blocks, the next
+block's transactions), the BTC composite from three exchanges, Kraken FX, FRED, the ECB, the computed dollar index, gold through its
+labelled proxy. The `BTC` launchpad at 132×36: `GP BTC` drawing live candles into the real Glimpse forecast, `MEMP` drawing every
+transaction of the next block, `ONCH` from Bitview, `TOP` showing blocks as mined.
+
+**Not verified live.** Anything SEC (blocked on a contact email, D38). barkd (no daemon on this machine: nothing was sent or received on
+signet, and no real funds were moved). Electrum and Core RPC against a real server. The pages agents built (`BLK`, `TX`, `ADDR`, `RBF`,
+mining, markets, on-chain beyond `ONCH`) were driven in the app on recorded data and have not been looked at live by a person. The
+authenticated Glimpse paths remain as section 8 left them.
+
+**What is left.** `NODE` (no source). Electrum and Core RPC wired into `bitcoin.order`. An optional keyed Pyth client. barkd on signet,
+its notifications on the status line. `ASK` through Jev with a TypeSafe key. `heatmap.py` and `botsview.chart()` moved onto `charts.py`.
+Tiling today's screens into launchpads. Real SEC fixtures. A look at every page at 200×58 and in the 256-colour palette by eye.
+The checklist below has each item with its reason.
+
+**Open questions.** Ten, listed below. The three that unblock the most: the SEC contact (1), whether a Pyth key is acceptable (2), and
+the gold stock constant, which was written from memory and needs confirming (10).
 
 ### Baseline (2026-09-19, commit `8ca2b18`)
 
@@ -402,8 +429,20 @@ command that opens it.
   which answered live but is not in SOURCES.md's series table. The release calendar needs a FRED key and is not shown.
 
 **Phase 5: companies** (section 9)
-- [ ] Client: `data/sec.py` (tickers, submissions, company facts, full-text search, documents as clean text)
-- [ ] `DES <ticker>` · [ ] `FA <ticker>` · [ ] `CF <ticker>` with the in-pane reader · [ ] `CFS <words>` · [ ] `TRSY` · [ ] `MINR` · [ ] `ETF` · [ ] `N [ticker]` · [ ] `TOP`
+All of Phase 5 is `[~]`: built and tested on hand-built fixtures in the SEC's documented shapes (each marked `_synthetic`), never run against
+the live SEC (D38). It sends nothing to the SEC until `sec_user_agent` is set, and a 403 is reported and not retried.
+- [~] Client: `data/sec.py` (tickers, submissions, company facts, full-text search, documents as clean text, statements with Q4 and
+      year-to-date cash flows de-cumulated, crypto holdings discovered at run time, one 5 requests a second budget across the three hosts)
+- [~] `DES <ticker>` (a bare equity ticker opens it) · [~] `FA <ticker>` (`a` annual, `q` quarterly, `s` statement) · [~] `CF <ticker>` with the
+      in-pane reader (`f` form filter, enter reads, backspace or esc returns) · [~] `CFS <words> [form:8-K] [since:2026-01-01]`
+- [~] `TRSY` · [~] `MINR` · [~] `ETF` (no issuer permits reading its holdings file, so no flows) · [~] `N [ticker]` (filings only: the Jev news hub
+      is not in this repository) · [x] `TOP` (blocks and alerts work today; filings join once the contact is set)
+- To verify live, James: `SET sec_user_agent <name> <email>`, then `MSTR <GO>` and check BITCOIN HELD names the right XBRL element and unit
+  against the latest 10-Q; check shares outstanding (MSTR has two classes); `FA MSTR` `q` and a derived Q4; `CF MSTR` enter on a 10-K;
+  `CFS bitcoin treasury form:8-K`; `TRSY` for tickers missing from company_tickers.json (XXI, XYZ, SMLR). Then record real fixtures with the
+  contact passed through an environment variable, and replace the synthetic ones.
+- Known: in `FA`, `q` means quarterly and so does not quit while that pane is focused. Most equities have no open quote without a key, so
+  price, market cap and mNAV show a dash and the reason, or a labelled Kraken xStocks proxy (MSTR via MSTRx).
 
 **Phase 6: wallet and Glimpse depth** (sections 8 and 10)
 - [x] `WAL`: the Glimpse account · barkd (`wallet/barkd.py`: balance, receive with QR, send with the fee first, the amount typed back, a final
