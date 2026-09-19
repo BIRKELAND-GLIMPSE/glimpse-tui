@@ -1,0 +1,465 @@
+{
+ "recorded": "2026-09-19",
+ "user_agent": "glimpse-tui/0.1 (+https://github.com/BIRKELAND-GLIMPSE/glimpse-tui)",
+ "note": "Real responses. Values never altered. Trimmed files were re-serialised as compact JSON after cutting arrays; untrimmed files are byte-for-byte as received.",
+ "files": {
+  "fees_recommended.json": {
+   "url": "https://mempool.space/api/v1/fees/recommended",
+   "status": 200,
+   "seconds": 0.085646,
+   "trimmed": "",
+   "bytes": 74,
+   "notes": "Object of integers: `fastestFee, halfHourFee, hourFee, economyFee, minimumFee` (sat/vB)."
+  },
+  "fees_precise.json": {
+   "url": "https://mempool.space/api/v1/fees/precise",
+   "status": 200,
+   "seconds": 0.080053,
+   "trimmed": "",
+   "bytes": 89,
+   "notes": "Same keys, floats to 3 decimals. `minimumFee` was 0.1, so sub-1 sat/vB rates are live."
+  },
+  "fees_mempool_blocks.json": {
+   "url": "https://mempool.space/api/v1/fees/mempool-blocks",
+   "status": 200,
+   "seconds": 0.065697,
+   "trimmed": "",
+   "bytes": 2068,
+   "notes": "Array of 8 projected blocks: `blockSize, blockVSize, nTx, totalFees, medianFee, feeRange[7]`."
+  },
+  "mempool.json": {
+   "url": "https://mempool.space/api/mempool",
+   "status": 200,
+   "seconds": 0.060835,
+   "trimmed": "",
+   "bytes": 4276,
+   "notes": "`count, vsize, total_fee, fee_histogram[[rate, vsize], ...]`."
+  },
+  "prices.json": {
+   "url": "https://mempool.space/api/v1/prices",
+   "status": 200,
+   "seconds": 0.07106,
+   "trimmed": "",
+   "bytes": 108,
+   "notes": "`time` plus USD, EUR, GBP, CAD, CHF, AUD, JPY as integers."
+  },
+  "difficulty_adjustment.json": {
+   "url": "https://mempool.space/api/v1/difficulty-adjustment",
+   "status": 200,
+   "seconds": 0.580711,
+   "trimmed": "",
+   "bytes": 347,
+   "notes": "`progressPercent, difficultyChange, estimatedRetargetDate` (ms), `remainingBlocks, remainingTime` (ms), `previousRetarget, previousTime` (s), `nextRetargetHeight, timeAvg` (ms), `adjustedTimeAvg, timeOffset, expectedBlocks`."
+  },
+  "block.json": {
+   "url": "https://mempool.space/api/v1/block/00000000000000000000d7decd57c4221866464aef04799a82be9d4d032d056d",
+   "status": 200,
+   "seconds": 0.060147,
+   "trimmed": "",
+   "bytes": 2041,
+   "notes": "`/api/v1/block/{hash}`: Esplora block fields plus `stale` and `extras{reward, coinbaseRaw, coinbaseSignatureAscii, medianFee, feeRange[7], totalFees, avgFee, avgFeeRate, feePercentiles, virtualSize, totalInputs, totalOutputs, utxoSetChange, utxoSetSize, pool{id,name,slug,minerNames}, matchRate, expectedFees, expectedWeight, similarity, firstSeen, ...}`. `matchRate` is the audit health."
+  },
+  "mining_blocks_audit_scores.json": {
+   "url": "https://mempool.space/api/v1/mining/blocks/audit/scores",
+   "status": 200,
+   "seconds": 0.382192,
+   "trimmed": "",
+   "bytes": 2269,
+   "notes": "EXISTS. Array of 16 `{hash, matchRate, expectedFees, expectedWeight}` for the latest blocks. `/audit/scores/{height}` also answered 200 with the same shape."
+  },
+  "mining_blocks_audit_score.json": {
+   "url": "https://mempool.space/api/v1/mining/blocks/audit/score/00000000000000000000d7decd57c4221866464aef04799a82be9d4d032d056d",
+   "status": 200,
+   "seconds": 0.57372,
+   "trimmed": "",
+   "bytes": 139,
+   "notes": "EXISTS. `/api/v1/mining/blocks/audit/score/{hash}`, one object of the same shape."
+  },
+  "tx_opreturn.json": {
+   "url": "https://mempool.space/api/tx/025cc8e573dc2b1ea5db8b66c8257a058e6eb8af82d83e0bdf8329e89909cd07",
+   "status": 200,
+   "seconds": 0.069508,
+   "trimmed": "",
+   "bytes": 1573,
+   "notes": "Confirmed tx with an OP_RETURN output (`scriptpubkey_type: \"op_return\"`, payload decodes as ASCII). Has `sigops`."
+  },
+  "tx.json": {
+   "url": "https://mempool.space/api/tx/28efab4691b845fc17af88654a387de8ef6798227b6a654721788f4a9838381f",
+   "status": 200,
+   "seconds": 0.084426,
+   "trimmed": "",
+   "bytes": 2252,
+   "notes": "Confirmed tx, 1 input and 2 outputs."
+  },
+  "tx_outspends.json": {
+   "url": "https://mempool.space/api/tx/28efab4691b845fc17af88654a387de8ef6798227b6a654721788f4a9838381f/outspends",
+   "status": 200,
+   "seconds": 0.071032,
+   "trimmed": "",
+   "bytes": 503,
+   "notes": "Array per output: `{spent, txid, vin, status{...}}`, or `{spent:false}`."
+  },
+  "tx_status.json": {
+   "url": "https://mempool.space/api/tx/28efab4691b845fc17af88654a387de8ef6798227b6a654721788f4a9838381f/status",
+   "status": 200,
+   "seconds": 0.069909,
+   "trimmed": "",
+   "bytes": 144,
+   "notes": "`confirmed, block_height, block_hash, block_time`."
+  },
+  "cpfp.json": {
+   "url": "https://mempool.space/api/v1/cpfp/28efab4691b845fc17af88654a387de8ef6798227b6a654721788f4a9838381f",
+   "status": 200,
+   "seconds": 1.085104,
+   "trimmed": "",
+   "bytes": 16,
+   "notes": "Confirmed tx with no package: just `{\"ancestors\":[]}`."
+  },
+  "cpfp_mempool.json": {
+   "url": "https://mempool.space/api/v1/cpfp/d31456f50785aea9ad8eef987b654f82a3fc50754d8cc05b66c3fb520c5d1365",
+   "status": 200,
+   "seconds": 0.370194,
+   "trimmed": "",
+   "bytes": 561,
+   "notes": "Mempool tx: `ancestors[{txid,fee,weight}], bestDescendant, descendants[], effectiveFeePerVsize, sigops, fee, adjustedVsize, cluster{txs[{txid,fee,weight,parents[]}], chunks[{txs[],feerate}], chunkIndex}`."
+  },
+  "tx_rbf.json": {
+   "url": "https://mempool.space/api/v1/tx/d31456f50785aea9ad8eef987b654f82a3fc50754d8cc05b66c3fb520c5d1365/rbf",
+   "status": 200,
+   "seconds": 0.074476,
+   "trimmed": "",
+   "bytes": 578,
+   "notes": "`{replacements: <tree>, replaces: [txid,...]}`. A tree node is `{tx{txid,fee,vsize,value,rate,time,rbf,fullRbf?}, time, fullRbf, interval?, replaces:[<tree>...]}`."
+  },
+  "tx_rbf_confirmed_none.json": {
+   "url": "https://mempool.space/api/v1/tx/28efab4691b845fc17af88654a387de8ef6798227b6a654721788f4a9838381f/rbf",
+   "status": 200,
+   "seconds": 0.365064,
+   "trimmed": "",
+   "bytes": 37,
+   "notes": "A tx with no RBF history: `{\"replacements\":null,\"replaces\":null}`."
+  },
+  "transaction_times.json": {
+   "url": "https://mempool.space/api/v1/transaction-times?txId[]=28efab4691b845fc17af88654a387de8ef6798227b6a654721788f4a9838381f&txId[]=025cc8e573dc2b1ea5db8b66c8257a058e6eb8af82d83e0bdf8329e89909cd07",
+   "status": 200,
+   "seconds": 0.069145,
+   "trimmed": "",
+   "bytes": 5,
+   "notes": "Two confirmed txids return `[0,0]`. First-seen time is only known for transactions the node saw recently."
+  },
+  "transaction_times_mempool.json": {
+   "url": "https://mempool.space/api/v1/transaction-times?txId[]=d31456f50785aea9ad8eef987b654f82a3fc50754d8cc05b66c3fb520c5d1365",
+   "status": 200,
+   "seconds": 0.058361,
+   "trimmed": "",
+   "bytes": 12,
+   "notes": "A mempool txid returns `[1789844053]` (unix seconds). Query is `?txId[]=a&txId[]=b`."
+  },
+  "tx_replacement_mempool.json": {
+   "url": "https://mempool.space/api/tx/d31456f50785aea9ad8eef987b654f82a3fc50754d8cc05b66c3fb520c5d1365",
+   "status": 200,
+   "seconds": 0.069349,
+   "trimmed": "",
+   "bytes": 1118,
+   "notes": "An unconfirmed replacement tx: `status` is `{\"confirmed\":false}`."
+  },
+  "address.json": {
+   "url": "https://mempool.space/api/address/12cbQLTFMXRnSzktFkuoG3eHoMeFtpTu3S",
+   "status": 200,
+   "seconds": 0.069472,
+   "trimmed": "",
+   "bytes": 275,
+   "notes": "`address, chain_stats{funded_txo_count, funded_txo_sum, spent_txo_count, spent_txo_sum, tx_count}, mempool_stats{...}`. Balance is funded minus spent."
+  },
+  "address_txs_mempool.json": {
+   "url": "https://mempool.space/api/address/12cbQLTFMXRnSzktFkuoG3eHoMeFtpTu3S/txs/mempool",
+   "status": 200,
+   "seconds": 0.068618,
+   "trimmed": "",
+   "bytes": 2,
+   "notes": "Empty array for this address."
+  },
+  "mining_pools_1w.json": {
+   "url": "https://mempool.space/api/v1/mining/pools/1w",
+   "status": 200,
+   "seconds": 0.06279,
+   "trimmed": "",
+   "bytes": 3464,
+   "notes": "`pools[{poolId, name, link, blockCount, rank, emptyBlocks, slug, avgMatchRate, avgFeeDelta, poolUniqueId}], blockCount, lastEstimatedHashrate, lastEstimatedHashrate3d, lastEstimatedHashrate1w`. No share field: compute `blockCount / total`."
+  },
+  "mining_pool_foundryusa.json": {
+   "url": "https://mempool.space/api/v1/mining/pool/foundryusa",
+   "status": 200,
+   "seconds": 0.26977,
+   "trimmed": "",
+   "bytes": 606,
+   "notes": "`pool{id,name,link,addresses[],regexes[],slug,unique_id}, blockCount{all,24h,1w}, blockShare{all,24h,1w}, estimatedHashrate, reportedHashrate, avgBlockHealth, totalReward`."
+  },
+  "mining_hashrate_3m.json": {
+   "url": "https://mempool.space/api/v1/mining/hashrate/3m",
+   "status": 200,
+   "seconds": 0.064853,
+   "trimmed": "",
+   "bytes": 6405,
+   "notes": "`hashrates[{timestamp, avgHashrate}]` (daily, H/s), `difficulty[{time, height, difficulty, adjustment}], currentHashrate, currentDifficulty`."
+  },
+  "mining_difficulty_adjustments_1y.json": {
+   "url": "https://mempool.space/api/v1/mining/difficulty-adjustments/1y",
+   "status": 200,
+   "seconds": 0.063405,
+   "trimmed": "",
+   "bytes": 1211,
+   "notes": "Array of arrays `[time, height, difficulty, changeRatio]`. The last value is a ratio (1.04163 is +4.163%)."
+  },
+  "mining_hashrate_pools_1w.json": {
+   "url": "https://mempool.space/api/v1/mining/hashrate/pools/1w",
+   "status": 200,
+   "seconds": 0.063162,
+   "trimmed": "",
+   "bytes": 1699,
+   "notes": "Array of `{timestamp, avgHashrate, share, poolName}`."
+  },
+  "mining_reward_stats_144.json": {
+   "url": "https://mempool.space/api/v1/mining/reward-stats/144",
+   "status": 200,
+   "seconds": 0.069288,
+   "trimmed": "",
+   "bytes": 109,
+   "notes": "`startBlock, endBlock, totalReward, totalFee, totalTx`. The three totals are strings."
+  },
+  "lightning_statistics_latest.json": {
+   "url": "https://mempool.space/api/v1/lightning/statistics/latest",
+   "status": 200,
+   "seconds": 0.072249,
+   "trimmed": "",
+   "bytes": 359,
+   "notes": "`latest{id, added, channel_count, node_count, total_capacity, tor_nodes, clearnet_nodes, unannounced_nodes, avg_capacity, avg_fee_rate, avg_base_fee_mtokens, med_capacity, med_fee_rate, med_base_fee_mtokens, clearnet_tor_nodes}`. STALE: `added` was 2026-08-30, 20 days before the request."
+  },
+  "lightning_statistics_3m.json": {
+   "url": "https://mempool.space/api/v1/lightning/statistics/3m",
+   "status": 200,
+   "seconds": 0.067206,
+   "trimmed": "",
+   "bytes": 8966,
+   "notes": "Array, newest first, of `{added (unix), channel_count, total_capacity, tor_nodes, clearnet_nodes, unannounced_nodes, clearnet_tor_nodes}`. Newest point is also 2026-08-30."
+  },
+  "lightning_nodes_rankings.json": {
+   "url": "https://mempool.space/api/v1/lightning/nodes/rankings",
+   "status": 200,
+   "seconds": 0.066014,
+   "trimmed": "",
+   "bytes": 3952,
+   "notes": "`topByCapacity[{publicKey, alias, capacity}], topByChannels[{publicKey, alias, channels, city, country, iso_code, subdivision}]`."
+  },
+  "lightning_nodes_country_bare_500.json": {
+   "trimmed": "",
+   "bytes": 30,
+   "notes": "`/api/v1/lightning/nodes/country` with no code returns HTTP 500 `{\"error\":\"Failed to get node\"}`. The list is at `/nodes/countries`."
+  },
+  "historical_price.json": {
+   "url": "https://mempool.space/api/v1/historical-price?currency=USD&timestamp=1789776000",
+   "status": 200,
+   "seconds": 0.232819,
+   "trimmed": "",
+   "bytes": 146,
+   "notes": "`prices[{time, USD}], exchangeRates{USDEUR,...}`. Query: `?currency=USD&timestamp=<unix>`."
+  },
+  "blocks_tip_height.txt": {
+   "url": "https://mempool.space/api/blocks/tip/height",
+   "status": 200,
+   "seconds": 0.060365,
+   "trimmed": "",
+   "bytes": 6,
+   "notes": "Plain text integer."
+  },
+  "backend_info.json": {
+   "url": "https://mempool.space/api/v1/backend-info",
+   "status": 200,
+   "seconds": 1.114245,
+   "trimmed": "",
+   "bytes": 199,
+   "notes": "`hostname, version (3.4-dev), gitCommit, lightning, backend (esplora), coreVersion, osVersion`."
+  },
+  "address_utxo_too_many_400.txt": {
+   "trimmed": "",
+   "bytes": 77,
+   "notes": "HTTP 400, plain text: `Too many unspent transaction outputs (>500). Contact support to raise limits.` Seen for the genesis address. ADDR must handle it."
+  },
+  "blocks.json": {
+   "url": "https://mempool.space/api/v1/blocks",
+   "status": 200,
+   "seconds": 0.085965,
+   "trimmed": "first 3 of 15 blocks",
+   "bytes": 5684,
+   "notes": "`/api/v1/blocks` returns 15 blocks, newest first, same shape as one block."
+  },
+  "block_txs_0.json": {
+   "url": "https://mempool.space/api/block/00000000000000000000d7decd57c4221866464aef04799a82be9d4d032d056d/txs/0",
+   "status": 200,
+   "seconds": 0.082147,
+   "trimmed": "first 4 of 25 txs (coinbase first)",
+   "bytes": 8528,
+   "notes": "25 full Esplora transactions per page; `start` must be a multiple of 25."
+  },
+  "block_audit_summary.json": {
+   "url": "https://mempool.space/api/v1/block/00000000000000000000d7decd57c4221866464aef04799a82be9d4d032d056d/audit-summary",
+   "status": 200,
+   "seconds": 0.35539,
+   "trimmed": "template trimmed to 5 of 3844; every txid list trimmed to 3",
+   "bytes": 2059,
+   "notes": "EXISTS. `version, templateAlgorithm, height, id, timestamp, template[{txid,fee,vsize,value,rate,time,flags}], unseenTxs[], missingTxs[], addedTxs[], prioritizedTxs[], freshTxs[], sigopTxs[], fullrbfTxs[], acceleratedTxs[], matchRate, expectedFees, expectedWeight`. 721 KB untrimmed."
+  },
+  "replacements.json": {
+   "url": "https://mempool.space/api/v1/replacements",
+   "status": 200,
+   "seconds": 0.583159,
+   "trimmed": "first 3 of 25",
+   "bytes": 14209,
+   "notes": "Array of 25 replacement trees, same node shape as `tx_rbf.json`."
+  },
+  "fullrbf_replacements.json": {
+   "url": "https://mempool.space/api/v1/fullrbf/replacements",
+   "status": 200,
+   "seconds": 0.098344,
+   "trimmed": "first 3 of 25",
+   "bytes": 1665,
+   "notes": "Same shape, only trees with `fullRbf: true`."
+  },
+  "address_utxo.json": {
+   "url": "https://mempool.space/api/address/12cbQLTFMXRnSzktFkuoG3eHoMeFtpTu3S/utxo",
+   "status": 200,
+   "seconds": 0.07412,
+   "trimmed": "first 5 of 132",
+   "bytes": 1262,
+   "notes": "Array of `{txid, vout, status{...}, value}`."
+  },
+  "address_txs.json": {
+   "url": "https://mempool.space/api/address/12cbQLTFMXRnSzktFkuoG3eHoMeFtpTu3S/txs",
+   "status": 200,
+   "seconds": 1.085799,
+   "trimmed": "first 3 txs under 3.5 KB of the 50 returned (page was 4.5 MB)",
+   "bytes": 6682,
+   "notes": "This page held 50 confirmed transactions, newest first. Page on with `/txs/chain/{last_txid}`. The untrimmed page was 4.5 MB because of two very large transactions."
+  },
+  "mining_pool_foundryusa_blocks.json": {
+   "url": "https://mempool.space/api/v1/mining/pool/foundryusa/blocks",
+   "status": 200,
+   "seconds": 0.152058,
+   "trimmed": "first 2 blocks",
+   "bytes": 3594,
+   "notes": "Blocks in the `/api/v1/blocks` shape, with `extras.pool`."
+  },
+  "mining_pool_foundryusa_hashrate.json": {
+   "url": "https://mempool.space/api/v1/mining/pool/foundryusa/hashrate",
+   "status": 200,
+   "seconds": 0.089451,
+   "trimmed": "last 5 points",
+   "bytes": 515,
+   "notes": "Array of `{timestamp, avgHashrate, share, poolName}`, weekly points."
+  },
+  "mining_blocks_fee_rates_1w.json": {
+   "url": "https://mempool.space/api/v1/mining/blocks/fee-rates/1w",
+   "status": 200,
+   "seconds": 0.138834,
+   "trimmed": "last 5 points",
+   "bytes": 719,
+   "notes": "Array of `{avgHeight, timestamp, avgFee_0, avgFee_10, avgFee_25, avgFee_50, avgFee_75, avgFee_90, avgFee_100}`. Integers, so sub-1 sat/vB shows as 0."
+  },
+  "mining_blocks_rewards_1w.json": {
+   "url": "https://mempool.space/api/v1/mining/blocks/rewards/1w",
+   "status": 200,
+   "seconds": 0.091232,
+   "trimmed": "last 5 points",
+   "bytes": 397,
+   "notes": "EXISTS. Array of `{avgHeight, timestamp, avgRewards, USD}` (sats, and the USD price)."
+  },
+  "mining_blocks_fees_1w.json": {
+   "url": "https://mempool.space/api/v1/mining/blocks/fees/1w",
+   "status": 200,
+   "seconds": 0.100799,
+   "trimmed": "last 5 points",
+   "bytes": 372,
+   "notes": "EXISTS. Array of `{avgHeight, timestamp, avgFees, USD}`."
+  },
+  "lightning_nodes_countries.json": {
+   "url": "https://mempool.space/api/v1/lightning/nodes/countries",
+   "status": 200,
+   "seconds": 0.09114,
+   "trimmed": "first 5 countries",
+   "bytes": 1075,
+   "notes": "The country list: `[{name{en,de,...}, iso, count, share, capacity}]`. `capacity` is a string."
+  },
+  "lightning_nodes_country_us.json": {
+   "url": "https://mempool.space/api/v1/lightning/nodes/country/us",
+   "status": 200,
+   "seconds": 1.290553,
+   "trimmed": "nodes trimmed to first 3",
+   "bytes": 1948,
+   "notes": "`/api/v1/lightning/nodes/country/{iso}`: `country{...}, nodes[{public_key, capacity, channels, alias, first_seen, updated_at, city, country, iso_code, subdivision, longitude, latitude, as_number, isp}]`. 3 MB untrimmed."
+  },
+  "lightning_nodes_isp_ranking.json": {
+   "url": "https://mempool.space/api/v1/lightning/nodes/isp-ranking",
+   "status": 200,
+   "seconds": 0.074731,
+   "trimmed": "ispRanking trimmed to first 8",
+   "bytes": 466,
+   "notes": "`clearnetCapacity, torCapacity, unknownCapacity, ispRanking[[asn_csv, name, capacity, channels, nodes], ...]`."
+  },
+  "ws_init.json": {
+   "url": "wss://mempool.space/api/v1/ws",
+   "status": 101,
+   "trimmed": "reply to {action:init}; blocks trimmed to 2 of 8, transactions and rbfSummary to 3 of 6; mempool-blocks complete",
+   "bytes": 7943,
+   "notes": "Keys: `mempoolInfo, vBytesPerSecond, mempool-blocks, transactions, loadingIndicators, fees, rbfSummary, conversions, backend, blocks, backendInfo, da`."
+  },
+  "ws_want_reply.json": {
+   "url": "wss://mempool.space/api/v1/ws",
+   "status": 101,
+   "trimmed": "reply to {action:want,data:[blocks,mempool-blocks,stats]}; blocks trimmed to 2 of 8",
+   "bytes": 6548,
+   "notes": "Keys: `blocks, mempool-blocks, mempoolInfo, vBytesPerSecond, fees, da`."
+  },
+  "ws_stats_update.json": {
+   "url": "wss://mempool.space/api/v1/ws",
+   "status": 101,
+   "trimmed": "a periodic (about 1 per second) update; transactions trimmed to 3",
+   "bytes": 3359,
+   "notes": "Keys: `mempoolInfo, vBytesPerSecond, transactions, da, fees, mempool-blocks`. Arrives about once per second."
+  },
+  "ws_projected_block_full.json": {
+   "url": "wss://mempool.space/api/v1/ws",
+   "status": 101,
+   "trimmed": "reply to {track-mempool-block:0}; blockTransactions trimmed to first 6 of 4355",
+   "bytes": 802,
+   "notes": "`{\"projected-block-transactions\": {index, sequence, blockTransactions: [[txid, fee, vsize, value, rate, flags, time], ...]}}`. 508 KB untrimmed."
+  },
+  "ws_projected_block_delta.json": {
+   "url": "wss://mempool.space/api/v1/ws",
+   "status": 101,
+   "trimmed": "a periodic update carrying a delta; added/removed/changed trimmed to 3 each; transactions to 2",
+   "bytes": 4131,
+   "notes": "The periodic update with `projected-block-transactions: {index, sequence, delta{added[[7 fields]], removed[txid], changed[[txid, rate, flags, acc]]}}` added to it."
+  },
+  "ws_rbf_latest.json": {
+   "url": "wss://mempool.space/api/v1/ws",
+   "status": 101,
+   "trimmed": "reply to {track-rbf:all}; trimmed to 2 replacement trees",
+   "bytes": 7087,
+   "notes": "`{\"rbfLatest\": [<tree>, ...]}`, same tree shape as `/api/v1/replacements`. About 75 KB each untrimmed."
+  },
+  "ws_block.json": {
+   "url": "wss://mempool.space/api/v1/ws",
+   "status": 101,
+   "trimmed": "blockTransactions trimmed to first 6 of 4357",
+   "bytes": 5525,
+   "notes": "A new block (967,732). Keys: `block, mempoolInfo, vBytesPerSecond, fees, da, mempool-blocks, projected-block-transactions`. `block` (singular) is one block in the `/api/v1/blocks` shape with full `extras`. The same message resets the tracked projected block with a full `blockTransactions` list, not a delta. 511 KB untrimmed."
+  },
+  "ws_accelerations.json": {
+   "url": "wss://mempool.space/api/v1/ws",
+   "status": 101,
+   "trimmed": "",
+   "bytes": 110,
+   "notes": "Arrived unrequested, one second before the block. Safe to ignore."
+  }
+ }
+}

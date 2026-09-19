@@ -1,0 +1,79 @@
+{
+ "recorded": "2026-09-19",
+ "user_agent": "glimpse-tui/0.1 (+https://github.com/BIRKELAND-GLIMPSE/glimpse-tui)",
+ "note": "Real responses. Values never altered. Trimmed files were re-serialised as compact JSON after cutting arrays; untrimmed files are byte-for-byte as received.",
+ "files": {
+  "blocks_tip_height.txt": {
+   "url": "https://blockstream.info/api/blocks/tip/height",
+   "status": 200,
+   "seconds": 0.456996,
+   "trimmed": "",
+   "bytes": 6,
+   "notes": "Plain text integer."
+  },
+  "fee_estimates.json": {
+   "url": "https://blockstream.info/api/fee-estimates",
+   "status": 200,
+   "seconds": 0.261114,
+   "trimmed": "",
+   "bytes": 475,
+   "notes": "Object keyed by confirmation target (`\"1\"`..`\"25\"`, `\"144\"`, `\"504\"`, `\"1008\"`), values in sat/vB as floats."
+  },
+  "block.json": {
+   "url": "https://blockstream.info/api/block/00000000000000000000d7decd57c4221866464aef04799a82be9d4d032d056d",
+   "status": 200,
+   "seconds": 0.263578,
+   "trimmed": "",
+   "bytes": 441,
+   "notes": "`id, height, version, timestamp, tx_count, size, weight, merkle_root, previousblockhash, mediantime, nonce, bits, difficulty`. No `extras`."
+  },
+  "tx.json": {
+   "url": "https://blockstream.info/api/tx/025cc8e573dc2b1ea5db8b66c8257a058e6eb8af82d83e0bdf8329e89909cd07",
+   "status": 200,
+   "seconds": 0.262467,
+   "trimmed": "",
+   "bytes": 1562,
+   "notes": "Same as mempool.space `/api/tx` but without `sigops`."
+  },
+  "address.json": {
+   "url": "https://blockstream.info/api/address/12cbQLTFMXRnSzktFkuoG3eHoMeFtpTu3S",
+   "status": 200,
+   "seconds": 0.276135,
+   "trimmed": "",
+   "bytes": 275,
+   "notes": "Identical shape to mempool.space."
+  },
+  "mempool.json": {
+   "url": "https://blockstream.info/api/mempool",
+   "status": 200,
+   "seconds": 0.374715,
+   "trimmed": "",
+   "bytes": 6934,
+   "notes": "`count, vsize, total_fee, fee_histogram[[rate, vsize]]`."
+  },
+  "tx_outspends.json": {
+   "url": "https://blockstream.info/api/tx/025cc8e573dc2b1ea5db8b66c8257a058e6eb8af82d83e0bdf8329e89909cd07/outspends",
+   "status": 200,
+   "seconds": 0.255236,
+   "trimmed": "",
+   "bytes": 33,
+   "notes": "One entry per output: `{spent:false}` or `{spent:true, txid, vin, status}`."
+  },
+  "blocks.json": {
+   "url": "https://blockstream.info/api/blocks",
+   "status": 200,
+   "seconds": 0.260725,
+   "trimmed": "first 3 of 10",
+   "bytes": 1326,
+   "notes": "10 blocks, newest first."
+  },
+  "address_utxo.json": {
+   "url": "https://blockstream.info/api/address/12cbQLTFMXRnSzktFkuoG3eHoMeFtpTu3S/utxo",
+   "status": 200,
+   "seconds": 0.371256,
+   "trimmed": "first 5 of 132",
+   "bytes": 1261,
+   "notes": "Same shape as mempool.space."
+  }
+ }
+}

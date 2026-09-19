@@ -1,0 +1,70 @@
+[
+ {
+  "id": "e62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43",
+  "market_hours": {
+   "is_open": true,
+   "next_open": null,
+   "next_close": null
+  },
+  "attributes": {
+   "asset_type": "Crypto",
+   "description": "BITCOIN / US DOLLAR",
+   "display_symbol": "BTCUSD",
+   "quote_currency": "USD",
+   "schedule": "America/New_York;O,O,O,O,O,O,O;",
+   "symbol": "Crypto.BTC/USD",
+   "min_channel": "real_time"
+  }
+ },
+ {
+  "id": "ff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace",
+  "market_hours": {
+   "is_open": true,
+   "next_open": null,
+   "next_close": null
+  },
+  "attributes": {
+   "asset_type": "Crypto",
+   "description": "ETHEREUM / US DOLLAR",
+   "display_symbol": "ETHUSD",
+   "quote_currency": "USD",
+   "schedule": "America/New_York;O,O,O,O,O,O,O;",
+   "symbol": "Crypto.ETH/USD",
+   "min_channel": "real_time"
+  }
+ },
+ {
+  "id": "ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d",
+  "market_hours": {
+   "is_open": true,
+   "next_open": null,
+   "next_close": null
+  },
+  "attributes": {
+   "asset_type": "Crypto",
+   "description": "SOLANA / US DOLLAR",
+   "display_symbol": "SOLUSD",
+   "quote_currency": "USD",
+   "schedule": "America/New_York;O,O,O,O,O,O,O;",
+   "symbol": "Crypto.SOL/USD",
+   "min_channel": "real_time"
+  }
+ },
+ {
+  "id": "273717b49430906f4b0c230e99aa1007f83758e3199edbc887c0d06c3e332494",
+  "market_hours": {
+   "is_open": true,
+   "next_open": null,
+   "next_close": null
+  },
+  "attributes": {
+   "asset_type": "Crypto",
+   "description": "PAX GOLD / US DOLLAR",
+   "display_symbol": "PAXGUSD",
+   "quote_currency": "USD",
+   "schedule": "America/New_York;O,O,O,O,O,O,O;",
+   "symbol": "Crypto.PAXG/USD",
+   "min_channel": "fixed_rate@200ms"
+  }
+ }
+]

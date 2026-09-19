@@ -1,0 +1,123 @@
+# Public Bitcoin miners. DRAFT written on 2026-09-19 by the Phase 0 source check.
+#
+# STATUS: SEC EDGAR refused every request made during the check (HTTP 403), so no
+# CIK here was checked against www.sec.gov/files/company_tickers.json and no XBRL
+# element was confirmed. See SOURCES.md.
+#
+# Field rules:
+#   cik            ten digits, zero padded. "" means not yet looked up.
+#   cik_status     "brief" = supplied in the task brief, not confirmed against SEC.
+#                  "unverified" = not looked up.
+#   filer_type     "domestic" files 10-K / 10-Q / 8-K with us-gaap XBRL facts.
+#                  "foreign"  files 20-F or 40-F and 6-K. Such filers may report under
+#                  IFRS (facts under the `ifrs-full` taxonomy, not `us-gaap`), have no
+#                  quarterly XBRL, and put monthly updates in 6-K exhibits.
+#                  Every filer_type below is an expectation to confirm from the
+#                  `form` values in the company's submissions JSON.
+#   xbrl_element   "" until a real companyfacts file has been searched. Never guess one.
+#   hashrate       self-reported, from monthly production updates (8-K / 6-K / press
+#                  release). No open feed exists. Manual until one does.
+
+[[company]]
+name = "MARA Holdings"
+ticker = "MARA"
+cik = "0001507605"
+cik_status = "brief"
+filer_type = "domestic"
+holdings = "xbrl"
+xbrl_element = ""
+note = "unverified"
+
+[[company]]
+name = "Riot Platforms"
+ticker = "RIOT"
+cik = "0001167419"
+cik_status = "brief"
+filer_type = "domestic"
+holdings = "xbrl"
+xbrl_element = ""
+note = "unverified"
+
+[[company]]
+name = "CleanSpark"
+ticker = "CLSK"
+cik = "0000827876"
+cik_status = "brief"
+filer_type = "domestic"
+holdings = "xbrl"
+xbrl_element = ""
+note = "unverified"
+
+[[company]]
+name = "Core Scientific"
+ticker = "CORZ"
+cik = ""
+cik_status = "unverified"
+filer_type = "domestic"
+holdings = "xbrl"
+xbrl_element = ""
+note = "unverified"
+
+[[company]]
+name = "IREN"
+ticker = "IREN"
+cik = ""
+cik_status = "unverified"
+filer_type = "unknown"
+holdings = "xbrl"
+xbrl_element = ""
+note = "unverified. Australian company. Check whether it files 10-K/10-Q or 20-F/6-K today."
+
+[[company]]
+name = "Hut 8"
+ticker = "HUT"
+cik = ""
+cik_status = "unverified"
+filer_type = "unknown"
+holdings = "xbrl"
+xbrl_element = ""
+note = "unverified"
+
+[[company]]
+name = "Bitfarms"
+ticker = "BITF"
+cik = ""
+cik_status = "unverified"
+filer_type = "foreign"
+holdings = "manual"
+btc = 0
+as_of = ""
+source_url = ""
+note = "unverified. Expected to file 40-F / 6-K."
+
+[[company]]
+name = "Cipher Mining"
+ticker = "CIFR"
+cik = ""
+cik_status = "unverified"
+filer_type = "domestic"
+holdings = "xbrl"
+xbrl_element = ""
+note = "unverified"
+
+[[company]]
+name = "TeraWulf"
+ticker = "WULF"
+cik = ""
+cik_status = "unverified"
+filer_type = "domestic"
+holdings = "xbrl"
+xbrl_element = ""
+note = "unverified"
+
+[[company]]
+name = "Bitdeer Technologies"
+ticker = "BTDR"
+cik = ""
+cik_status = "unverified"
+filer_type = "foreign"
+holdings = "manual"
+btc = 0
+as_of = ""
+source_url = ""
+note = "unverified. Expected to file 20-F / 6-K."

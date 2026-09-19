@@ -1,0 +1,384 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<feed xml:base="https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml" xmlns:d="http://schemas.microsoft.com/ado/2007/08/dataservices" xmlns:m="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata" xmlns="http://www.w3.org/2005/Atom"> 
+<title type="text">DailyTreasuryYieldCurveRateData</title>
+<id>https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml-item?data=daily_treasury_yield_curve</id>
+  <updated>2026-09-19T02:01:31Z</updated>
+  <link rel="self" title="DailyTreasuryYieldCurveRateData" href="DailyTreasuryYieldCurveRateData"/>
+<entry>
+<id>https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml-item?data=daily_treasury_yield_curve&amp;id=307</id>
+<title type="text"></title>
+<updated>2026-09-19T02:01:31Z</updated>
+<author><name /></author>
+<link rel="edit" title="DailyTreasuryYieldCurveRateDatum" href="/resource-center/data-chart-center/interest-rates/pages/xml-item?data=daily_treasury_yield_curve&amp;id=307" />
+<category term="TreasuryDataWarehouseModel.DailyTreasuryYieldCurveRateDatum" scheme="http://schemas.microsoft.com/ado/2007/08/dataservices/scheme" />
+<content type="application/xml">
+<m:properties>
+<d:Id m:type="Edm.Int32">307</d:Id>
+<d:NEW_DATE m:type="Edm.DateTime">2026-09-01T00:00:00</d:NEW_DATE>
+<d:BC_1MONTH m:type="Edm.Double">3.85</d:BC_1MONTH>
+<d:BC_1_5MONTH m:type="Edm.Double">3.88</d:BC_1_5MONTH>
+<d:BC_2MONTH m:type="Edm.Double">3.89</d:BC_2MONTH>
+<d:BC_3MONTH m:type="Edm.Double">3.92</d:BC_3MONTH>
+<d:BC_4MONTH m:type="Edm.Double">3.97</d:BC_4MONTH>
+<d:BC_6MONTH m:type="Edm.Double">4.00</d:BC_6MONTH>
+<d:BC_1YEAR m:type="Edm.Double">4.18</d:BC_1YEAR>
+<d:BC_2YEAR m:type="Edm.Double">4.39</d:BC_2YEAR>
+<d:BC_3YEAR m:type="Edm.Double">4.46</d:BC_3YEAR>
+<d:BC_5YEAR m:type="Edm.Double">4.55</d:BC_5YEAR>
+<d:BC_7YEAR m:type="Edm.Double">4.66</d:BC_7YEAR>
+<d:BC_10YEAR m:type="Edm.Double">4.79</d:BC_10YEAR>
+<d:BC_20YEAR m:type="Edm.Double">5.27</d:BC_20YEAR>
+<d:BC_30YEAR m:type="Edm.Double">5.27</d:BC_30YEAR>
+<d:BC_30YEARDISPLAY m:type="Edm.Double">5.27</d:BC_30YEARDISPLAY>
+</m:properties>
+</content>
+</entry>
+<entry>
+<id>https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml-item?data=daily_treasury_yield_curve&amp;id=308</id>
+<title type="text"></title>
+<updated>2026-09-19T02:01:31Z</updated>
+<author><name /></author>
+<link rel="edit" title="DailyTreasuryYieldCurveRateDatum" href="/resource-center/data-chart-center/interest-rates/pages/xml-item?data=daily_treasury_yield_curve&amp;id=308" />
+<category term="TreasuryDataWarehouseModel.DailyTreasuryYieldCurveRateDatum" scheme="http://schemas.microsoft.com/ado/2007/08/dataservices/scheme" />
+<content type="application/xml">
+<m:properties>
+<d:Id m:type="Edm.Int32">308</d:Id>
+<d:NEW_DATE m:type="Edm.DateTime">2026-09-02T00:00:00</d:NEW_DATE>
+<d:BC_1MONTH m:type="Edm.Double">3.83</d:BC_1MONTH>
+<d:BC_1_5MONTH m:type="Edm.Double">3.87</d:BC_1_5MONTH>
+<d:BC_2MONTH m:type="Edm.Double">3.89</d:BC_2MONTH>
+<d:BC_3MONTH m:type="Edm.Double">3.92</d:BC_3MONTH>
+<d:BC_4MONTH m:type="Edm.Double">4.02</d:BC_4MONTH>
+<d:BC_6MONTH m:type="Edm.Double">4.00</d:BC_6MONTH>
+<d:BC_1YEAR m:type="Edm.Double">4.16</d:BC_1YEAR>
+<d:BC_2YEAR m:type="Edm.Double">4.39</d:BC_2YEAR>
+<d:BC_3YEAR m:type="Edm.Double">4.45</d:BC_3YEAR>
+<d:BC_5YEAR m:type="Edm.Double">4.54</d:BC_5YEAR>
+<d:BC_7YEAR m:type="Edm.Double">4.66</d:BC_7YEAR>
+<d:BC_10YEAR m:type="Edm.Double">4.79</d:BC_10YEAR>
+<d:BC_20YEAR m:type="Edm.Double">5.27</d:BC_20YEAR>
+<d:BC_30YEAR m:type="Edm.Double">5.27</d:BC_30YEAR>
+<d:BC_30YEARDISPLAY m:type="Edm.Double">5.27</d:BC_30YEARDISPLAY>
+</m:properties>
+</content>
+</entry>
+<entry>
+<id>https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml-item?data=daily_treasury_yield_curve&amp;id=309</id>
+<title type="text"></title>
+<updated>2026-09-19T02:01:31Z</updated>
+<author><name /></author>
+<link rel="edit" title="DailyTreasuryYieldCurveRateDatum" href="/resource-center/data-chart-center/interest-rates/pages/xml-item?data=daily_treasury_yield_curve&amp;id=309" />
+<category term="TreasuryDataWarehouseModel.DailyTreasuryYieldCurveRateDatum" scheme="http://schemas.microsoft.com/ado/2007/08/dataservices/scheme" />
+<content type="application/xml">
+<m:properties>
+<d:Id m:type="Edm.Int32">309</d:Id>
+<d:NEW_DATE m:type="Edm.DateTime">2026-09-03T00:00:00</d:NEW_DATE>
+<d:BC_1MONTH m:type="Edm.Double">3.83</d:BC_1MONTH>
+<d:BC_1_5MONTH m:type="Edm.Double">3.82</d:BC_1_5MONTH>
+<d:BC_2MONTH m:type="Edm.Double">3.91</d:BC_2MONTH>
+<d:BC_3MONTH m:type="Edm.Double">3.89</d:BC_3MONTH>
+<d:BC_4MONTH m:type="Edm.Double">3.99</d:BC_4MONTH>
+<d:BC_6MONTH m:type="Edm.Double">3.95</d:BC_6MONTH>
+<d:BC_1YEAR m:type="Edm.Double">4.11</d:BC_1YEAR>
+<d:BC_2YEAR m:type="Edm.Double">4.34</d:BC_2YEAR>
+<d:BC_3YEAR m:type="Edm.Double">4.41</d:BC_3YEAR>
+<d:BC_5YEAR m:type="Edm.Double">4.52</d:BC_5YEAR>
+<d:BC_7YEAR m:type="Edm.Double">4.63</d:BC_7YEAR>
+<d:BC_10YEAR m:type="Edm.Double">4.77</d:BC_10YEAR>
+<d:BC_20YEAR m:type="Edm.Double">5.25</d:BC_20YEAR>
+<d:BC_30YEAR m:type="Edm.Double">5.25</d:BC_30YEAR>
+<d:BC_30YEARDISPLAY m:type="Edm.Double">5.25</d:BC_30YEARDISPLAY>
+</m:properties>
+</content>
+</entry>
+<entry>
+<id>https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml-item?data=daily_treasury_yield_curve&amp;id=310</id>
+<title type="text"></title>
+<updated>2026-09-19T02:01:31Z</updated>
+<author><name /></author>
+<link rel="edit" title="DailyTreasuryYieldCurveRateDatum" href="/resource-center/data-chart-center/interest-rates/pages/xml-item?data=daily_treasury_yield_curve&amp;id=310" />
+<category term="TreasuryDataWarehouseModel.DailyTreasuryYieldCurveRateDatum" scheme="http://schemas.microsoft.com/ado/2007/08/dataservices/scheme" />
+<content type="application/xml">
+<m:properties>
+<d:Id m:type="Edm.Int32">310</d:Id>
+<d:NEW_DATE m:type="Edm.DateTime">2026-09-04T00:00:00</d:NEW_DATE>
+<d:BC_1MONTH m:type="Edm.Double">3.79</d:BC_1MONTH>
+<d:BC_1_5MONTH m:type="Edm.Double">3.83</d:BC_1_5MONTH>
+<d:BC_2MONTH m:type="Edm.Double">3.90</d:BC_2MONTH>
+<d:BC_3MONTH m:type="Edm.Double">3.91</d:BC_3MONTH>
+<d:BC_4MONTH m:type="Edm.Double">4.00</d:BC_4MONTH>
+<d:BC_6MONTH m:type="Edm.Double">3.98</d:BC_6MONTH>
+<d:BC_1YEAR m:type="Edm.Double">4.13</d:BC_1YEAR>
+<d:BC_2YEAR m:type="Edm.Double">4.37</d:BC_2YEAR>
+<d:BC_3YEAR m:type="Edm.Double">4.45</d:BC_3YEAR>
+<d:BC_5YEAR m:type="Edm.Double">4.54</d:BC_5YEAR>
+<d:BC_7YEAR m:type="Edm.Double">4.65</d:BC_7YEAR>
+<d:BC_10YEAR m:type="Edm.Double">4.78</d:BC_10YEAR>
+<d:BC_20YEAR m:type="Edm.Double">5.25</d:BC_20YEAR>
+<d:BC_30YEAR m:type="Edm.Double">5.24</d:BC_30YEAR>
+<d:BC_30YEARDISPLAY m:type="Edm.Double">5.24</d:BC_30YEARDISPLAY>
+</m:properties>
+</content>
+</entry>
+<entry>
+<id>https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml-item?data=daily_treasury_yield_curve&amp;id=311</id>
+<title type="text"></title>
+<updated>2026-09-19T02:01:31Z</updated>
+<author><name /></author>
+<link rel="edit" title="DailyTreasuryYieldCurveRateDatum" href="/resource-center/data-chart-center/interest-rates/pages/xml-item?data=daily_treasury_yield_curve&amp;id=311" />
+<category term="TreasuryDataWarehouseModel.DailyTreasuryYieldCurveRateDatum" scheme="http://schemas.microsoft.com/ado/2007/08/dataservices/scheme" />
+<content type="application/xml">
+<m:properties>
+<d:Id m:type="Edm.Int32">311</d:Id>
+<d:NEW_DATE m:type="Edm.DateTime">2026-09-08T00:00:00</d:NEW_DATE>
+<d:BC_1MONTH m:type="Edm.Double">3.81</d:BC_1MONTH>
+<d:BC_1_5MONTH m:type="Edm.Double">3.88</d:BC_1_5MONTH>
+<d:BC_2MONTH m:type="Edm.Double">3.91</d:BC_2MONTH>
+<d:BC_3MONTH m:type="Edm.Double">3.94</d:BC_3MONTH>
+<d:BC_4MONTH m:type="Edm.Double">4.02</d:BC_4MONTH>
+<d:BC_6MONTH m:type="Edm.Double">4.00</d:BC_6MONTH>
+<d:BC_1YEAR m:type="Edm.Double">4.15</d:BC_1YEAR>
+<d:BC_2YEAR m:type="Edm.Double">4.39</d:BC_2YEAR>
+<d:BC_3YEAR m:type="Edm.Double">4.44</d:BC_3YEAR>
+<d:BC_5YEAR m:type="Edm.Double">4.57</d:BC_5YEAR>
+<d:BC_7YEAR m:type="Edm.Double">4.68</d:BC_7YEAR>
+<d:BC_10YEAR m:type="Edm.Double">4.80</d:BC_10YEAR>
+<d:BC_20YEAR m:type="Edm.Double">5.26</d:BC_20YEAR>
+<d:BC_30YEAR m:type="Edm.Double">5.25</d:BC_30YEAR>
+<d:BC_30YEARDISPLAY m:type="Edm.Double">5.25</d:BC_30YEARDISPLAY>
+</m:properties>
+</content>
+</entry>
+<entry>
+<id>https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml-item?data=daily_treasury_yield_curve&amp;id=312</id>
+<title type="text"></title>
+<updated>2026-09-19T02:01:31Z</updated>
+<author><name /></author>
+<link rel="edit" title="DailyTreasuryYieldCurveRateDatum" href="/resource-center/data-chart-center/interest-rates/pages/xml-item?data=daily_treasury_yield_curve&amp;id=312" />
+<category term="TreasuryDataWarehouseModel.DailyTreasuryYieldCurveRateDatum" scheme="http://schemas.microsoft.com/ado/2007/08/dataservices/scheme" />
+<content type="application/xml">
+<m:properties>
+<d:Id m:type="Edm.Int32">312</d:Id>
+<d:NEW_DATE m:type="Edm.DateTime">2026-09-09T00:00:00</d:NEW_DATE>
+<d:BC_1MONTH m:type="Edm.Double">3.81</d:BC_1MONTH>
+<d:BC_1_5MONTH m:type="Edm.Double">3.88</d:BC_1_5MONTH>
+<d:BC_2MONTH m:type="Edm.Double">3.93</d:BC_2MONTH>
+<d:BC_3MONTH m:type="Edm.Double">3.95</d:BC_3MONTH>
+<d:BC_4MONTH m:type="Edm.Double">4.06</d:BC_4MONTH>
+<d:BC_6MONTH m:type="Edm.Double">4.01</d:BC_6MONTH>
+<d:BC_1YEAR m:type="Edm.Double">4.17</d:BC_1YEAR>
+<d:BC_2YEAR m:type="Edm.Double">4.43</d:BC_2YEAR>
+<d:BC_3YEAR m:type="Edm.Double">4.49</d:BC_3YEAR>
+<d:BC_5YEAR m:type="Edm.Double">4.61</d:BC_5YEAR>
+<d:BC_7YEAR m:type="Edm.Double">4.71</d:BC_7YEAR>
+<d:BC_10YEAR m:type="Edm.Double">4.83</d:BC_10YEAR>
+<d:BC_20YEAR m:type="Edm.Double">5.28</d:BC_20YEAR>
+<d:BC_30YEAR m:type="Edm.Double">5.28</d:BC_30YEAR>
+<d:BC_30YEARDISPLAY m:type="Edm.Double">5.28</d:BC_30YEARDISPLAY>
+</m:properties>
+</content>
+</entry>
+<entry>
+<id>https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml-item?data=daily_treasury_yield_curve&amp;id=313</id>
+<title type="text"></title>
+<updated>2026-09-19T02:01:31Z</updated>
+<author><name /></author>
+<link rel="edit" title="DailyTreasuryYieldCurveRateDatum" href="/resource-center/data-chart-center/interest-rates/pages/xml-item?data=daily_treasury_yield_curve&amp;id=313" />
+<category term="TreasuryDataWarehouseModel.DailyTreasuryYieldCurveRateDatum" scheme="http://schemas.microsoft.com/ado/2007/08/dataservices/scheme" />
+<content type="application/xml">
+<m:properties>
+<d:Id m:type="Edm.Int32">313</d:Id>
+<d:NEW_DATE m:type="Edm.DateTime">2026-09-10T00:00:00</d:NEW_DATE>
+<d:BC_1MONTH m:type="Edm.Double">3.91</d:BC_1MONTH>
+<d:BC_1_5MONTH m:type="Edm.Double">3.93</d:BC_1_5MONTH>
+<d:BC_2MONTH m:type="Edm.Double">4.01</d:BC_2MONTH>
+<d:BC_3MONTH m:type="Edm.Double">4.00</d:BC_3MONTH>
+<d:BC_4MONTH m:type="Edm.Double">4.11</d:BC_4MONTH>
+<d:BC_6MONTH m:type="Edm.Double">4.07</d:BC_6MONTH>
+<d:BC_1YEAR m:type="Edm.Double">4.28</d:BC_1YEAR>
+<d:BC_2YEAR m:type="Edm.Double">4.56</d:BC_2YEAR>
+<d:BC_3YEAR m:type="Edm.Double">4.63</d:BC_3YEAR>
+<d:BC_5YEAR m:type="Edm.Double">4.75</d:BC_5YEAR>
+<d:BC_7YEAR m:type="Edm.Double">4.84</d:BC_7YEAR>
+<d:BC_10YEAR m:type="Edm.Double">4.95</d:BC_10YEAR>
+<d:BC_20YEAR m:type="Edm.Double">5.39</d:BC_20YEAR>
+<d:BC_30YEAR m:type="Edm.Double">5.37</d:BC_30YEAR>
+<d:BC_30YEARDISPLAY m:type="Edm.Double">5.37</d:BC_30YEARDISPLAY>
+</m:properties>
+</content>
+</entry>
+<entry>
+<id>https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml-item?data=daily_treasury_yield_curve&amp;id=314</id>
+<title type="text"></title>
+<updated>2026-09-19T02:01:31Z</updated>
+<author><name /></author>
+<link rel="edit" title="DailyTreasuryYieldCurveRateDatum" href="/resource-center/data-chart-center/interest-rates/pages/xml-item?data=daily_treasury_yield_curve&amp;id=314" />
+<category term="TreasuryDataWarehouseModel.DailyTreasuryYieldCurveRateDatum" scheme="http://schemas.microsoft.com/ado/2007/08/dataservices/scheme" />
+<content type="application/xml">
+<m:properties>
+<d:Id m:type="Edm.Int32">314</d:Id>
+<d:NEW_DATE m:type="Edm.DateTime">2026-09-11T00:00:00</d:NEW_DATE>
+<d:BC_1MONTH m:type="Edm.Double">3.93</d:BC_1MONTH>
+<d:BC_1_5MONTH m:type="Edm.Double">3.99</d:BC_1_5MONTH>
+<d:BC_2MONTH m:type="Edm.Double">4.05</d:BC_2MONTH>
+<d:BC_3MONTH m:type="Edm.Double">4.07</d:BC_3MONTH>
+<d:BC_4MONTH m:type="Edm.Double">4.15</d:BC_4MONTH>
+<d:BC_6MONTH m:type="Edm.Double">4.12</d:BC_6MONTH>
+<d:BC_1YEAR m:type="Edm.Double">4.35</d:BC_1YEAR>
+<d:BC_2YEAR m:type="Edm.Double">4.63</d:BC_2YEAR>
+<d:BC_3YEAR m:type="Edm.Double">4.69</d:BC_3YEAR>
+<d:BC_5YEAR m:type="Edm.Double">4.78</d:BC_5YEAR>
+<d:BC_7YEAR m:type="Edm.Double">4.87</d:BC_7YEAR>
+<d:BC_10YEAR m:type="Edm.Double">4.96</d:BC_10YEAR>
+<d:BC_20YEAR m:type="Edm.Double">5.38</d:BC_20YEAR>
+<d:BC_30YEAR m:type="Edm.Double">5.35</d:BC_30YEAR>
+<d:BC_30YEARDISPLAY m:type="Edm.Double">5.35</d:BC_30YEARDISPLAY>
+</m:properties>
+</content>
+</entry>
+<entry>
+<id>https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml-item?data=daily_treasury_yield_curve&amp;id=315</id>
+<title type="text"></title>
+<updated>2026-09-19T02:01:31Z</updated>
+<author><name /></author>
+<link rel="edit" title="DailyTreasuryYieldCurveRateDatum" href="/resource-center/data-chart-center/interest-rates/pages/xml-item?data=daily_treasury_yield_curve&amp;id=315" />
+<category term="TreasuryDataWarehouseModel.DailyTreasuryYieldCurveRateDatum" scheme="http://schemas.microsoft.com/ado/2007/08/dataservices/scheme" />
+<content type="application/xml">
+<m:properties>
+<d:Id m:type="Edm.Int32">315</d:Id>
+<d:NEW_DATE m:type="Edm.DateTime">2026-09-14T00:00:00</d:NEW_DATE>
+<d:BC_1MONTH m:type="Edm.Double">3.94</d:BC_1MONTH>
+<d:BC_1_5MONTH m:type="Edm.Double">4.00</d:BC_1_5MONTH>
+<d:BC_2MONTH m:type="Edm.Double">4.06</d:BC_2MONTH>
+<d:BC_3MONTH m:type="Edm.Double">4.11</d:BC_3MONTH>
+<d:BC_4MONTH m:type="Edm.Double">4.18</d:BC_4MONTH>
+<d:BC_6MONTH m:type="Edm.Double">4.18</d:BC_6MONTH>
+<d:BC_1YEAR m:type="Edm.Double">4.37</d:BC_1YEAR>
+<d:BC_2YEAR m:type="Edm.Double">4.65</d:BC_2YEAR>
+<d:BC_3YEAR m:type="Edm.Double">4.73</d:BC_3YEAR>
+<d:BC_5YEAR m:type="Edm.Double">4.80</d:BC_5YEAR>
+<d:BC_7YEAR m:type="Edm.Double">4.88</d:BC_7YEAR>
+<d:BC_10YEAR m:type="Edm.Double">4.97</d:BC_10YEAR>
+<d:BC_20YEAR m:type="Edm.Double">5.37</d:BC_20YEAR>
+<d:BC_30YEAR m:type="Edm.Double">5.34</d:BC_30YEAR>
+<d:BC_30YEARDISPLAY m:type="Edm.Double">5.34</d:BC_30YEARDISPLAY>
+</m:properties>
+</content>
+</entry>
+<entry>
+<id>https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml-item?data=daily_treasury_yield_curve&amp;id=316</id>
+<title type="text"></title>
+<updated>2026-09-19T02:01:31Z</updated>
+<author><name /></author>
+<link rel="edit" title="DailyTreasuryYieldCurveRateDatum" href="/resource-center/data-chart-center/interest-rates/pages/xml-item?data=daily_treasury_yield_curve&amp;id=316" />
+<category term="TreasuryDataWarehouseModel.DailyTreasuryYieldCurveRateDatum" scheme="http://schemas.microsoft.com/ado/2007/08/dataservices/scheme" />
+<content type="application/xml">
+<m:properties>
+<d:Id m:type="Edm.Int32">316</d:Id>
+<d:NEW_DATE m:type="Edm.DateTime">2026-09-15T00:00:00</d:NEW_DATE>
+<d:BC_1MONTH m:type="Edm.Double">3.93</d:BC_1MONTH>
+<d:BC_1_5MONTH m:type="Edm.Double">4.00</d:BC_1_5MONTH>
+<d:BC_2MONTH m:type="Edm.Double">4.06</d:BC_2MONTH>
+<d:BC_3MONTH m:type="Edm.Double">4.11</d:BC_3MONTH>
+<d:BC_4MONTH m:type="Edm.Double">4.19</d:BC_4MONTH>
+<d:BC_6MONTH m:type="Edm.Double">4.17</d:BC_6MONTH>
+<d:BC_1YEAR m:type="Edm.Double">4.39</d:BC_1YEAR>
+<d:BC_2YEAR m:type="Edm.Double">4.67</d:BC_2YEAR>
+<d:BC_3YEAR m:type="Edm.Double">4.76</d:BC_3YEAR>
+<d:BC_5YEAR m:type="Edm.Double">4.83</d:BC_5YEAR>
+<d:BC_7YEAR m:type="Edm.Double">4.91</d:BC_7YEAR>
+<d:BC_10YEAR m:type="Edm.Double">5.00</d:BC_10YEAR>
+<d:BC_20YEAR m:type="Edm.Double">5.40</d:BC_20YEAR>
+<d:BC_30YEAR m:type="Edm.Double">5.36</d:BC_30YEAR>
+<d:BC_30YEARDISPLAY m:type="Edm.Double">5.36</d:BC_30YEARDISPLAY>
+</m:properties>
+</content>
+</entry>
+<entry>
+<id>https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml-item?data=daily_treasury_yield_curve&amp;id=317</id>
+<title type="text"></title>
+<updated>2026-09-19T02:01:31Z</updated>
+<author><name /></author>
+<link rel="edit" title="DailyTreasuryYieldCurveRateDatum" href="/resource-center/data-chart-center/interest-rates/pages/xml-item?data=daily_treasury_yield_curve&amp;id=317" />
+<category term="TreasuryDataWarehouseModel.DailyTreasuryYieldCurveRateDatum" scheme="http://schemas.microsoft.com/ado/2007/08/dataservices/scheme" />
+<content type="application/xml">
+<m:properties>
+<d:Id m:type="Edm.Int32">317</d:Id>
+<d:NEW_DATE m:type="Edm.DateTime">2026-09-16T00:00:00</d:NEW_DATE>
+<d:BC_1MONTH m:type="Edm.Double">3.96</d:BC_1MONTH>
+<d:BC_1_5MONTH m:type="Edm.Double">4.00</d:BC_1_5MONTH>
+<d:BC_2MONTH m:type="Edm.Double">4.07</d:BC_2MONTH>
+<d:BC_3MONTH m:type="Edm.Double">4.14</d:BC_3MONTH>
+<d:BC_4MONTH m:type="Edm.Double">4.24</d:BC_4MONTH>
+<d:BC_6MONTH m:type="Edm.Double">4.22</d:BC_6MONTH>
+<d:BC_1YEAR m:type="Edm.Double">4.45</d:BC_1YEAR>
+<d:BC_2YEAR m:type="Edm.Double">4.74</d:BC_2YEAR>
+<d:BC_3YEAR m:type="Edm.Double">4.82</d:BC_3YEAR>
+<d:BC_5YEAR m:type="Edm.Double">4.86</d:BC_5YEAR>
+<d:BC_7YEAR m:type="Edm.Double">4.94</d:BC_7YEAR>
+<d:BC_10YEAR m:type="Edm.Double">5.01</d:BC_10YEAR>
+<d:BC_20YEAR m:type="Edm.Double">5.39</d:BC_20YEAR>
+<d:BC_30YEAR m:type="Edm.Double">5.35</d:BC_30YEAR>
+<d:BC_30YEARDISPLAY m:type="Edm.Double">5.35</d:BC_30YEARDISPLAY>
+</m:properties>
+</content>
+</entry>
+<entry>
+<id>https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml-item?data=daily_treasury_yield_curve&amp;id=318</id>
+<title type="text"></title>
+<updated>2026-09-19T02:01:31Z</updated>
+<author><name /></author>
+<link rel="edit" title="DailyTreasuryYieldCurveRateDatum" href="/resource-center/data-chart-center/interest-rates/pages/xml-item?data=daily_treasury_yield_curve&amp;id=318" />
+<category term="TreasuryDataWarehouseModel.DailyTreasuryYieldCurveRateDatum" scheme="http://schemas.microsoft.com/ado/2007/08/dataservices/scheme" />
+<content type="application/xml">
+<m:properties>
+<d:Id m:type="Edm.Int32">318</d:Id>
+<d:NEW_DATE m:type="Edm.DateTime">2026-09-17T00:00:00</d:NEW_DATE>
+<d:BC_1MONTH m:type="Edm.Double">3.97</d:BC_1MONTH>
+<d:BC_1_5MONTH m:type="Edm.Double">3.98</d:BC_1_5MONTH>
+<d:BC_2MONTH m:type="Edm.Double">4.09</d:BC_2MONTH>
+<d:BC_3MONTH m:type="Edm.Double">4.12</d:BC_3MONTH>
+<d:BC_4MONTH m:type="Edm.Double">4.23</d:BC_4MONTH>
+<d:BC_6MONTH m:type="Edm.Double">4.20</d:BC_6MONTH>
+<d:BC_1YEAR m:type="Edm.Double">4.40</d:BC_1YEAR>
+<d:BC_2YEAR m:type="Edm.Double">4.67</d:BC_2YEAR>
+<d:BC_3YEAR m:type="Edm.Double">4.75</d:BC_3YEAR>
+<d:BC_5YEAR m:type="Edm.Double">4.78</d:BC_5YEAR>
+<d:BC_7YEAR m:type="Edm.Double">4.86</d:BC_7YEAR>
+<d:BC_10YEAR m:type="Edm.Double">4.94</d:BC_10YEAR>
+<d:BC_20YEAR m:type="Edm.Double">5.32</d:BC_20YEAR>
+<d:BC_30YEAR m:type="Edm.Double">5.29</d:BC_30YEAR>
+<d:BC_30YEARDISPLAY m:type="Edm.Double">5.29</d:BC_30YEARDISPLAY>
+</m:properties>
+</content>
+</entry>
+<entry>
+<id>https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml-item?data=daily_treasury_yield_curve&amp;id=319</id>
+<title type="text"></title>
+<updated>2026-09-19T02:01:31Z</updated>
+<author><name /></author>
+<link rel="edit" title="DailyTreasuryYieldCurveRateDatum" href="/resource-center/data-chart-center/interest-rates/pages/xml-item?data=daily_treasury_yield_curve&amp;id=319" />
+<category term="TreasuryDataWarehouseModel.DailyTreasuryYieldCurveRateDatum" scheme="http://schemas.microsoft.com/ado/2007/08/dataservices/scheme" />
+<content type="application/xml">
+<m:properties>
+<d:Id m:type="Edm.Int32">319</d:Id>
+<d:NEW_DATE m:type="Edm.DateTime">2026-09-18T00:00:00</d:NEW_DATE>
+<d:BC_1MONTH m:type="Edm.Double">3.97</d:BC_1MONTH>
+<d:BC_1_5MONTH m:type="Edm.Double">3.98</d:BC_1_5MONTH>
+<d:BC_2MONTH m:type="Edm.Double">4.10</d:BC_2MONTH>
+<d:BC_3MONTH m:type="Edm.Double">4.14</d:BC_3MONTH>
+<d:BC_4MONTH m:type="Edm.Double">4.24</d:BC_4MONTH>
+<d:BC_6MONTH m:type="Edm.Double">4.24</d:BC_6MONTH>
+<d:BC_1YEAR m:type="Edm.Double">4.44</d:BC_1YEAR>
+<d:BC_2YEAR m:type="Edm.Double">4.76</d:BC_2YEAR>
+<d:BC_3YEAR m:type="Edm.Double">4.83</d:BC_3YEAR>
+<d:BC_5YEAR m:type="Edm.Double">4.86</d:BC_5YEAR>
+<d:BC_7YEAR m:type="Edm.Double">4.93</d:BC_7YEAR>
+<d:BC_10YEAR m:type="Edm.Double">5.01</d:BC_10YEAR>
+<d:BC_20YEAR m:type="Edm.Double">5.38</d:BC_20YEAR>
+<d:BC_30YEAR m:type="Edm.Double">5.34</d:BC_30YEAR>
+<d:BC_30YEARDISPLAY m:type="Edm.Double">5.34</d:BC_30YEARDISPLAY>
+</m:properties>
+</content>
+</entry>
+</feed>

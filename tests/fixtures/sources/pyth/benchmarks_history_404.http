@@ -1,0 +1,8 @@
+HTTP/2 404 
+content-length: 0
+vary: origin, access-control-request-method, access-control-request-headers
+strict-transport-security: max-age=31536000; includeSubDomains
+x-infra: platform-yellow
+cf-cache-status: DYNAMIC
+server: cloudflare
+

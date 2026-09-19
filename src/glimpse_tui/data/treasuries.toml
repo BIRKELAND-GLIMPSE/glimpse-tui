@@ -1,0 +1,182 @@
+# Bitcoin treasury companies. DRAFT written on 2026-09-19 by the Phase 0 source check.
+#
+# STATUS: SEC EDGAR refused every request made during the check (HTTP 403,
+# "Undeclared Automated Tool"), because the two permitted User-Agent strings
+# carry no contact email. So NOTHING here was checked against
+# www.sec.gov/files/company_tickers.json, and no XBRL element was confirmed.
+# See SOURCES.md.
+#
+# Field rules:
+#   cik            ten digits, zero padded. "" means not yet looked up.
+#   cik_status     "brief"      = supplied in the task brief, not confirmed against SEC
+#                  "unverified" = not looked up. Fill from company_tickers.json.
+#   holdings       "xbrl"   = read from SEC company facts (quarter-end values, so they lag)
+#                  "manual" = the btc / as_of / source_url fields below
+#   xbrl_element   "" until a real companyfacts file has been searched. Never guess one.
+#   btc = 0 with note = "unverified" means no official figure was fetched.
+#
+# Tickers and names of the entries marked "unverified" are from general knowledge
+# and must be confirmed against company_tickers.json before this file ships.
+
+[[company]]
+name = "Strategy Inc (formerly MicroStrategy)"
+ticker = "MSTR"
+cik = "0001050446"
+cik_status = "brief"
+holdings = "xbrl"
+xbrl_element = ""
+note = "Files frequent 8-Ks with BTC purchase updates. XBRL values are quarter-end and lag those 8-Ks. No 8-K was fetched (SEC blocked), so no manual override is recorded."
+
+[[company]]
+name = "MARA Holdings"
+ticker = "MARA"
+cik = "0001507605"
+cik_status = "brief"
+holdings = "xbrl"
+xbrl_element = ""
+note = "Also listed in miners.toml."
+
+[[company]]
+name = "Riot Platforms"
+ticker = "RIOT"
+cik = "0001167419"
+cik_status = "brief"
+holdings = "xbrl"
+xbrl_element = ""
+note = "Also listed in miners.toml."
+
+[[company]]
+name = "CleanSpark"
+ticker = "CLSK"
+cik = "0000827876"
+cik_status = "brief"
+holdings = "xbrl"
+xbrl_element = ""
+note = "Also listed in miners.toml. Fiscal year ends 30 September (to confirm from submissions.fiscalYearEnd)."
+
+[[company]]
+name = "Coinbase Global"
+ticker = "COIN"
+cik = "0001679788"
+cik_status = "brief"
+holdings = "xbrl"
+xbrl_element = ""
+note = "Holds several crypto assets. A total crypto fair value is not a BTC figure. Needs a BTC-specific fact or a manual entry."
+
+[[company]]
+name = "Tesla"
+ticker = "TSLA"
+cik = "0001318605"
+cik_status = "brief"
+holdings = "xbrl"
+xbrl_element = ""
+note = "unverified"
+
+[[company]]
+name = "Twenty One Capital"
+ticker = "XXI"
+cik = ""
+cik_status = "unverified"
+holdings = "xbrl"
+xbrl_element = ""
+note = "unverified. The brief names XXI/CEP. Check which ticker company_tickers.json carries today."
+
+[[company]]
+name = "Semler Scientific"
+ticker = "SMLR"
+cik = ""
+cik_status = "unverified"
+holdings = "xbrl"
+xbrl_element = ""
+note = "unverified. Check that the ticker still exists in company_tickers.json."
+
+[[company]]
+name = "GameStop"
+ticker = "GME"
+cik = ""
+cik_status = "unverified"
+holdings = "xbrl"
+xbrl_element = ""
+note = "unverified"
+
+[[company]]
+name = "Block"
+ticker = "XYZ"
+cik = ""
+cik_status = "unverified"
+holdings = "xbrl"
+xbrl_element = ""
+note = "unverified"
+
+[[company]]
+name = "Hut 8"
+ticker = "HUT"
+cik = ""
+cik_status = "unverified"
+holdings = "xbrl"
+xbrl_element = ""
+note = "unverified. Also listed in miners.toml."
+
+[[company]]
+name = "Galaxy Digital"
+ticker = "GLXY"
+cik = ""
+cik_status = "unverified"
+holdings = "xbrl"
+xbrl_element = ""
+note = "unverified"
+
+[[company]]
+name = "Trump Media & Technology Group"
+ticker = "DJT"
+cik = ""
+cik_status = "unverified"
+holdings = "xbrl"
+xbrl_element = ""
+note = "unverified"
+
+# ---- Non-US companies: manual entries -------------------------------------
+
+[[company]]
+name = "Metaplanet"
+ticker = "3350.T"
+exchange = "TSE"
+cik = ""
+holdings = "manual"
+btc = 43000
+as_of = "2026-09-19"
+source_url = "https://metaplanet.jp/en"
+note = "Figure read from the company's own home page on 2026-09-19 (the page shows '₿43,000 BTC Holdings'). The page gives no as-of date, so as_of is the fetch date. The figure is rounded as displayed. Dated TSE disclosures are listed at https://metaplanet.jp/en/disclosures. The analytics page (https://analytics.metaplanet.jp) renders client-side and gave no figure to curl."
+
+[[company]]
+name = "Boyaa Interactive"
+ticker = "0434.HK"
+exchange = "HKEX"
+cik = ""
+holdings = "manual"
+btc = 0
+as_of = ""
+source_url = ""
+note = "unverified"
+
+[[company]]
+name = "Capital B (formerly The Blockchain Group)"
+ticker = "ALCPB.PA"
+exchange = "Euronext Growth Paris"
+cik = ""
+holdings = "manual"
+btc = 0
+as_of = ""
+source_url = ""
+note = "unverified. Ticker code not confirmed."
+
+[[company]]
+name = "The Smarter Web Company"
+ticker = "SWC.L"
+exchange = "London"
+cik = ""
+holdings = "manual"
+btc = 0
+as_of = ""
+source_url = ""
+note = "unverified. Ticker code and venue not confirmed."

@@ -1,0 +1,333 @@
+# On-chain series identifiers for ONCH, CYC, WAVE, SUPL and BTC.
+#
+# DRAFT, written in Phase 0 on 2026-09-19 against https://bitview.space
+# (Bitcoin Research Kit v0.12.2, 61,949 distinct series).
+#
+# Every identifier below was found with GET /api/series/search?q=..., inspected
+# with GET /api/series/<name>, and fetched at the daily index. None is invented.
+# The evidence is recorded under tests/fixtures/sources/bitview/ and in
+# SOURCES.md.
+#
+# The daily index is called "day1" (aliases accepted by the server: 1d, d, day,
+# date, daily, dateindex). Position 0 of day1 is 2009-01-01. The last point of a
+# day1 series is the current, still forming UTC day.
+#
+# Fetch one series:  GET /api/series/<series>/<index>?start=-400
+# Fetch several:     GET /api/series/bulk?series=date,<a>,<b>&index=day1&start=-400
+# Ask for the "date" series in the same bulk call to label the points.
+
+[source]
+base_url = "https://bitview.space"
+version_checked = "0.12.2"
+checked_on = "2026-09-19"
+daily_index = "day1"
+date_series = "date"
+
+# ---------------------------------------------------------------- price
+
+[metrics.price_close]
+series = "price_close"
+index = "day1"
+label = "Price (daily close)"
+unit = "usd"
+# Daily closing BTC/USD. Bitview's price is its own on-chain oracle after height
+# 340,000 and baked exchange prices before that. It is not an exchange ticker.
+# Checked: 81355.05 on 2026-09-19 (mempool.space showed 81445 USD at the same time).
+# Rejected: "price" (block level, has a height index, no open/high/low/close
+# meaning), "price_close_cents" and "price_close_sats" (same data, other units).
+# Note: price_close has no "height" index. Every other metric here has one.
+
+[metrics.price_sma_200d]
+series = "price_sma_200d"
+index = "day1"
+label = "200-day moving average"
+unit = "usd"
+# Simple moving average of the block-level price over a trailing 200-day window.
+# Checked: 70438.36. Rejected: price_sma_200d_x0_8 and price_sma_200d_x2_4
+# (the 0.8x and 2.4x bands of the same average), _cents and _sats variants.
+
+[metrics.mayer_multiple]
+series = "price_sma_200d_ratio"
+index = "day1"
+label = "Mayer multiple"
+unit = "ratio"
+# No series is named "mayer" (search for "mayer" returns an empty list, and
+# /api/series/mayer_multiple is a 404). The Mayer multiple is price over its
+# 200-day SMA, and Bitview carries exactly that as price_sma_200d_ratio:
+# "Spot price divided by this price as a unitless decimal ratio."
+# Checked: 1.154982 = 81355.05 / 70438.36. A local computation from price_close
+# and price_sma_200d is the fallback. Rejected: price_sma_200d_ratio_ppm.
+
+# ---------------------------------------------------------------- valuation
+
+[metrics.realized_price]
+series = "realized_price"
+index = "day1"
+label = "Realized price"
+unit = "usd"
+# Satoshi-weighted mean price at which all unspent outputs were created. Uses all
+# UTXOs. Checked: 53241.66. Rejected by name, not inspected: realized_price_pct*
+# (percentile variants), realized_price_ratio and realized_price_ratio_ppm
+# (a ratio, not a price), realized_price_sats and realized_price_cents (units).
+
+[metrics.mvrv]
+series = "mvrv"
+index = "day1"
+label = "MVRV"
+unit = "ratio"
+# Spot price divided by realized price, all UTXOs. Checked: 1.528034 =
+# 81355.05 / 53241.66. Rejected: sth_mvrv and lth_mvrv (holder cohorts), and the
+# per-script-type, per-epoch and per-class variants (p2tr_mvrv, epoch_4_mvrv, ...).
+
+[metrics.nupl]
+series = "nupl"
+index = "day1"
+label = "NUPL"
+unit = "ratio"
+# Net unrealized profit and loss as a share of market cap, 1 - 1/MVRV, as a
+# decimal. Checked: 0.345564 = 1 - 1/1.528034. Rejected: nupl_ppm (same value in
+# parts per million), sth_nupl and lth_nupl (cohorts).
+
+[metrics.sopr]
+series = "sopr_24h"
+index = "day1"
+label = "SOPR (24 hours)"
+unit = "ratio"
+# Spent output profit ratio over the trailing 24 hours, all UTXOs.
+# Checked: 1.0074676. Rejected: "sopr" (exists only at the "height" index and
+# each row is a 3-value matrix, one value per trailing window, so it cannot be
+# read at day1), sopr_1w, sopr_1m and sopr_1y (longer windows), "asopr"
+# (adjusted SOPR, also a height-only matrix), sth_sopr and lth_sopr (cohorts).
+
+[metrics.supply_in_profit]
+series = "supply_in_profit"
+index = "day1"
+label = "Supply in profit"
+unit = "btc"
+# Unspent supply whose creation price is at or below spot. Checked:
+# 14,567,796.79 BTC. Rejected: supply_in_profit_sats, _usd and _cents (units),
+# sth_ and lth_ variants (cohorts).
+
+[metrics.supply_in_profit_pct]
+series = "supply_in_profit_share"
+index = "day1"
+label = "Supply in profit (%)"
+unit = "pct"
+# The same as a percentage of all unspent supply, already multiplied by 100.
+# Checked: 72.525604 = 14,567,796.79 / 20,086,432.38. Rejected:
+# supply_in_profit_share_ratio (0 to 1) and supply_in_profit_share_ppm.
+
+[metrics.sth_cost_basis]
+series = "sth_realized_price"
+index = "day1"
+label = "Short-term holder cost basis"
+unit = "usd"
+# Realized price of UTXOs younger than 150 days (Bitview's short-term holder
+# boundary). Checked: 71605.11. Rejected: sth_cost_basis_min and _max (the
+# extremes of the cohort, not its mean), sth_cost_basis_per_coin_pct* and
+# sth_cost_basis_per_dollar_pct* (percentiles of the distribution).
+
+[metrics.lth_cost_basis]
+series = "lth_realized_price"
+index = "day1"
+label = "Long-term holder cost basis"
+unit = "usd"
+# Realized price of UTXOs at least 150 days old. Checked: 49358.27.
+# Rejected: the same families as for the short-term holder series.
+
+[metrics.puell_multiple]
+series = "puell_multiple"
+index = "day1"
+label = "Puell multiple"
+unit = "ratio"
+# Subsidy value in USD over its trailing 365-day mean. Bitview's definition uses
+# the subsidy only, not subsidy plus fees. Checked: 1.007889.
+# Rejected: puell_multiple_ppm. The search returns only these two.
+
+[metrics.liveliness]
+series = "liveliness"
+index = "day1"
+label = "Liveliness"
+unit = "ratio"
+# Cumulative coinblocks destroyed over cumulative coinblocks created.
+# Checked: 0.6335352660679314. The search returns this one series only.
+
+# ---------------------------------------------------------------- size
+
+[metrics.market_cap]
+series = "market_cap"
+index = "day1"
+label = "Market cap"
+unit = "usd"
+# Circulating supply at spot. Checked: 1,634,132,710,528.80.
+# Rejected: market_cap_cents, market_cap_delta_* (changes, not levels).
+
+[metrics.realized_cap]
+series = "realized_cap"
+index = "day1"
+label = "Realized cap"
+unit = "usd"
+# Sum of each unspent output valued at its creation price. Checked:
+# 1,069,435,109,530.62, and market_cap / realized_cap = 1.528 = MVRV.
+# Rejected: realized_cap_cents, realized_cap_delta_*, realized_cap_to_own_mcap,
+# sth_ and lth_ cohort variants.
+
+[metrics.circulating_supply]
+series = "circulating_supply"
+index = "day1"
+label = "Circulating supply"
+unit = "btc"
+# Total value of the UTXO set. Checked: 20,086,432.38 BTC. The halving schedule
+# gives 20,086,662.5 BTC at height 967,731, so this series is about 230 BTC
+# lower. It counts what is actually in the UTXO set (unclaimed rewards and
+# unspendable outputs are the likely gap). SUPL should show both and label them.
+# Rejected: circulating_supply_sats, _usd and _cents.
+
+[metrics.utxo_count]
+series = "utxo_count"
+index = "day1"
+label = "UTXO count"
+unit = "count"
+# Number of unspent outputs. Checked: 165,266,372.
+# Rejected: utxo_count_bis (not inspected, not needed), utxo_count_by_type,
+# _by_class, _by_entry, _by_epoch (matrices), utxo_count_delta_* (changes).
+
+# ---------------------------------------------------------------- mining
+
+[metrics.hash_rate]
+series = "hash_rate"
+index = "day1"
+label = "Hashrate"
+unit = "h/s"
+# Hashes per second, estimated from difficulty and the blocks of the trailing
+# 24 hours. Divide by 1e18 for EH/s. Checked: 9.503e20, which is 950 EH/s
+# (mempool.space reported currentHashrate 9.33e20 at the same time). Rejected: hash_rate_sma_1w,
+# _1m, _2m and _1y (smoothed), hash_rate_ath, hash_rate_drawdown.
+
+[metrics.difficulty]
+series = "difficulty"
+index = "day1"
+label = "Difficulty"
+unit = "count"
+# Header difficulty. Checked: 132757073449487.52, the same number as
+# mempool.space for block 967730. Rejected: difficulty_epoch (the epoch number),
+# difficulty_hashrate (difficulty expressed as a hashrate),
+# difficulty_adjustment (the percentage change).
+
+# unavailable:
+#   (none) Every ONCH metric in TERMINAL.md section 6 has a live series.
+#   Mayer multiple has no series of that name. It is served as
+#   price_sma_200d_ratio (see metrics.mayer_multiple above).
+
+# ---------------------------------------------------------------- HODL waves
+#
+# Supply by age band, as a percentage of all unspent supply (0 to 100).
+# The family is utxos_<band>_old_supply_dominance. "Share of all unspent supply
+# held by a UTXO cohort. Percentage derived as the decimal ratio multiplied by 100."
+# The 23 bands are disjoint and complete. On 2026-09-19 they summed to 100.0000.
+# The band list is Bitview's own age-range cohort list (the same names are URPD
+# cohorts at GET /api/urpd). Youngest first, oldest last.
+#
+# Same family in other units, if the caller wants them:
+#   utxos_<band>_old_supply                   BTC
+#   utxos_<band>_old_supply_dominance_ratio   0 to 1
+#   utxos_<band>_old_supply_dominance_ppm     parts per million
+#
+# One bulk call fetches all of them (URL is about 1 KB, verified live):
+#   GET /api/series/bulk?series=date,<all 23 names>&index=day1&start=-400
+
+[waves_meta]
+index = "day1"
+unit = "pct"
+
+[[waves]]
+label = "< 1h"
+series = "utxos_under_1h_old_supply_dominance"
+
+[[waves]]
+label = "1h - 1d"
+series = "utxos_1h_to_1d_old_supply_dominance"
+
+[[waves]]
+label = "1d - 1w"
+series = "utxos_1d_to_1w_old_supply_dominance"
+
+[[waves]]
+label = "1w - 1m"
+series = "utxos_1w_to_1m_old_supply_dominance"
+
+[[waves]]
+label = "1m - 2m"
+series = "utxos_1m_to_2m_old_supply_dominance"
+
+[[waves]]
+label = "2m - 3m"
+series = "utxos_2m_to_3m_old_supply_dominance"
+
+[[waves]]
+label = "3m - 4m"
+series = "utxos_3m_to_4m_old_supply_dominance"
+
+[[waves]]
+label = "4m - 5m"
+series = "utxos_4m_to_5m_old_supply_dominance"
+
+[[waves]]
+label = "5m - 6m"
+series = "utxos_5m_to_6m_old_supply_dominance"
+
+[[waves]]
+label = "6m - 9m"
+series = "utxos_6m_to_9m_old_supply_dominance"
+
+[[waves]]
+label = "9m - 1y"
+series = "utxos_9m_to_1y_old_supply_dominance"
+
+[[waves]]
+label = "1y - 18m"
+series = "utxos_1y_to_18m_old_supply_dominance"
+
+[[waves]]
+label = "18m - 2y"
+series = "utxos_18m_to_2y_old_supply_dominance"
+
+[[waves]]
+label = "2y - 3y"
+series = "utxos_2y_to_3y_old_supply_dominance"
+
+[[waves]]
+label = "3y - 4y"
+series = "utxos_3y_to_4y_old_supply_dominance"
+
+[[waves]]
+label = "4y - 5y"
+series = "utxos_4y_to_5y_old_supply_dominance"
+
+[[waves]]
+label = "5y - 6y"
+series = "utxos_5y_to_6y_old_supply_dominance"
+
+[[waves]]
+label = "6y - 7y"
+series = "utxos_6y_to_7y_old_supply_dominance"
+
+[[waves]]
+label = "7y - 8y"
+series = "utxos_7y_to_8y_old_supply_dominance"
+
+[[waves]]
+label = "8y - 10y"
+series = "utxos_8y_to_10y_old_supply_dominance"
+
+[[waves]]
+label = "10y - 12y"
+series = "utxos_10y_to_12y_old_supply_dominance"
+
+[[waves]]
+label = "12y - 15y"
+series = "utxos_12y_to_15y_old_supply_dominance"
+
+[[waves]]
+label = "> 15y"
+series = "utxos_over_15y_old_supply_dominance"

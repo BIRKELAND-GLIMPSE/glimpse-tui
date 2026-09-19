@@ -1,0 +1,223 @@
+{
+ "_fixture": {
+  "url": "wss://ws-feed.exchange.coinbase.com",
+  "subscribe": {
+   "type": "subscribe",
+   "product_ids": [
+    "BTC-USD"
+   ],
+   "channels": [
+    "ticker",
+    "heartbeat"
+   ]
+  },
+  "recorded": "2026-09-19",
+  "note": "first messages received, in order, unaltered"
+ },
+ "messages": [
+  {
+   "type": "subscriptions",
+   "channels": [
+    {
+     "name": "heartbeat",
+     "product_ids": [
+      "BTC-USD"
+     ],
+     "account_ids": null
+    },
+    {
+     "name": "ticker",
+     "product_ids": [
+      "BTC-USD"
+     ],
+     "account_ids": null
+    }
+   ]
+  },
+  {
+   "type": "ticker",
+   "sequence": 136382977700,
+   "product_id": "BTC-USD",
+   "price": "81414.79",
+   "open_24h": "80926.37",
+   "volume_24h": "4779.82744103",
+   "low_24h": "80822.48",
+   "high_24h": "81925",
+   "volume_30d": "204391.44536977",
+   "best_bid": "81414.79",
+   "best_bid_size": "0.13451536",
+   "best_ask": "81414.80",
+   "best_ask_size": "0.01135108",
+   "side": "sell",
+   "time": "2026-09-19T18:57:40.386328Z",
+   "trade_id": 1095325590,
+   "last_size": "0.00000012"
+  },
+  {
+   "type": "ticker",
+   "sequence": 136382977759,
+   "product_id": "BTC-USD",
+   "price": "81414.79",
+   "open_24h": "80926.37",
+   "volume_24h": "4779.82744111",
+   "low_24h": "80822.48",
+   "high_24h": "81925",
+   "volume_30d": "204391.44536985",
+   "best_bid": "81414.79",
+   "best_bid_size": "0.13451528",
+   "best_ask": "81414.80",
+   "best_ask_size": "0.01135108",
+   "side": "sell",
+   "time": "2026-09-19T18:57:40.532740Z",
+   "trade_id": 1095325591,
+   "last_size": "0.00000008"
+  },
+  {
+   "type": "ticker",
+   "sequence": 136382977762,
+   "product_id": "BTC-USD",
+   "price": "81414.8",
+   "open_24h": "80926.37",
+   "volume_24h": "4779.82776353",
+   "low_24h": "80822.48",
+   "high_24h": "81925",
+   "volume_30d": "204391.44569227",
+   "best_bid": "81414.79",
+   "best_bid_size": "0.13451528",
+   "best_ask": "81414.80",
+   "best_ask_size": "0.01102866",
+   "side": "buy",
+   "time": "2026-09-19T18:57:40.563048Z",
+   "trade_id": 1095325592,
+   "last_size": "0.00032242"
+  },
+  {
+   "type": "ticker",
+   "sequence": 136382977764,
+   "product_id": "BTC-USD",
+   "price": "81414.8",
+   "open_24h": "80926.37",
+   "volume_24h": "4779.82823151",
+   "low_24h": "80822.48",
+   "high_24h": "81925",
+   "volume_30d": "204391.44616025",
+   "best_bid": "81414.79",
+   "best_bid_size": "0.13451528",
+   "best_ask": "81414.80",
+   "best_ask_size": "0.01056068",
+   "side": "buy",
+   "time": "2026-09-19T18:57:40.563048Z",
+   "trade_id": 1095325593,
+   "last_size": "0.00046798"
+  },
+  {
+   "type": "heartbeat",
+   "last_trade_id": 1095325593,
+   "product_id": "BTC-USD",
+   "sequence": 136382977858,
+   "time": "2026-09-19T18:57:41.000000Z"
+  },
+  {
+   "type": "ticker",
+   "sequence": 136382977906,
+   "product_id": "BTC-USD",
+   "price": "81414.79",
+   "open_24h": "80926.37",
+   "volume_24h": "4779.82823165",
+   "low_24h": "80822.48",
+   "high_24h": "81925",
+   "volume_30d": "204391.44616039",
+   "best_bid": "81414.79",
+   "best_bid_size": "0.13451514",
+   "best_ask": "81414.80",
+   "best_ask_size": "0.01056068",
+   "side": "sell",
+   "time": "2026-09-19T18:57:41.166132Z",
+   "trade_id": 1095325594,
+   "last_size": "0.00000014"
+  },
+  {
+   "type": "ticker",
+   "sequence": 136382978009,
+   "product_id": "BTC-USD",
+   "price": "81414.79",
+   "open_24h": "80926.37",
+   "volume_24h": "4779.82823170",
+   "low_24h": "80822.48",
+   "high_24h": "81925",
+   "volume_30d": "204391.44616044",
+   "best_bid": "81414.79",
+   "best_bid_size": "0.13451509",
+   "best_ask": "81414.80",
+   "best_ask_size": "0.01056068",
+   "side": "sell",
+   "time": "2026-09-19T18:57:41.537357Z",
+   "trade_id": 1095325595,
+   "last_size": "0.00000005"
+  },
+  {
+   "type": "ticker",
+   "sequence": 136382978040,
+   "product_id": "BTC-USD",
+   "price": "81414.79",
+   "open_24h": "80926.37",
+   "volume_24h": "4779.82823174",
+   "low_24h": "80822.48",
+   "high_24h": "81925",
+   "volume_30d": "204391.44616048",
+   "best_bid": "81414.79",
+   "best_bid_size": "0.13451505",
+   "best_ask": "81414.80",
+   "best_ask_size": "0.01056068",
+   "side": "sell",
+   "time": "2026-09-19T18:57:41.596184Z",
+   "trade_id": 1095325596,
+   "last_size": "0.00000004"
+  },
+  {
+   "type": "ticker",
+   "sequence": 136382978102,
+   "product_id": "BTC-USD",
+   "price": "81414.79",
+   "open_24h": "80926.37",
+   "volume_24h": "4779.82885740",
+   "low_24h": "80822.48",
+   "high_24h": "81925",
+   "volume_30d": "204391.44678614",
+   "best_bid": "81414.79",
+   "best_bid_size": "0.13388939",
+   "best_ask": "81414.80",
+   "best_ask_size": "0.01056068",
+   "side": "sell",
+   "time": "2026-09-19T18:57:41.832688Z",
+   "trade_id": 1095325597,
+   "last_size": "0.00062566"
+  },
+  {
+   "type": "heartbeat",
+   "last_trade_id": 1095325597,
+   "product_id": "BTC-USD",
+   "sequence": 136382978119,
+   "time": "2026-09-19T18:57:42.000000Z"
+  },
+  {
+   "type": "ticker",
+   "sequence": 136382978185,
+   "product_id": "BTC-USD",
+   "price": "81414.79",
+   "open_24h": "80926.37",
+   "volume_24h": "4779.82885742",
+   "low_24h": "80822.48",
+   "high_24h": "81925",
+   "volume_30d": "204391.44678616",
+   "best_bid": "81414.79",
+   "best_bid_size": "0.13388937",
+   "best_ask": "81414.80",
+   "best_ask_size": "0.01056068",
+   "side": "sell",
+   "time": "2026-09-19T18:57:42.285161Z",
+   "trade_id": 1095325598,
+   "last_size": "0.00000002"
+  }
+ ]
+}

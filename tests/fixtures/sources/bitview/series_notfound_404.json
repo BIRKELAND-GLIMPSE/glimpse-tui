@@ -1,0 +1,1 @@
+{"error":{"type":"not_found","code":"series_not_found","message":"'mayer_multiple' not found, did you mean 'puell_multiple', 'puell_multiple_ppm', 'output_to_reused_addr_count'? (97 more — /api/series/search?q=mayer_multiple for all)","doc_url":"/api"}}

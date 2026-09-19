@@ -241,3 +241,154 @@ pricing, paging and the dry-run bot were exercised against the live API. Layout 
 wallet, portfolio, buy (ladder and heatmap box), sell. They are covered by tests against a fake API whose shapes come
 from the backend source (F4, F5), not from a live response. First live use should be one
 small ticket, which also settles F11.
+
+## 6d. The Bitcoin terminal (TERMINAL.md, branch `terminal`, started 2026-09-19)
+
+<!-- SUMMARY: written last, when the session stops. A fresh session starts here. -->
+SUMMARY_PLACEHOLDER
+
+### Baseline (2026-09-19, commit `8ca2b18`)
+
+`uv sync` clean. `uv run pytest`: 435 passed in 50 s. `uv run ruff check .`: all checks passed.
+
+### Decisions
+
+- **D30 Sources are recorded in SOURCES.md and replayed in tests.** Every source was fetched live on 2026-09-19. Samples live
+  under `tests/fixtures/sources/<source>/` with a `_manifest.json` (URL, status, latency, trimming). `tests/offline.py`
+  answers every request from them through an httpx mock transport that `conftest.py` installs for every test, so a
+  request with no fixture fails with a 599 instead of reaching the network. WebSocket streams are off in tests.
+- **D31 Today's screens run as functions without being rebuilt.** `MKT`, `HM`, `SLIP`, `PORT` and `BOTS` switch the app to the
+  view they always had, full stage, with every key they always had. The launchpad is a fifth view (`term`) beside them. They
+  are single-instance and do not tile into a launchpad yet: the heatmap's state is app-wide, and splitting it was judged a
+  larger risk to the money paths than the brief's tiling is worth today. Recorded as open question 6.
+- **D32 Launch.** `glimpse-tui` opens on the default launchpad (`default_launchpad`, `BTC`). `Terminal()` with no argument
+  still opens on the markets and ladder, which is what the existing tests drive. `t` reaches the launchpad from any old
+  screen; `f`, `p` and `B` reach the old screens from the launchpad.
+- **D33 The GO bar.** `` ` `` and `:` focus it in the launchpad. On the old screens `:` still opens the vim command line, which
+  now hands anything it does not know to the GO bar (`:MEMP`, `:LP MACRO`). `` ` `` focuses the GO bar on every old screen
+  except the heatmap, where it remains the jump-to-mark chord it has always been (brief and code disagreed: existing
+  behaviour kept). A bare number is a block height in the GO bar and a price in the vim command line, as before.
+- **D34 Panes draw their own frame.** A `FuncPane` renders its border, number, amber function chip, title, and the source and
+  delay on the right of the top edge, because Textual's border titles cannot put two labels on one edge. Tiling is a custom
+  Textual `Layout` over a split tree, so splitting, closing, zooming and evening out never re-mount a widget.
+- **D35 Rendering never waits.** `load()` runs in a worker and stores results on the pane. `draw()` reads only that. A failed
+  load keeps the last picture, names the error in the frame, and the frame dims and says `stale` when any provenance is older
+  than its kind allows (live 90 s, daily four days). The rendered text is cached on (size, data version, cursor, focus, a
+  five-second clock tick).
+- **D36 Pyth is optional, not a default.** Since 2026-08-26 every Hermes price endpoint answers 401 without an API key (SOURCES.md).
+  Rule 1 forbids keys on first launch, so the defaults are: exchange tickers for crypto, Kraken's public spot FX for five
+  majors, Kraken's tokenised shares (xStocks) as labelled proxies for a few equities and ETFs, FRED, the Treasury and the ECB
+  for daily closes, and a computed dollar index. The verified Pyth feed ids stay in `instruments.toml` under `keyed` for a
+  future optional client. Consequence: no keyless live S&P 500, Nasdaq, USD/JPY, Brent, gold or silver. Each shows its daily
+  official value, or a labelled proxy (PAXG for gold, SPYx for SPY), and says which.
+- **D37 BTC is a composite.** The median of Coinbase, Kraken and Bitstamp last trades, shown on screen only and never
+  published. One venue alone still gives a price and the pane names the venues that answered. See open question 9.
+- **D38 SEC EDGAR waits for the user's contact.** The SEC refuses a User-Agent without contact details, and the session rules
+  forbid sending James's email to a service he did not name. No SEC request was made with a contact, so no SEC fixture was
+  recorded and no XBRL element could be verified live. The EDGAR client is built against the SEC's published API
+  documentation, its test fixtures are hand-built in that documented shape and marked synthetic, and the crypto XBRL elements
+  are discovered at run time by searching the company-facts file (name matches `crypto`, unit BTC or USD) rather than
+  hard-coded, so nothing is invented. The first company function asks for `sec_user_agent` and explains that the SEC
+  receives it on every request.
+- **D39 Slow official servers never hold the tape.** The Treasury takes 17 to 19 s to answer. Daily sources get six seconds
+  inside a quote refresh, then finish in the background and land in the cache (SQLite, `~/.cache/glimpse/terminal.db`).
+- **D40 Heavy stream subscriptions are reference-counted.** `track-mempool-block` (the next block's transactions, 500 KB then
+  deltas) is held only while a `MEMP` pane is open, `track-rbf` (2.5 MB a minute) only while an `RBF` pane is open.
+- **D41 No public Electrum or Bitnodes default.** Two of three well-known Electrum servers use self-signed certificates and none
+  publishes terms. Bitnodes moved to an unnamed operator with ten requests a day. Electrum and Core RPC are backends the
+  user configures. `NODE` is not built.
+- **D42 Dependencies added** (rule 13): `websockets` (BSD-3, already in the lock through the SDK, now direct: the mempool
+  stream), `httpx[socks]` which adds `socksio` (MIT: the one SOCKS5 setting), `segno` (BSD-3: QR codes for `WAL`), `embit`
+  (MIT, pure Python: watch-only address derivation from xpubs and descriptors). numpy, pandas and scipy were already present.
+
+### Verified facts (2026-09-19, live)
+
+| # | Fact |
+|---|---|
+| T1 | The mempool WebSocket has no `stats` message. After `want` it pushes `mempoolInfo`, `fees`, `da`, `mempool-blocks` every 1 to 3 s. A new block is one message with a singular `block` and a full replacement of the projected block. |
+| T2 | A projected-block row is `[txid, fee, vsize, value, rate, flags, first_seen]`; deltas are `added`, `removed` (txids) and `changed` (`[txid, rate, flags, acc]`). |
+| T3 | Bitview v0.12.2 serves 61,949 series. The daily index is `day1`, position 0 is 2009-01-01, series carry no timestamps, and the last point is today, still forming. |
+| T4 | Every `ONCH` metric exists as a Bitview series, including the Mayer multiple (`price_sma_200d_ratio`). `sopr` is height-only; the daily one is `sopr_24h`. 23 age bands sum to 100%. Identifiers are in `data/onchain.toml`. |
+| T5 | URPD must be asked for with `agg` (raw is 893 KB). The oracle price is a bare float, and the round-dollar spikes are in the payments histogram, not outputs. |
+| T6 | Pyth Hermes and Benchmarks need an API key. Only the feed catalogue is public. |
+| T7 | Kraken serves spot FX (EURUSD, GBPUSD, USDCAD, USDCHF, AUDUSD usable; USDJPY too thin) and tokenised shares, which need `asset_class=tokenized_asset`. Result keys differ from the pair asked for (`XXBTZUSD`). |
+| T8 | FRED's keyless CSV marks a missing value with an empty field. `WALCL` and `WTREGEN` are millions, `RRPONTSYD` billions. S&P, Dow, Nasdaq and Nikkei series are third-party copyright: shown to the user who fetched them, owner named, never bundled. |
+| T9 | The Treasury XML is fresher than FRED's DGS series and takes 17 to 19 s a request. |
+| T10 | ICE dollar index: 50.14348112 × EURUSD^-0.576 × USDJPY^0.136 × GBPUSD^-0.119 × USDCAD^0.091 × USDSEK^0.042 × USDCHF^0.036. The ECB fix of 2026-09-18 gives 100.52. |
+| T11 | No ETF issuer's terms allow automated reading of its holdings file (BlackRock, Fidelity and Bitwise forbid it; the rest are unclear, which is treated as no). |
+| T12 | barkd 0.7.1: `http://127.0.0.1:3000/api/v1`, bearer token, MIT, networks mainnet, signet, mutinynet and regtest. Balance is two endpoints. There is no fee estimate for an Ark-to-Ark send or for `/onchain/send`. The mnemonic and wallet-delete routes sit under the same token, and the terminal never calls them. |
+| T13 | mempool.space Lightning statistics were 20 days old on the day. |
+
+### Open questions for James
+
+1. **SEC contact.** Set `sec_user_agent = "Your Name you@example.com"` (or `SET sec_user_agent …`). Then the SEC fixtures can be
+   recorded and the XBRL crypto elements confirmed on MSTR's real file. Until then Phase 5 runs on documented shapes (D38).
+2. **Pyth.** Is a free-trial Pyth key acceptable as an optional upgrade? It would bring live indices, USD/JPY, metals, oil and
+   real equity quotes. The ids are already verified in `instruments.toml`.
+3. **Bitnodes.** `NODE` needs a source. The old host now redirects to an unnamed operator with ten requests a day.
+4. **Lightning.** mempool.space's Lightning data is stale. Keep `LN` with a stale label, or drop it from launchpads?
+5. **ETF holdings and flows.** No issuer permits automated access. `ETF` shows what SEC filings and open quotes give. Is there an
+   issuer relationship that would change that?
+6. **Tiling today's screens** into launchpads (D31): worth the refactor of the heatmap's app-wide state?
+7. TERMINAL.md section 12 questions 1 to 3 and 5 stand as written (deposit-scoped keys, `ended-trades` for keys, the Conviction
+   index, default tape and launchpad order).
+8. **Tokenised shares as proxies.** Kraken xStocks track the share but are not the share. They are labelled `proxy`. Acceptable?
+9. **Coinbase's market-data terms** discourage building "indexes" from its data. The BTC composite is an on-screen median that is
+   never published. Acceptable, or should BTC show one venue?
+10. **Gold stock constant** for `RV`: 216,265 tonnes (World Gold Council, above-ground stock, end 2024) sits in config as
+    `gold_stock_tonnes`. It was written from memory and not re-verified live. Please confirm or replace.
+
+### Checklist
+
+Legend: `[x]` built, tested offline and committed · `[~]` built with a stated gap · `[ ]` not built. Each function lists the
+command that opens it.
+
+**Phase 0: orient and verify**
+- [x] Baseline recorded
+- [x] Every source in TERMINAL.md 1.2 and every candidate fetched live, recorded in SOURCES.md, samples saved as fixtures
+- [x] Sources filtered to open, free and permitted; drops explained (Pyth, Bitnodes, ETF issuer files, GDELT, Stooq, public Electrum)
+- [x] Instrument map: `src/glimpse_tui/data/instruments.toml` (86 instruments, every list of 4.4)
+- [x] On-chain series found by catalogue search: `src/glimpse_tui/data/onchain.toml` (19 metrics, 23 age bands)
+- [~] SEC EDGAR blocked on the contact email (D38, question 1)
+
+**Phase 1: the shell**
+- [ ] Data core: `data/core.py` (provenance, token buckets, memory and SQLite cache, backoff, health), `data/http.py` (pools, User-Agent, SOCKS5)
+- [ ] Function registry `term/registry.py`; instruments `term/instruments.py`; config `term/config.py`
+- [ ] GO bar `term/gobar.py`: grammar, classes, autocomplete, history kept between sessions
+- [ ] Panes and launchpads `term/panes.py`: tiling, focus, zoom, even, `LP <name>`, `LP SAVE <name>`, six shipped launchpads
+- [ ] Status bar and tape `term/tape.py`: clocks, session states, block flash
+- [ ] `HELP` · `HELP <FUNC>` · F1
+- [ ] `FIND <text>`
+- [ ] `SRC`
+- [ ] `SET` · `SET <setting> <value>`
+- [ ] `MKT`, `HM`, `SLIP`, `PORT`, `BOTS` open today's screens with every key unchanged
+- [ ] Phase check: old keys work, `LP BTC` opens four panes, the tape ticks from live sources
+
+**Phase 2: inside Bitcoin** (section 5)
+- [ ] Clients: `data/mempool.py` (REST and WebSocket), `data/bitview.py`, `data/esplora.py`, `data/electrum.py`, `data/core_rpc.py`
+- [ ] `BTC` · [ ] `MEMP` (the next block as a picture) · [ ] `FEES` · [ ] `BLK [height or hash]` · [ ] `TX <txid>` · [ ] `ADDR <address>`
+- [ ] `RBF` · [ ] `MINE` · [ ] `HASH` · [ ] `DIFF` · [ ] `HASHP` · [ ] `HALV` · [ ] `SUPL` · [ ] `LN` · [ ] `ORCL`
+- [ ] `NODE` (no source: D41)
+- [ ] Privacy line on the first public lookup; backend switch without a restart
+
+**Phase 3: on-chain research** (section 6)
+- [ ] `charts.py`: braille lines, candles, bands, bars, sparklines, histograms, half-block pixels, stacked bands, both palettes
+- [ ] `FLDS <words>` · [ ] `GP <series or tickers>` · [ ] `ONCH` · [ ] `URPD` · [ ] `WAVE` · [ ] `CYC` · [ ] `CORR`
+
+**Phase 4: markets and macro** (section 7)
+- [ ] Clients: `data/prices.py`, `data/fred.py`, `data/treasury.py`, `data/fx_ref.py`, `data/deribit.py`, `data/quotes.py`; Pyth optional (D36)
+- [ ] `QM [list]` · [ ] `WEI` · [ ] `FX` · [ ] `GLCO` · [ ] `RATES` · [ ] `MACRO` · [ ] `ECO` · [ ] `HMAP` · [ ] `RV` · [ ] `DVOL`
+
+**Phase 5: companies** (section 9)
+- [ ] Client: `data/sec.py` (tickers, submissions, company facts, full-text search, documents as clean text)
+- [ ] `DES <ticker>` · [ ] `FA <ticker>` · [ ] `CF <ticker>` with the in-pane reader · [ ] `CFS <words>` · [ ] `TRSY` · [ ] `MINR` · [ ] `ETF` · [ ] `N [ticker]` · [ ] `TOP`
+
+**Phase 6: wallet and Glimpse depth** (sections 8 and 10)
+- [ ] `WAL`: the Glimpse account · barkd (balance, receive with QR, send with fee, typed-back amount, final confirmation, daily cap, boards, exits, history) · watch-only (xpub, zpub, descriptors, gap limit 20, consent before any public lookup)
+- [ ] `OMON` hands a box to the heatmap · [ ] `GIV`
+- [ ] barkd send and receive exercised on signet or regtest
+
+**Phase 7: tools and polish** (section 11)
+- [ ] `AL` · [ ] `NOTE` · [ ] `CALC` · [ ] `EXP` · [ ] `ASK <words>`
+- [ ] Both palettes checked at 80×24, 132×36 and 200×58
+- [ ] README rewritten around the GO bar · [ ] the two-minute demo script

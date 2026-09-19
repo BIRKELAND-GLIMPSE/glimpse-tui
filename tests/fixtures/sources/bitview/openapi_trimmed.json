@@ -1,0 +1,2404 @@
+{
+ "openapi": "3.1.0",
+ "info": {
+  "title": "Bitcoin Research Kit",
+  "version": "v0.12.2",
+  "license": {
+   "name": "MIT",
+   "url": "https://github.com/bitcoinresearchkit/brk/blob/main/docs/LICENSE.md"
+  }
+ },
+ "paths": {
+  "/health": {
+   "get": {
+    "summary": "Health check",
+    "tags": [
+     "Server"
+    ],
+    "deprecated": false,
+    "parameters": []
+   }
+  },
+  "/version": {
+   "get": {
+    "summary": "API version",
+    "tags": [
+     "Server"
+    ],
+    "deprecated": false,
+    "parameters": []
+   }
+  },
+  "/api/server/sync": {
+   "get": {
+    "summary": "Sync status",
+    "tags": [
+     "Server"
+    ],
+    "deprecated": false,
+    "parameters": []
+   }
+  },
+  "/api/server/disk": {
+   "get": {
+    "summary": "Disk usage",
+    "tags": [
+     "Server"
+    ],
+    "deprecated": false,
+    "parameters": []
+   }
+  },
+  "/api/series": {
+   "get": {
+    "summary": "Series catalog",
+    "tags": [
+     "Series"
+    ],
+    "deprecated": false,
+    "parameters": []
+   }
+  },
+  "/api/series/count": {
+   "get": {
+    "summary": "Series count",
+    "tags": [
+     "Series"
+    ],
+    "deprecated": false,
+    "parameters": []
+   }
+  },
+  "/api/series/indexes": {
+   "get": {
+    "summary": "List available indexes",
+    "tags": [
+     "Series"
+    ],
+    "deprecated": false,
+    "parameters": []
+   }
+  },
+  "/api/series/list": {
+   "get": {
+    "summary": "Series list",
+    "tags": [
+     "Series"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "page",
+      "in": "query",
+      "required": false
+     },
+     {
+      "name": "per_page",
+      "in": "query",
+      "required": false
+     }
+    ]
+   }
+  },
+  "/api/series/search": {
+   "get": {
+    "summary": "Search series",
+    "tags": [
+     "Series"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "q",
+      "in": "query",
+      "required": true
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false
+     }
+    ]
+   }
+  },
+  "/api/series/{series}": {
+   "get": {
+    "summary": "Get series info",
+    "tags": [
+     "Series"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "series",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/series/{series}/{index}": {
+   "get": {
+    "summary": "Get series data",
+    "tags": [
+     "Series"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "series",
+      "in": "path",
+      "required": true
+     },
+     {
+      "name": "index",
+      "in": "path",
+      "required": true
+     },
+     {
+      "name": "start",
+      "in": "query",
+      "required": false
+     },
+     {
+      "name": "end",
+      "in": "query",
+      "required": false
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false
+     },
+     {
+      "name": "format",
+      "in": "query",
+      "required": false
+     }
+    ]
+   }
+  },
+  "/api/series/{series}/{index}/data": {
+   "get": {
+    "summary": "Get raw series data",
+    "tags": [
+     "Series"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "series",
+      "in": "path",
+      "required": true
+     },
+     {
+      "name": "index",
+      "in": "path",
+      "required": true
+     },
+     {
+      "name": "start",
+      "in": "query",
+      "required": false
+     },
+     {
+      "name": "end",
+      "in": "query",
+      "required": false
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false
+     },
+     {
+      "name": "format",
+      "in": "query",
+      "required": false
+     }
+    ]
+   }
+  },
+  "/api/series/{series}/{index}/latest": {
+   "get": {
+    "summary": "Get latest series value",
+    "tags": [
+     "Series"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "series",
+      "in": "path",
+      "required": true
+     },
+     {
+      "name": "index",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/series/{series}/{index}/len": {
+   "get": {
+    "summary": "Get series data length",
+    "tags": [
+     "Series"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "series",
+      "in": "path",
+      "required": true
+     },
+     {
+      "name": "index",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/series/{series}/{index}/version": {
+   "get": {
+    "summary": "Get series version",
+    "tags": [
+     "Series"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "series",
+      "in": "path",
+      "required": true
+     },
+     {
+      "name": "index",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/series/bulk": {
+   "get": {
+    "summary": "Bulk series data",
+    "tags": [
+     "Series"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "series",
+      "in": "query",
+      "required": true
+     },
+     {
+      "name": "index",
+      "in": "query",
+      "required": true
+     },
+     {
+      "name": "start",
+      "in": "query",
+      "required": false
+     },
+     {
+      "name": "end",
+      "in": "query",
+      "required": false
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false
+     },
+     {
+      "name": "format",
+      "in": "query",
+      "required": false
+     }
+    ]
+   }
+  },
+  "/api/series/cost-basis": {
+   "get": {
+    "summary": "Available cost basis cohorts (deprecated)",
+    "tags": [
+     "Series"
+    ],
+    "deprecated": true,
+    "parameters": []
+   }
+  },
+  "/api/series/cost-basis/{cohort}/dates": {
+   "get": {
+    "summary": "Available cost basis dates (deprecated)",
+    "tags": [
+     "Series"
+    ],
+    "deprecated": true,
+    "parameters": [
+     {
+      "name": "cohort",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/series/cost-basis/{cohort}/{date}": {
+   "get": {
+    "summary": "Cost basis distribution (deprecated)",
+    "tags": [
+     "Series"
+    ],
+    "deprecated": true,
+    "parameters": [
+     {
+      "name": "cohort",
+      "in": "path",
+      "required": true
+     },
+     {
+      "name": "date",
+      "in": "path",
+      "required": true
+     },
+     {
+      "name": "bucket",
+      "in": "query",
+      "required": false
+     },
+     {
+      "name": "value",
+      "in": "query",
+      "required": false
+     }
+    ]
+   }
+  },
+  "/api/metrics": {
+   "get": {
+    "summary": "Metrics catalog (deprecated)",
+    "tags": [
+     "Metrics"
+    ],
+    "deprecated": true,
+    "parameters": []
+   }
+  },
+  "/api/metrics/count": {
+   "get": {
+    "summary": "Metric count (deprecated)",
+    "tags": [
+     "Metrics"
+    ],
+    "deprecated": true,
+    "parameters": []
+   }
+  },
+  "/api/metrics/indexes": {
+   "get": {
+    "summary": "List available indexes (deprecated)",
+    "tags": [
+     "Metrics"
+    ],
+    "deprecated": true,
+    "parameters": []
+   }
+  },
+  "/api/metrics/list": {
+   "get": {
+    "summary": "Metrics list (deprecated)",
+    "tags": [
+     "Metrics"
+    ],
+    "deprecated": true,
+    "parameters": [
+     {
+      "name": "page",
+      "in": "query",
+      "required": false
+     },
+     {
+      "name": "per_page",
+      "in": "query",
+      "required": false
+     }
+    ]
+   }
+  },
+  "/api/metrics/search": {
+   "get": {
+    "summary": "Search metrics (deprecated)",
+    "tags": [
+     "Metrics"
+    ],
+    "deprecated": true,
+    "parameters": [
+     {
+      "name": "q",
+      "in": "query",
+      "required": true
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false
+     }
+    ]
+   }
+  },
+  "/api/metrics/bulk": {
+   "get": {
+    "summary": "Bulk metric data (deprecated)",
+    "tags": [
+     "Metrics"
+    ],
+    "deprecated": true,
+    "parameters": [
+     {
+      "name": "series",
+      "in": "query",
+      "required": true
+     },
+     {
+      "name": "index",
+      "in": "query",
+      "required": true
+     },
+     {
+      "name": "start",
+      "in": "query",
+      "required": false
+     },
+     {
+      "name": "end",
+      "in": "query",
+      "required": false
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false
+     },
+     {
+      "name": "format",
+      "in": "query",
+      "required": false
+     }
+    ]
+   }
+  },
+  "/api/metric/{metric}": {
+   "get": {
+    "summary": "Get metric info (deprecated)",
+    "tags": [
+     "Metrics"
+    ],
+    "deprecated": true,
+    "parameters": [
+     {
+      "name": "metric",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/metric/{metric}/{index}": {
+   "get": {
+    "summary": "Get metric data (deprecated)",
+    "tags": [
+     "Metrics"
+    ],
+    "deprecated": true,
+    "parameters": [
+     {
+      "name": "metric",
+      "in": "path",
+      "required": true
+     },
+     {
+      "name": "index",
+      "in": "path",
+      "required": true
+     },
+     {
+      "name": "start",
+      "in": "query",
+      "required": false
+     },
+     {
+      "name": "end",
+      "in": "query",
+      "required": false
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false
+     },
+     {
+      "name": "format",
+      "in": "query",
+      "required": false
+     }
+    ]
+   }
+  },
+  "/api/metric/{metric}/{index}/data": {
+   "get": {
+    "summary": "Get raw metric data (deprecated)",
+    "tags": [
+     "Metrics"
+    ],
+    "deprecated": true,
+    "parameters": [
+     {
+      "name": "metric",
+      "in": "path",
+      "required": true
+     },
+     {
+      "name": "index",
+      "in": "path",
+      "required": true
+     },
+     {
+      "name": "start",
+      "in": "query",
+      "required": false
+     },
+     {
+      "name": "end",
+      "in": "query",
+      "required": false
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false
+     },
+     {
+      "name": "format",
+      "in": "query",
+      "required": false
+     }
+    ]
+   }
+  },
+  "/api/metric/{metric}/{index}/latest": {
+   "get": {
+    "summary": "Get latest metric value (deprecated)",
+    "tags": [
+     "Metrics"
+    ],
+    "deprecated": true,
+    "parameters": [
+     {
+      "name": "metric",
+      "in": "path",
+      "required": true
+     },
+     {
+      "name": "index",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/metric/{metric}/{index}/len": {
+   "get": {
+    "summary": "Get metric data length (deprecated)",
+    "tags": [
+     "Metrics"
+    ],
+    "deprecated": true,
+    "parameters": [
+     {
+      "name": "metric",
+      "in": "path",
+      "required": true
+     },
+     {
+      "name": "index",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/metric/{metric}/{index}/version": {
+   "get": {
+    "summary": "Get metric version (deprecated)",
+    "tags": [
+     "Metrics"
+    ],
+    "deprecated": true,
+    "parameters": [
+     {
+      "name": "metric",
+      "in": "path",
+      "required": true
+     },
+     {
+      "name": "index",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/vecs/{variant}": {
+   "get": {
+    "summary": "Legacy variant endpoint",
+    "tags": [
+     "Metrics"
+    ],
+    "deprecated": true,
+    "parameters": [
+     {
+      "name": "start",
+      "in": "query",
+      "required": false
+     },
+     {
+      "name": "end",
+      "in": "query",
+      "required": false
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false
+     },
+     {
+      "name": "format",
+      "in": "query",
+      "required": false
+     }
+    ]
+   }
+  },
+  "/api/vecs/query": {
+   "get": {
+    "summary": "Legacy query endpoint",
+    "tags": [
+     "Metrics"
+    ],
+    "deprecated": true,
+    "parameters": [
+     {
+      "name": "index",
+      "in": "query",
+      "required": true
+     },
+     {
+      "name": "ids",
+      "in": "query",
+      "required": true
+     },
+     {
+      "name": "start",
+      "in": "query",
+      "required": false
+     },
+     {
+      "name": "end",
+      "in": "query",
+      "required": false
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false
+     },
+     {
+      "name": "format",
+      "in": "query",
+      "required": false
+     }
+    ]
+   }
+  },
+  "/api/urpd": {
+   "get": {
+    "summary": "Available URPD cohorts",
+    "tags": [
+     "URPD"
+    ],
+    "deprecated": false,
+    "parameters": []
+   }
+  },
+  "/api/urpd/{cohort}/dates": {
+   "get": {
+    "summary": "Available URPD dates",
+    "tags": [
+     "URPD"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "cohort",
+      "in": "path",
+      "required": true
+     },
+     {
+      "name": "weight",
+      "in": "query",
+      "required": false
+     }
+    ]
+   }
+  },
+  "/api/urpd/{cohort}": {
+   "get": {
+    "summary": "Latest URPD",
+    "tags": [
+     "URPD"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "cohort",
+      "in": "path",
+      "required": true
+     },
+     {
+      "name": "agg",
+      "in": "query",
+      "required": false
+     },
+     {
+      "name": "weight",
+      "in": "query",
+      "required": false
+     }
+    ]
+   }
+  },
+  "/api/urpd/{cohort}/{date}": {
+   "get": {
+    "summary": "URPD at date",
+    "tags": [
+     "URPD"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "cohort",
+      "in": "path",
+      "required": true
+     },
+     {
+      "name": "date",
+      "in": "path",
+      "required": true
+     },
+     {
+      "name": "agg",
+      "in": "query",
+      "required": false
+     },
+     {
+      "name": "weight",
+      "in": "query",
+      "required": false
+     }
+    ]
+   }
+  },
+  "/api/v1/difficulty-adjustment": {
+   "get": {
+    "summary": "Difficulty adjustment",
+    "tags": [
+     "General"
+    ],
+    "deprecated": false,
+    "parameters": []
+   }
+  },
+  "/api/v1/prices": {
+   "get": {
+    "summary": "Current BTC price",
+    "tags": [
+     "General"
+    ],
+    "deprecated": false,
+    "parameters": []
+   }
+  },
+  "/api/v1/historical-price": {
+   "get": {
+    "summary": "Historical price",
+    "tags": [
+     "General"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "timestamp",
+      "in": "query",
+      "required": false
+     }
+    ]
+   }
+  },
+  "/api/address/hash-prefix/{addr_type}/{prefix}": {
+   "get": {
+    "summary": "Address hash-prefix matches",
+    "tags": [
+     "Addresses"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "addr_type",
+      "in": "path",
+      "required": true
+     },
+     {
+      "name": "prefix",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/address/{address}": {
+   "get": {
+    "summary": "Address information",
+    "tags": [
+     "Addresses"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "address",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/address/{address}/txs": {
+   "get": {
+    "summary": "Address transactions",
+    "tags": [
+     "Addresses"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "address",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/address/{address}/txs/chain": {
+   "get": {
+    "summary": "Address confirmed transactions",
+    "tags": [
+     "Addresses"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "address",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/address/{address}/txs/chain/{after_txid}": {
+   "get": {
+    "summary": "Address confirmed transactions (paginated)",
+    "tags": [
+     "Addresses"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "address",
+      "in": "path",
+      "required": true
+     },
+     {
+      "name": "after_txid",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/address/{address}/txs/mempool": {
+   "get": {
+    "summary": "Address mempool transactions",
+    "tags": [
+     "Addresses"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "address",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/address/{address}/utxo": {
+   "get": {
+    "summary": "Address UTXOs",
+    "tags": [
+     "Addresses"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "address",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/v1/validate-address/{address}": {
+   "get": {
+    "summary": "Validate address",
+    "tags": [
+     "Addresses"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "address",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/block/{hash}": {
+   "get": {
+    "summary": "Block information",
+    "tags": [
+     "Blocks"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "hash",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/v1/block/{hash}": {
+   "get": {
+    "summary": "Block (v1)",
+    "tags": [
+     "Blocks"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "hash",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/block/{hash}/header": {
+   "get": {
+    "summary": "Block header",
+    "tags": [
+     "Blocks"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "hash",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/block-height/{height}": {
+   "get": {
+    "summary": "Block hash by height",
+    "tags": [
+     "Blocks"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "height",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/v1/mining/blocks/timestamp/{timestamp}": {
+   "get": {
+    "summary": "Block by timestamp",
+    "tags": [
+     "Blocks"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "timestamp",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/block/{hash}/raw": {
+   "get": {
+    "summary": "Raw block",
+    "tags": [
+     "Blocks"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "hash",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/block/{hash}/status": {
+   "get": {
+    "summary": "Block status",
+    "tags": [
+     "Blocks"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "hash",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/blocks/tip/height": {
+   "get": {
+    "summary": "Block tip height",
+    "tags": [
+     "Blocks"
+    ],
+    "deprecated": false,
+    "parameters": []
+   }
+  },
+  "/api/blocks/tip/hash": {
+   "get": {
+    "summary": "Block tip hash",
+    "tags": [
+     "Blocks"
+    ],
+    "deprecated": false,
+    "parameters": []
+   }
+  },
+  "/api/block/{hash}/txid/{index}": {
+   "get": {
+    "summary": "Transaction ID at index",
+    "tags": [
+     "Blocks"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "hash",
+      "in": "path",
+      "required": true
+     },
+     {
+      "name": "index",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/block/{hash}/txids": {
+   "get": {
+    "summary": "Block transaction IDs",
+    "tags": [
+     "Blocks"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "hash",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/block/{hash}/txs": {
+   "get": {
+    "summary": "Block transactions",
+    "tags": [
+     "Blocks"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "hash",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/block/{hash}/txs/{start_index}": {
+   "get": {
+    "summary": "Block transactions (paginated)",
+    "tags": [
+     "Blocks"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "hash",
+      "in": "path",
+      "required": true
+     },
+     {
+      "name": "start_index",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/blocks": {
+   "get": {
+    "summary": "Recent blocks",
+    "tags": [
+     "Blocks"
+    ],
+    "deprecated": false,
+    "parameters": []
+   }
+  },
+  "/api/blocks/{height}": {
+   "get": {
+    "summary": "Blocks from height",
+    "tags": [
+     "Blocks"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "height",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/v1/blocks": {
+   "get": {
+    "summary": "Recent blocks with extras",
+    "tags": [
+     "Blocks"
+    ],
+    "deprecated": false,
+    "parameters": []
+   }
+  },
+  "/api/v1/blocks/{height}": {
+   "get": {
+    "summary": "Blocks from height with extras",
+    "tags": [
+     "Blocks"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "height",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/v1/mining/pools": {
+   "get": {
+    "summary": "List all mining pools",
+    "tags": [
+     "Mining"
+    ],
+    "deprecated": false,
+    "parameters": []
+   }
+  },
+  "/api/v1/mining/pools/{time_period}": {
+   "get": {
+    "summary": "Mining pool statistics",
+    "tags": [
+     "Mining"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "time_period",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/v1/mining/pool/{slug}": {
+   "get": {
+    "summary": "Mining pool details",
+    "tags": [
+     "Mining"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "slug",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/v1/mining/hashrate/pools": {
+   "get": {
+    "summary": "All pools hashrate (all time)",
+    "tags": [
+     "Mining"
+    ],
+    "deprecated": false,
+    "parameters": []
+   }
+  },
+  "/api/v1/mining/hashrate/pools/{time_period}": {
+   "get": {
+    "summary": "All pools hashrate",
+    "tags": [
+     "Mining"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "time_period",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/v1/mining/pool/{slug}/hashrate": {
+   "get": {
+    "summary": "Mining pool hashrate",
+    "tags": [
+     "Mining"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "slug",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/v1/mining/pool/{slug}/blocks": {
+   "get": {
+    "summary": "Mining pool blocks",
+    "tags": [
+     "Mining"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "slug",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/v1/mining/pool/{slug}/blocks/{height}": {
+   "get": {
+    "summary": "Mining pool blocks from height",
+    "tags": [
+     "Mining"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "slug",
+      "in": "path",
+      "required": true
+     },
+     {
+      "name": "height",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/v1/mining/hashrate": {
+   "get": {
+    "summary": "Network hashrate (all time)",
+    "tags": [
+     "Mining"
+    ],
+    "deprecated": false,
+    "parameters": []
+   }
+  },
+  "/api/v1/mining/hashrate/{time_period}": {
+   "get": {
+    "summary": "Network hashrate",
+    "tags": [
+     "Mining"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "time_period",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/v1/mining/difficulty-adjustments": {
+   "get": {
+    "summary": "Difficulty adjustments (all time)",
+    "tags": [
+     "Mining"
+    ],
+    "deprecated": false,
+    "parameters": []
+   }
+  },
+  "/api/v1/mining/difficulty-adjustments/{time_period}": {
+   "get": {
+    "summary": "Difficulty adjustments",
+    "tags": [
+     "Mining"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "time_period",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/v1/mining/reward-stats/{block_count}": {
+   "get": {
+    "summary": "Mining reward statistics",
+    "tags": [
+     "Mining"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "block_count",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/v1/mining/blocks/fees/{time_period}": {
+   "get": {
+    "summary": "Block fees",
+    "tags": [
+     "Mining"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "time_period",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/v1/mining/blocks/rewards/{time_period}": {
+   "get": {
+    "summary": "Block rewards",
+    "tags": [
+     "Mining"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "time_period",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/v1/mining/blocks/fee-rates/{time_period}": {
+   "get": {
+    "summary": "Block fee rates",
+    "tags": [
+     "Mining"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "time_period",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/v1/mining/blocks/sizes-weights/{time_period}": {
+   "get": {
+    "summary": "Block sizes and weights",
+    "tags": [
+     "Mining"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "time_period",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/v1/fees/mempool-blocks": {
+   "get": {
+    "summary": "Projected mempool blocks",
+    "tags": [
+     "Fees"
+    ],
+    "deprecated": false,
+    "parameters": []
+   }
+  },
+  "/api/v1/fees/recommended": {
+   "get": {
+    "summary": "Recommended fees",
+    "tags": [
+     "Fees"
+    ],
+    "deprecated": false,
+    "parameters": []
+   }
+  },
+  "/api/v1/fees/precise": {
+   "get": {
+    "summary": "Recommended fee rates (precise)",
+    "tags": [
+     "Fees"
+    ],
+    "deprecated": false,
+    "parameters": []
+   }
+  },
+  "/api/mempool": {
+   "get": {
+    "summary": "Mempool statistics",
+    "tags": [
+     "Mempool"
+    ],
+    "deprecated": false,
+    "parameters": []
+   }
+  },
+  "/api/mempool/hash": {
+   "get": {
+    "summary": "Mempool content hash",
+    "tags": [
+     "Mempool"
+    ],
+    "deprecated": false,
+    "parameters": []
+   }
+  },
+  "/api/mempool/txids": {
+   "get": {
+    "summary": "Mempool transaction IDs",
+    "tags": [
+     "Mempool"
+    ],
+    "deprecated": false,
+    "parameters": []
+   }
+  },
+  "/api/mempool/recent": {
+   "get": {
+    "summary": "Recent mempool transactions",
+    "tags": [
+     "Mempool"
+    ],
+    "deprecated": false,
+    "parameters": []
+   }
+  },
+  "/api/v1/replacements": {
+   "get": {
+    "summary": "Recent RBF replacements",
+    "tags": [
+     "Mempool"
+    ],
+    "deprecated": false,
+    "parameters": []
+   }
+  },
+  "/api/v1/fullrbf/replacements": {
+   "get": {
+    "summary": "Recent full-RBF replacements",
+    "tags": [
+     "Mempool"
+    ],
+    "deprecated": false,
+    "parameters": []
+   }
+  },
+  "/api/v1/mempool/block-template": {
+   "get": {
+    "summary": "Projected next block template",
+    "tags": [
+     "Mempool"
+    ],
+    "deprecated": false,
+    "parameters": []
+   }
+  },
+  "/api/v1/mempool/block-template/diff/{hash}": {
+   "get": {
+    "summary": "Block template diff since hash",
+    "tags": [
+     "Mempool"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "hash",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/mempool/price": {
+   "get": {
+    "summary": "Live BTC/USD price",
+    "tags": [
+     "Mempool"
+    ],
+    "deprecated": false,
+    "parameters": []
+   }
+  },
+  "/api/tx-index/{index}": {
+   "get": {
+    "summary": "Txid by index",
+    "tags": [
+     "Transactions"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "index",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/v1/cpfp/{txid}": {
+   "get": {
+    "summary": "CPFP info",
+    "tags": [
+     "Transactions"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "txid",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/v1/tx/{txid}/rbf": {
+   "get": {
+    "summary": "RBF replacement history",
+    "tags": [
+     "Transactions"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "txid",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/tx/{txid}": {
+   "get": {
+    "summary": "Transaction information",
+    "tags": [
+     "Transactions"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "txid",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/tx/{txid}/hex": {
+   "get": {
+    "summary": "Transaction hex",
+    "tags": [
+     "Transactions"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "txid",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/tx/{txid}/merkleblock-proof": {
+   "get": {
+    "summary": "Transaction merkleblock proof",
+    "tags": [
+     "Transactions"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "txid",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/tx/{txid}/merkle-proof": {
+   "get": {
+    "summary": "Transaction merkle proof",
+    "tags": [
+     "Transactions"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "txid",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/tx/{txid}/outspend/{vout}": {
+   "get": {
+    "summary": "Output spend status",
+    "tags": [
+     "Transactions"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "txid",
+      "in": "path",
+      "required": true
+     },
+     {
+      "name": "vout",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/tx/{txid}/outspends": {
+   "get": {
+    "summary": "All output spend statuses",
+    "tags": [
+     "Transactions"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "txid",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/tx/{txid}/raw": {
+   "get": {
+    "summary": "Transaction raw",
+    "tags": [
+     "Transactions"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "txid",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/tx/{txid}/status": {
+   "get": {
+    "summary": "Transaction status",
+    "tags": [
+     "Transactions"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "txid",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/v1/transaction-times": {
+   "get": {
+    "summary": "Transaction first-seen times",
+    "tags": [
+     "Transactions"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "txId[]",
+      "in": "query",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/tx": {
+   "post": {
+    "summary": "Broadcast transaction",
+    "tags": [
+     "Transactions"
+    ],
+    "deprecated": false,
+    "parameters": []
+   }
+  },
+  "/api/oracle/price": {
+   "get": {
+    "summary": "Live BTC/USD price",
+    "tags": [
+     "Oracle"
+    ],
+    "deprecated": false,
+    "parameters": []
+   }
+  },
+  "/api/oracle/histogram/payments/live": {
+   "get": {
+    "summary": "Live payment output histogram",
+    "tags": [
+     "Oracle"
+    ],
+    "deprecated": false,
+    "parameters": []
+   }
+  },
+  "/api/oracle/histogram/payments/{point}": {
+   "get": {
+    "summary": "Payment output histogram at height or day",
+    "tags": [
+     "Oracle"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "point",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/api/oracle/histogram/outputs/live": {
+   "get": {
+    "summary": "Live output value histogram",
+    "tags": [
+     "Oracle"
+    ],
+    "deprecated": false,
+    "parameters": []
+   }
+  },
+  "/api/oracle/histogram/outputs/{point}": {
+   "get": {
+    "summary": "Output value histogram at height or day",
+    "tags": [
+     "Oracle"
+    ],
+    "deprecated": false,
+    "parameters": [
+     {
+      "name": "point",
+      "in": "path",
+      "required": true
+     }
+    ]
+   }
+  },
+  "/openapi.json": {
+   "get": {
+    "summary": "OpenAPI specification",
+    "tags": [
+     "Server"
+    ],
+    "deprecated": false,
+    "parameters": []
+   }
+  },
+  "/api.json": {
+   "get": {
+    "summary": "Compact OpenAPI specification",
+    "tags": [
+     "Server"
+    ],
+    "deprecated": false,
+    "parameters": []
+   }
+  }
+ },
+ "components": {
+  "schemas": {
+   "Index": {
+    "description": "Aggregation dimension for querying series. Includes time-based (date, week, month, year),\nblock-based (height, tx_index), and address/output type indexes.",
+    "type": "string",
+    "enum": [
+     "minute10",
+     "minute30",
+     "hour1",
+     "hour4",
+     "hour12",
+     "day1",
+     "day3",
+     "week1",
+     "month1",
+     "month3",
+     "month6",
+     "year1",
+     "year10",
+     "halving",
+     "epoch",
+     "height",
+     "tx_index",
+     "txin_index",
+     "txout_index",
+     "empty_output_index",
+     "op_return_index",
+     "p2a_addr_index",
+     "p2ms_output_index",
+     "p2pk33_addr_index",
+     "p2pk65_addr_index",
+     "p2pkh_addr_index",
+     "p2sh_addr_index",
+     "p2tr_addr_index",
+     "p2wpkh_addr_index",
+     "p2wsh_addr_index",
+     "unknown_output_index",
+     "funded_addr_index",
+     "empty_addr_index",
+     "extended_empty_addr_index"
+    ],
+    "examples": [
+     "day1"
+    ]
+   },
+   "SeriesData": {
+    "description": "Series data with range information.\n\nAll series data endpoints return this structure when format is JSON.",
+    "type": "object",
+    "properties": {
+     "version": {
+      "description": "Version of the series data",
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/Version"
+       }
+      ]
+     },
+     "index": {
+      "description": "The index type used for this query",
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/Index"
+       }
+      ]
+     },
+     "type": {
+      "description": "Value type (e.g. \"f32\", \"u64\", \"Sats\")",
+      "type": "string",
+      "default": ""
+     },
+     "start": {
+      "description": "Start index (inclusive) of the returned range",
+      "type": "integer",
+      "format": "uint",
+      "minimum": 0
+     },
+     "end": {
+      "description": "End index (exclusive) of the returned range",
+      "type": "integer",
+      "format": "uint",
+      "minimum": 0
+     },
+     "stamp": {
+      "description": "ISO 8601 timestamp of when the response was generated",
+      "type": "string"
+     },
+     "data": {
+      "description": "The series data",
+      "type": "array",
+      "items": true
+     }
+    },
+    "required": [
+     "version",
+     "index",
+     "start",
+     "end",
+     "stamp",
+     "data"
+    ]
+   },
+   "SeriesInfo": {
+    "description": "Metadata about a series",
+    "type": "object",
+    "properties": {
+     "description": {
+      "description": "Human-readable metric definition, when documented",
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "indexes": {
+      "description": "Available indexes",
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/Index"
+      }
+     },
+     "type": {
+      "description": "Value type (e.g. \"f32\", \"u64\", \"Sats\")",
+      "type": "string"
+     }
+    },
+    "required": [
+     "indexes",
+     "type"
+    ]
+   },
+   "SeriesCount": {
+    "description": "Series count statistics",
+    "type": "object",
+    "properties": {
+     "distinct": {
+      "description": "Number of unique series available (e.g., realized_price, market_cap)",
+      "type": "integer",
+      "format": "uint",
+      "minimum": 0,
+      "examples": [
+       3141
+      ]
+     },
+     "total": {
+      "description": "Total number of series-index combinations across all timeframes",
+      "type": "integer",
+      "format": "uint",
+      "minimum": 0,
+      "examples": [
+       21000
+      ]
+     },
+     "lazy": {
+      "description": "Number of lazy (computed on-the-fly) series-index combinations",
+      "type": "integer",
+      "format": "uint",
+      "minimum": 0,
+      "examples": [
+       5000
+      ]
+     },
+     "stored": {
+      "description": "Number of eager (stored on disk) series-index combinations",
+      "type": "integer",
+      "format": "uint",
+      "minimum": 0,
+      "examples": [
+       16000
+      ]
+     }
+    },
+    "required": [
+     "distinct",
+     "total",
+     "lazy",
+     "stored"
+    ]
+   },
+   "PaginatedSeries": {
+    "description": "A paginated list of available series names (1000 per page)",
+    "type": "object",
+    "properties": {
+     "current_page": {
+      "description": "Current page number (0-indexed)",
+      "type": "integer",
+      "format": "uint",
+      "minimum": 0,
+      "examples": [
+       0
+      ]
+     },
+     "max_page": {
+      "description": "Maximum valid page index (0-indexed)",
+      "type": "integer",
+      "format": "uint",
+      "minimum": 0,
+      "examples": [
+       21
+      ]
+     },
+     "total_count": {
+      "description": "Total number of series",
+      "type": "integer",
+      "format": "uint",
+      "minimum": 0
+     },
+     "per_page": {
+      "description": "Results per page",
+      "type": "integer",
+      "format": "uint",
+      "minimum": 0
+     },
+     "has_more": {
+      "description": "Whether more pages are available after the current one",
+      "type": "boolean"
+     },
+     "series": {
+      "description": "List of series names",
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     }
+    },
+    "required": [
+     "current_page",
+     "max_page",
+     "total_count",
+     "per_page",
+     "has_more",
+     "series"
+    ]
+   },
+   "Format": {
+    "description": "Output format for API responses",
+    "type": "string",
+    "enum": [
+     "json",
+     "csv"
+    ]
+   },
+   "Limit": {
+    "description": "Maximum number of results to return. Defaults to 100 if not specified.",
+    "type": "integer",
+    "format": "uint",
+    "minimum": 0,
+    "examples": [
+     1,
+     10,
+     100
+    ]
+   },
+   "RangeIndex": {
+    "description": "A positional index, YYYY-MM-DD date, or ISO 8601 timestamp.",
+    "anyOf": [
+     {
+      "type": "integer",
+      "format": "int64",
+      "examples": [
+       0,
+       -366
+      ]
+     },
+     {
+      "type": "string",
+      "format": "date",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "examples": [
+       "2025-08-15"
+      ]
+     },
+     {
+      "type": "string",
+      "format": "date-time",
+      "examples": [
+       "2025-08-15T00:00:00Z"
+      ]
+     }
+    ]
+   },
+   "SeriesList": {
+    "description": "Comma-separated list of series names",
+    "type": "string",
+    "examples": [
+     "date,price_close",
+     "price_close",
+     "price_close,market_cap",
+     "realized_price,market_cap,mvrv"
+    ]
+   },
+   "Cohort": {
+    "description": "URPD cohort identifier. Use `GET /api/urpd` to list available cohorts.\n\nValidated at construction: non-empty, ASCII `[a-z0-9_]+`. Matches the\nschemars enum value set; the type therefore proves \"this is a valid\ncohort name\" wherever a `Cohort` is held.",
+    "type": "string",
+    "enum": [
+     "all",
+     "sth",
+     "lth",
+     "utxos_under_1h_old",
+     "utxos_1h_to_1d_old",
+     "utxos_1d_to_1w_old",
+     "utxos_1w_to_1m_old",
+     "utxos_1m_to_2m_old",
+     "utxos_2m_to_3m_old",
+     "utxos_3m_to_4m_old",
+     "utxos_4m_to_5m_old",
+     "utxos_5m_to_6m_old",
+     "utxos_6m_to_9m_old",
+     "utxos_9m_to_1y_old",
+     "utxos_1y_to_18m_old",
+     "utxos_18m_to_2y_old",
+     "utxos_2y_to_3y_old",
+     "utxos_3y_to_4y_old",
+     "utxos_4y_to_5y_old",
+     "utxos_5y_to_6y_old",
+     "utxos_6y_to_7y_old",
+     "utxos_7y_to_8y_old",
+     "utxos_8y_to_10y_old",
+     "utxos_10y_to_12y_old",
+     "utxos_12y_to_15y_old",
+     "utxos_over_15y_old"
+    ]
+   },
+   "UrpdAggregation": {
+    "description": "Aggregation strategy for URPD buckets.\nOptions: raw (no aggregation), lin200/lin500/lin1000 (linear $200/$500/$1000),\nlog10/log50/log100/log200/log500/log1000/log2000 (logarithmic with 10/50/100/200/500/1000/2000 buckets per decade).",
+    "type": "string",
+    "enum": [
+     "raw",
+     "lin200",
+     "lin500",
+     "lin1000",
+     "log10",
+     "log50",
+     "log100",
+     "log200",
+     "log500",
+     "log1000",
+     "log2000"
+    ]
+   },
+   "UrpdWeight": {
+    "description": "Weighting applied to a URPD: raw (unweighted), cointime, or coinflow.",
+    "type": "string",
+    "enum": [
+     "raw",
+     "cointime",
+     "coinflow"
+    ]
+   },
+   "Urpd": {
+    "description": "UTXO Realized Price Distribution for a cohort on a specific date.\n\nSupply is grouped by the close price at which each UTXO was last moved.\nEach bucket exposes three values: supply in BTC, realized cap contribution\nin USD (sum of `realized_price * supply` over the coins in the bucket), and\nunrealized P&L in USD (`close * supply - realized_cap`, can be negative).",
+    "type": "object",
+    "properties": {
+     "cohort": {
+      "$ref": "#/components/schemas/Cohort"
+     },
+     "date": {
+      "$ref": "#/components/schemas/Date"
+     },
+     "weight": {
+      "description": "Weighting applied to the source supply.",
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/UrpdWeight"
+       }
+      ]
+     },
+     "aggregation": {
+      "description": "Aggregation strategy applied to the buckets.",
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/UrpdAggregation"
+       }
+      ]
+     },
+     "close": {
+      "description": "Close price on `date`, in USD. Anchor for `unrealized_pnl`.",
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/Dollars"
+       }
+      ]
+     },
+     "total_supply": {
+      "description": "Sum of `supply` across all buckets, in BTC.",
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/Bitcoin"
+       }
+      ]
+     },
+     "buckets": {
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/UrpdBucket"
+      }
+     }
+    },
+    "required": [
+     "cohort",
+     "date",
+     "weight",
+     "aggregation",
+     "close",
+     "total_supply",
+     "buckets"
+    ]
+   },
+   "UrpdBucket": {
+    "description": "A single bucket in a URPD snapshot.",
+    "type": "object",
+    "properties": {
+     "price_floor": {
+      "description": "Lower bound of the bucket, in USD. Equals the exact realized price for `Raw`.",
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/Dollars"
+       }
+      ]
+     },
+     "supply": {
+      "description": "Supply held with a last-move price inside this bucket, in BTC.",
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/Bitcoin"
+       }
+      ]
+     },
+     "realized_cap": {
+      "description": "Realized cap contribution in USD: sum of `realized_price * supply` over the coins in this bucket.",
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/Dollars"
+       }
+      ]
+     },
+     "unrealized_pnl": {
+      "description": "Unrealized P&L in USD against the close on the snapshot date: `close * supply - realized_cap`. Can be negative.",
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/Dollars"
+       }
+      ]
+     }
+    },
+    "required": [
+     "price_floor",
+     "supply",
+     "realized_cap",
+     "unrealized_pnl"
+    ]
+   },
+   "BlockTemplate": {
+    "description": "Projected next-block contents from Bitcoin Core's `getblocktemplate`\n(block 0 of the snapshot). Returned by\n`GET /api/v1/mempool/block-template`.",
+    "type": "object",
+    "properties": {
+     "hash": {
+      "description": "Pass to `GET /api/v1/mempool/block-template/diff/{hash}` to fetch deltas.",
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/NextBlockHash"
+       }
+      ]
+     },
+     "stats": {
+      "description": "Aggregate stats for this block (size, vsize, fee range, ...).",
+      "allOf": [
+       {
+        "$ref": "#/components/schemas/MempoolBlock"
+       }
+      ]
+     },
+     "transactions": {
+      "description": "Full transaction bodies in `getblocktemplate` order.",
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/Transaction"
+      }
+     }
+    },
+    "required": [
+     "hash",
+     "stats",
+     "transactions"
+    ]
+   }
+  }
+ }
+}

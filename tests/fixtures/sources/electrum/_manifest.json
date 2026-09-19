@@ -1,0 +1,19 @@
+{
+ "recorded": "2026-09-19",
+ "user_agent": "glimpse-tui/0.1 (+https://github.com/BIRKELAND-GLIMPSE/glimpse-tui)",
+ "note": "Real responses. Values never altered. Trimmed files were re-serialised as compact JSON after cutting arrays; untrimmed files are byte-for-byte as received.",
+ "files": {
+  "electrum_blockstream_info.jsonl": {
+   "url": "ssl://electrum.blockstream.info:50002",
+   "status": null,
+   "trimmed": "",
+   "bytes": 9845
+  },
+  "bitcoin_lu_ke.jsonl": {
+   "url": "ssl://bitcoin.lu.ke:50002",
+   "status": null,
+   "trimmed": "",
+   "bytes": 2965
+  }
+ }
+}

@@ -1,0 +1,1 @@
+{"description":"Amount of bitcoin held in unspent transaction outputs. Uses UTXOs at least 1 day and less than 7 days old. Reported in BTC; one BTC equals 100,000,000 satoshis.","indexes":["minute10","minute30","hour1","hour4","hour12","day1","day3","week1","month1","month3","month6","year1","year10","halving","epoch","height"],"type":"Bitcoin"}

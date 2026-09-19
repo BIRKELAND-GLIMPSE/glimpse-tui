@@ -1,0 +1,829 @@
+{
+ "recorded": "2026-09-19",
+ "user_agent": "glimpse-tui/0.1 (+https://github.com/BIRKELAND-GLIMPSE/glimpse-tui)",
+ "note": "Real responses. Values never altered. Trimmed files were re-serialised as compact JSON after cutting arrays; untrimmed files are byte-for-byte as received.",
+ "files": {
+  "openapi_trimmed.json": {
+   "url": "https://bitview.space/openapi.json",
+   "status": 200,
+   "trimmed": "derived from the 203 KB spec: per operation only summary, tags, deprecated flag and parameter names; 15 schemas kept verbatim; 114 operations",
+   "bytes": 44022,
+   "notes": "Version `v0.12.2`. 114 operations, 17 of them marked deprecated, so 97 current."
+  },
+  "block.json": {
+   "url": "https://bitview.space/api/block/00000000000000000000d7decd57c4221866464aef04799a82be9d4d032d056d",
+   "status": 200,
+   "seconds": 0.2156,
+   "trimmed": "",
+   "bytes": 441,
+   "notes": "Esplora shape."
+  },
+  "block_v1.json": {
+   "url": "https://bitview.space/api/v1/block/00000000000000000000d7decd57c4221866464aef04799a82be9d4d032d056d",
+   "status": 200,
+   "seconds": 0.195075,
+   "trimmed": "",
+   "bytes": 1904,
+   "notes": "mempool.space shape. `extras` lacks `matchRate, expectedFees, expectedWeight, similarity, coinbaseBip54` (no audit health) and adds `medianFeeAmt` and `price`."
+  },
+  "blocks_tip_height.txt": {
+   "url": "https://bitview.space/api/blocks/tip/height",
+   "status": 200,
+   "seconds": 0.312104,
+   "trimmed": "",
+   "bytes": 6,
+   "notes": "Plain text integer."
+  },
+  "difficulty_adjustment.json": {
+   "url": "https://bitview.space/api/v1/difficulty-adjustment",
+   "status": 200,
+   "seconds": 0.199452,
+   "trimmed": "",
+   "bytes": 352,
+   "notes": "Same keys as mempool.space. `difficultyChange` was -24.9 while mempool.space said -6.0 for the same epoch, 50 blocks in. Do not mix the two."
+  },
+  "fees_mempool_blocks.json": {
+   "url": "https://bitview.space/api/v1/fees/mempool-blocks",
+   "status": 200,
+   "seconds": 0.212689,
+   "trimmed": "",
+   "bytes": 1177,
+   "notes": "Same shape as mempool.space."
+  },
+  "fees_precise.json": {
+   "url": "https://bitview.space/api/v1/fees/precise",
+   "status": 200,
+   "seconds": 0.206526,
+   "trimmed": "",
+   "bytes": 90,
+   "notes": "Same as above."
+  },
+  "fees_recommended.json": {
+   "url": "https://bitview.space/api/v1/fees/recommended",
+   "status": 200,
+   "seconds": 0.194272,
+   "trimmed": "",
+   "bytes": 90,
+   "notes": "Same keys as mempool.space but floats (5.051), identical to `/fees/precise`."
+  },
+  "health.json": {
+   "url": "https://bitview.space/health",
+   "status": 200,
+   "seconds": 0.393605,
+   "trimmed": "",
+   "bytes": 327,
+   "notes": "`status, service, version, timestamp, started_at, uptime_seconds, indexed_height, computed_height, tip_height, blocks_behind, last_indexed_at, last_indexed_at_unix`."
+  },
+  "llms.txt": {
+   "url": "https://bitview.space/llms.txt",
+   "status": 200,
+   "seconds": 0.092332,
+   "trimmed": "",
+   "bytes": 1663,
+   "notes": "States the workflow and \"Never invent a series identifier\". Says 61992 series and 97 operations."
+  },
+  "mempool_price.json": {
+   "url": "https://bitview.space/api/mempool/price",
+   "status": 200,
+   "seconds": 0.189936,
+   "trimmed": "",
+   "bytes": 8,
+   "notes": "`/api/mempool/price`, same value as the oracle price."
+  },
+  "mining_pools_1w.json": {
+   "url": "https://bitview.space/api/v1/mining/pools/1w",
+   "status": 200,
+   "seconds": 0.392432,
+   "trimmed": "",
+   "bytes": 3069,
+   "notes": "mempool.space shape, with a `share` field and without `avgMatchRate` and `avgFeeDelta`."
+  },
+  "oracle_histogram_outputs_967730.json": {
+   "url": "https://bitview.space/api/oracle/histogram/outputs/967730",
+   "status": 200,
+   "seconds": 0.193712,
+   "trimmed": "",
+   "bytes": 5003,
+   "notes": "`/outputs/{point}` with a height or a `YYYY-MM-DD` date. Complete."
+  },
+  "oracle_histogram_outputs_live.json": {
+   "url": "https://bitview.space/api/oracle/histogram/outputs/live",
+   "status": 200,
+   "seconds": 0.354493,
+   "trimmed": "",
+   "bytes": 5878,
+   "notes": "Flat array of 2400 unsigned integers. Complete."
+  },
+  "oracle_histogram_payments_live.json": {
+   "url": "https://bitview.space/api/oracle/histogram/payments/live",
+   "status": 200,
+   "seconds": 0.207665,
+   "trimmed": "",
+   "bytes": 5193,
+   "notes": "Not in the brief. Same layout, only oracle-eligible payment outputs, smoothed. The round-dollar spikes are much cleaner here. Complete."
+  },
+  "oracle_price.json": {
+   "url": "https://bitview.space/api/oracle/price",
+   "status": 200,
+   "seconds": 0.190902,
+   "trimmed": "",
+   "bytes": 8,
+   "notes": "Bare number: `81337.07`."
+  },
+  "prices.json": {
+   "url": "https://bitview.space/api/v1/prices",
+   "status": 200,
+   "seconds": 0.198339,
+   "trimmed": "",
+   "bytes": 33,
+   "notes": "`{time, USD}` only. No other currencies."
+  },
+  "series_bulk.json": {
+   "url": "https://bitview.space/api/series/bulk?series=date,price_close,realized_price,mvrv,nupl,sopr_24h,supply_in_profit,supply_in_profit_share,sth_realized_price,lth_realized_price,puell_multiple,price_sma_200d,price_sma_200d_ratio,liveliness,market_cap,realized_cap,circulating_supply,hash_rate,difficulty,utxo_count&index=day1&start=-5",
+   "status": 200,
+   "seconds": 0.216744,
+   "trimmed": "",
+   "bytes": 3591,
+   "notes": "Array of `SeriesData`, one per requested name, in request order. 20 series, last 5 days."
+  },
+  "series_bulk_waves_day1.json": {
+   "url": "https://bitview.space/api/series/bulk?series=date,utxos_under_1h_old_supply_dominance,utxos_1h_to_1d_old_supply_dominance,utxos_1d_to_1w_old_supply_dominance,utxos_1w_to_1m_old_supply_dominance,utxos_1m_to_2m_old_supply_dominance,utxos_2m_to_3m_old_supply_dominance,utxos_3m_to_4m_old_supply_dominance,utxos_4m_to_5m_old_supply_dominance,utxos_5m_to_6m_old_supply_dominance,utxos_6m_to_9m_old_supply_dominance,utxos_9m_to_1y_old_supply_dominance,utxos_1y_to_18m_old_supply_dominance,utxos_18m_to_2y_old_supply_dominance,utxos_2y_to_3y_old_supply_dominance,utxos_3y_to_4y_old_supply_dominance,utxos_4y_to_5y_old_supply_dominance,utxos_5y_to_6y_old_supply_dominance,utxos_6y_to_7y_old_supply_dominance,utxos_7y_to_8y_old_supply_dominance,utxos_8y_to_10y_old_supply_dominance,utxos_10y_to_12y_old_supply_dominance,utxos_12y_to_15y_old_supply_dominance,utxos_over_15y_old_supply_dominance&index=day1&start=-60",
+   "status": 200,
+   "seconds": 0.397022,
+   "trimmed": "",
+   "bytes": 14328,
+   "notes": "`date` plus the 23 age-band dominance series, last 60 days."
+  },
+  "series_circulating_supply_day1.json": {
+   "url": "https://bitview.space/api/series/circulating_supply/day1?start=-60",
+   "status": 200,
+   "seconds": 0.396032,
+   "trimmed": "",
+   "bytes": 1192
+  },
+  "series_count.json": {
+   "url": "https://bitview.space/api/series/count",
+   "status": 200,
+   "seconds": 0.200681,
+   "trimmed": "",
+   "bytes": 1427,
+   "notes": "`distinct: 61949, total: 929396, lazy, stored, by_db{...}`."
+  },
+  "series_date_day1.json": {
+   "url": "https://bitview.space/api/series/date/day1?start=-400",
+   "status": 200,
+   "seconds": 0.200235,
+   "trimmed": "",
+   "bytes": 5307
+  },
+  "series_date_day1_first.json": {
+   "url": "https://bitview.space/api/series/date/day1?start=0&limit=5",
+   "status": 200,
+   "seconds": 0.199516,
+   "trimmed": "",
+   "bytes": 166,
+   "notes": "`?start=0&limit=5`: position 0 of `day1` is `2009-01-01`."
+  },
+  "series_difficulty_day1.json": {
+   "url": "https://bitview.space/api/series/difficulty/day1?start=-60",
+   "status": 200,
+   "seconds": 0.19181,
+   "trimmed": "",
+   "bytes": 1237
+  },
+  "series_hash_rate_day1.json": {
+   "url": "https://bitview.space/api/series/hash_rate/day1?start=-60",
+   "status": 200,
+   "seconds": 0.220893,
+   "trimmed": "",
+   "bytes": 1367
+  },
+  "series_indexes.json": {
+   "url": "https://bitview.space/api/series/indexes",
+   "status": 200,
+   "seconds": 0.21366,
+   "trimmed": "",
+   "bytes": 2368,
+   "notes": "Array of `{index, aliases[]}`. 33 indexes."
+  },
+  "series_info_asopr.json": {
+   "url": "https://bitview.space/api/series/asopr",
+   "status": 200,
+   "seconds": 0.960507,
+   "trimmed": "",
+   "bytes": 615
+  },
+  "series_info_circulating_supply.json": {
+   "url": "https://bitview.space/api/series/circulating_supply",
+   "status": 200,
+   "seconds": 0.400727,
+   "trimmed": "",
+   "bytes": 304
+  },
+  "series_info_difficulty.json": {
+   "url": "https://bitview.space/api/series/difficulty",
+   "status": 200,
+   "seconds": 1.128424,
+   "trimmed": "",
+   "bytes": 320
+  },
+  "series_info_hash_rate.json": {
+   "url": "https://bitview.space/api/series/hash_rate",
+   "status": 200,
+   "seconds": 0.200249,
+   "trimmed": "",
+   "bytes": 599
+  },
+  "series_info_liveliness.json": {
+   "url": "https://bitview.space/api/series/liveliness",
+   "status": 200,
+   "seconds": 0.203567,
+   "trimmed": "",
+   "bytes": 622
+  },
+  "series_info_lth_realized_price.json": {
+   "url": "https://bitview.space/api/series/lth_realized_price",
+   "status": 200,
+   "seconds": 0.1038,
+   "trimmed": "",
+   "bytes": 564
+  },
+  "series_info_market_cap.json": {
+   "url": "https://bitview.space/api/series/market_cap",
+   "status": 200,
+   "seconds": 0.167887,
+   "trimmed": "",
+   "bytes": 283
+  },
+  "series_info_mvrv.json": {
+   "url": "https://bitview.space/api/series/mvrv",
+   "status": 200,
+   "seconds": 0.193667,
+   "trimmed": "",
+   "bytes": 431
+  },
+  "series_info_nupl.json": {
+   "url": "https://bitview.space/api/series/nupl",
+   "status": 200,
+   "seconds": 0.175329,
+   "trimmed": "",
+   "bytes": 644
+  },
+  "series_info_nupl_ppm.json": {
+   "url": "https://bitview.space/api/series/nupl_ppm",
+   "status": 200,
+   "seconds": 0.20105,
+   "trimmed": "",
+   "bytes": 647
+  },
+  "series_info_price.json": {
+   "url": "https://bitview.space/api/series/price",
+   "status": 200,
+   "seconds": 0.097384,
+   "trimmed": "",
+   "bytes": 497
+  },
+  "series_info_price_close.json": {
+   "url": "https://bitview.space/api/series/price_close",
+   "status": 200,
+   "seconds": 0.09656,
+   "trimmed": "",
+   "bytes": 638
+  },
+  "series_info_price_sma_200d.json": {
+   "url": "https://bitview.space/api/series/price_sma_200d",
+   "status": 200,
+   "seconds": 0.396495,
+   "trimmed": "",
+   "bytes": 387
+  },
+  "series_info_price_sma_200d_ratio.json": {
+   "url": "https://bitview.space/api/series/price_sma_200d_ratio",
+   "status": 200,
+   "seconds": 0.222016,
+   "trimmed": "",
+   "bytes": 426
+  },
+  "series_info_puell_multiple.json": {
+   "url": "https://bitview.space/api/series/puell_multiple",
+   "status": 200,
+   "seconds": 0.087953,
+   "trimmed": "",
+   "bytes": 510
+  },
+  "series_info_realized_cap.json": {
+   "url": "https://bitview.space/api/series/realized_cap",
+   "status": 200,
+   "seconds": 0.389156,
+   "trimmed": "",
+   "bytes": 382
+  },
+  "series_info_realized_price.json": {
+   "url": "https://bitview.space/api/series/realized_price",
+   "status": 200,
+   "seconds": 0.102111,
+   "trimmed": "",
+   "bytes": 529
+  },
+  "series_info_sopr.json": {
+   "url": "https://bitview.space/api/series/sopr",
+   "status": 200,
+   "seconds": 0.194334,
+   "trimmed": "",
+   "bytes": 483
+  },
+  "series_info_sopr_24h.json": {
+   "url": "https://bitview.space/api/series/sopr_24h",
+   "status": 200,
+   "seconds": 0.371375,
+   "trimmed": "",
+   "bytes": 476
+  },
+  "series_info_sth_realized_price.json": {
+   "url": "https://bitview.space/api/series/sth_realized_price",
+   "status": 200,
+   "seconds": 0.101703,
+   "trimmed": "",
+   "bytes": 565
+  },
+  "series_info_supply_in_profit.json": {
+   "url": "https://bitview.space/api/series/supply_in_profit",
+   "status": 200,
+   "seconds": 0.187881,
+   "trimmed": "",
+   "bytes": 370
+  },
+  "series_info_supply_in_profit_share.json": {
+   "url": "https://bitview.space/api/series/supply_in_profit_share",
+   "status": 200,
+   "seconds": 0.188807,
+   "trimmed": "",
+   "bytes": 490
+  },
+  "series_info_supply_in_profit_share_ratio.json": {
+   "url": "https://bitview.space/api/series/supply_in_profit_share_ratio",
+   "status": 200,
+   "seconds": 0.198971,
+   "trimmed": "",
+   "bytes": 505
+  },
+  "series_info_utxo_count.json": {
+   "url": "https://bitview.space/api/series/utxo_count",
+   "status": 200,
+   "seconds": 0.364268,
+   "trimmed": "",
+   "bytes": 277
+  },
+  "series_info_utxos_1d_to_1w_old_supply.json": {
+   "url": "https://bitview.space/api/series/utxos_1d_to_1w_old_supply",
+   "status": 200,
+   "seconds": 0.195953,
+   "trimmed": "",
+   "bytes": 347
+  },
+  "series_info_utxos_1d_to_1w_old_supply_dominance.json": {
+   "url": "https://bitview.space/api/series/utxos_1d_to_1w_old_supply_dominance",
+   "status": 200,
+   "seconds": 0.181026,
+   "trimmed": "",
+   "bytes": 350
+  },
+  "series_info_utxos_1d_to_1w_old_supply_dominance_ratio.json": {
+   "url": "https://bitview.space/api/series/utxos_1d_to_1w_old_supply_dominance_ratio",
+   "status": 200,
+   "seconds": 0.205854,
+   "trimmed": "",
+   "bytes": 365
+  },
+  "series_liveliness_day1.json": {
+   "url": "https://bitview.space/api/series/liveliness/day1?start=-60",
+   "status": 200,
+   "seconds": 0.205673,
+   "trimmed": "",
+   "bytes": 1243
+  },
+  "series_lth_realized_price_day1.json": {
+   "url": "https://bitview.space/api/series/lth_realized_price/day1?start=-400",
+   "status": 200,
+   "seconds": 0.196594,
+   "trimmed": "",
+   "bytes": 3681
+  },
+  "series_market_cap_day1.json": {
+   "url": "https://bitview.space/api/series/market_cap/day1?start=-60",
+   "status": 200,
+   "seconds": 0.220557,
+   "trimmed": "",
+   "bytes": 1132
+  },
+  "series_mvrv_day1.json": {
+   "url": "https://bitview.space/api/series/mvrv/day1?start=-60",
+   "status": 200,
+   "seconds": 0.215672,
+   "trimmed": "",
+   "bytes": 653
+  },
+  "series_mvrv_day1_csv.csv": {
+   "url": "https://bitview.space/api/series/mvrv/day1?start=-3&format=csv",
+   "status": 200,
+   "seconds": 0.198868,
+   "trimmed": "",
+   "bytes": 32,
+   "notes": "`?format=csv`: a header line with the series name, then one value per line. No date column."
+  },
+  "series_mvrv_day1_data_raw.json": {
+   "url": "https://bitview.space/api/series/mvrv/day1/data?start=-3",
+   "status": 200,
+   "seconds": 0.194711,
+   "trimmed": "",
+   "bytes": 28,
+   "notes": "`/data` returns the bare array with no envelope."
+  },
+  "series_mvrv_day1_len.json": {
+   "url": "https://bitview.space/api/series/mvrv/day1/len",
+   "status": 200,
+   "seconds": 0.201259,
+   "trimmed": "",
+   "bytes": 4,
+   "notes": "`/len` returns a bare integer: `6471`."
+  },
+  "series_notfound_404.json": {
+   "url": "https://bitview.space/api/series/mayer_multiple",
+   "status": 404,
+   "seconds": 0.192362,
+   "trimmed": "",
+   "bytes": 255,
+   "notes": "404 as `application/problem+json`: `{error{type, code, message, doc_url}}`. The message suggests near names."
+  },
+  "series_nupl_day1.json": {
+   "url": "https://bitview.space/api/series/nupl/day1?start=-60",
+   "status": 200,
+   "seconds": 0.190604,
+   "trimmed": "",
+   "bytes": 650
+  },
+  "series_price_close_day1.json": {
+   "url": "https://bitview.space/api/series/price_close/day1?start=-400",
+   "status": 200,
+   "seconds": 0.191908,
+   "trimmed": "",
+   "bytes": 3755
+  },
+  "series_price_close_day1_daterange.json": {
+   "url": "https://bitview.space/api/series/price_close/day1?start=2026-09-01&end=2026-09-08",
+   "status": 200,
+   "seconds": 0.209192,
+   "trimmed": "",
+   "bytes": 172,
+   "notes": "`?start=2026-09-01&end=2026-09-08`: dates work, `end` is exclusive (7 values), and `start`/`end` in the reply are positions (6452, 6459)."
+  },
+  "series_price_close_day1_latest.json": {
+   "url": "https://bitview.space/api/series/price_close/day1/latest",
+   "status": 200,
+   "seconds": 0.24318,
+   "trimmed": "",
+   "bytes": 8,
+   "notes": "`/latest` returns the bare value: `81355.05`."
+  },
+  "series_price_sma_200d_day1.json": {
+   "url": "https://bitview.space/api/series/price_sma_200d/day1?start=-400",
+   "status": 200,
+   "seconds": 0.428032,
+   "trimmed": "",
+   "bytes": 3859
+  },
+  "series_price_sma_200d_ratio_day1.json": {
+   "url": "https://bitview.space/api/series/price_sma_200d_ratio/day1?start=-60",
+   "status": 200,
+   "seconds": 0.199659,
+   "trimmed": "",
+   "bytes": 644
+  },
+  "series_puell_multiple_day1.json": {
+   "url": "https://bitview.space/api/series/puell_multiple/day1?start=-60",
+   "status": 200,
+   "seconds": 0.199126,
+   "trimmed": "",
+   "bytes": 644
+  },
+  "series_realized_cap_day1.json": {
+   "url": "https://bitview.space/api/series/realized_cap/day1?start=-60",
+   "status": 200,
+   "seconds": 0.214585,
+   "trimmed": "",
+   "bytes": 1131
+  },
+  "series_realized_price_day1.json": {
+   "url": "https://bitview.space/api/series/realized_price/day1?start=-400",
+   "status": 200,
+   "seconds": 0.214439,
+   "trimmed": "",
+   "bytes": 3680
+  },
+  "series_search_age_range_supply.json": {
+   "url": "https://bitview.space/api/series/search?q=age%20range%20supply&limit=60",
+   "status": 200,
+   "seconds": 0.213675,
+   "trimmed": "",
+   "bytes": 1352
+  },
+  "series_search_circulating_supply.json": {
+   "url": "https://bitview.space/api/series/search?q=circulating_supply&limit=40",
+   "status": 200,
+   "seconds": 0.200086,
+   "trimmed": "",
+   "bytes": 100
+  },
+  "series_search_difficulty.json": {
+   "url": "https://bitview.space/api/series/search?q=difficulty&limit=40",
+   "status": 200,
+   "seconds": 0.205508,
+   "trimmed": "",
+   "bytes": 137
+  },
+  "series_search_hash_rate.json": {
+   "url": "https://bitview.space/api/series/search?q=hash_rate&limit=40",
+   "status": 200,
+   "seconds": 0.376931,
+   "trimmed": "",
+   "bytes": 178
+  },
+  "series_search_hodl_wave.json": {
+   "url": "https://bitview.space/api/series/search?q=hodl%20wave&limit=40",
+   "status": 200,
+   "seconds": 0.210975,
+   "trimmed": "",
+   "bytes": 171
+  },
+  "series_search_liveliness.json": {
+   "url": "https://bitview.space/api/series/search?q=liveliness&limit=40",
+   "status": 200,
+   "seconds": 0.168876,
+   "trimmed": "",
+   "bytes": 14
+  },
+  "series_search_lth_realized_price.json": {
+   "url": "https://bitview.space/api/series/search?q=lth_realized_price&limit=40",
+   "status": 200,
+   "seconds": 0.372663,
+   "trimmed": "",
+   "bytes": 1158
+  },
+  "series_search_market_cap.json": {
+   "url": "https://bitview.space/api/series/search?q=market_cap&limit=40",
+   "status": 200,
+   "seconds": 0.206492,
+   "trimmed": "",
+   "bytes": 775
+  },
+  "series_search_mayer.json": {
+   "url": "https://bitview.space/api/series/search?q=mayer&limit=40",
+   "status": 200,
+   "seconds": 0.221677,
+   "trimmed": "",
+   "bytes": 2
+  },
+  "series_search_mvrv.json": {
+   "url": "https://bitview.space/api/series/search?q=mvrv&limit=40",
+   "status": 200,
+   "seconds": 0.390386,
+   "trimmed": "",
+   "bytes": 636
+  },
+  "series_search_nupl.json": {
+   "url": "https://bitview.space/api/series/search?q=nupl&limit=40",
+   "status": 200,
+   "seconds": 0.193385,
+   "trimmed": "",
+   "bytes": 611
+  },
+  "series_search_price_close.json": {
+   "url": "https://bitview.space/api/series/search?q=price_close&limit=40",
+   "status": 200,
+   "seconds": 0.215776,
+   "trimmed": "",
+   "bytes": 54
+  },
+  "series_search_puell.json": {
+   "url": "https://bitview.space/api/series/search?q=puell&limit=40",
+   "status": 200,
+   "seconds": 0.211218,
+   "trimmed": "",
+   "bytes": 39
+  },
+  "series_search_realized_cap.json": {
+   "url": "https://bitview.space/api/series/search?q=realized_cap&limit=40",
+   "status": 200,
+   "seconds": 0.394055,
+   "trimmed": "",
+   "bytes": 1081
+  },
+  "series_search_realized_price.json": {
+   "url": "https://bitview.space/api/series/search?q=realized_price&limit=40",
+   "status": 200,
+   "seconds": 0.384685,
+   "trimmed": "",
+   "bytes": 998
+  },
+  "series_search_short_term_holder_cost_basis.json": {
+   "url": "https://bitview.space/api/series/search?q=short%20term%20holder%20cost%20basis&limit=40",
+   "status": 200,
+   "seconds": 0.190111,
+   "trimmed": "",
+   "bytes": 1267
+  },
+  "series_search_sma_200d.json": {
+   "url": "https://bitview.space/api/series/search?q=sma_200d&limit=40",
+   "status": 200,
+   "seconds": 0.191977,
+   "trimmed": "",
+   "bytes": 1275
+  },
+  "series_search_sopr.json": {
+   "url": "https://bitview.space/api/series/search?q=sopr&limit=40",
+   "status": 200,
+   "seconds": 0.187641,
+   "trimmed": "",
+   "bytes": 1001
+  },
+  "series_search_sth_realized_price.json": {
+   "url": "https://bitview.space/api/series/search?q=sth_realized_price&limit=40",
+   "status": 200,
+   "seconds": 0.215656,
+   "trimmed": "",
+   "bytes": 1158
+  },
+  "series_search_sth_supply.json": {
+   "url": "https://bitview.space/api/series/search?q=sth_supply&limit=60",
+   "status": 200,
+   "seconds": 0.19742,
+   "trimmed": "",
+   "bytes": 1519
+  },
+  "series_search_supply_in_profit.json": {
+   "url": "https://bitview.space/api/series/search?q=supply_in_profit&limit=40",
+   "status": 200,
+   "seconds": 0.380125,
+   "trimmed": "",
+   "bytes": 1082
+  },
+  "series_search_supply_share.json": {
+   "url": "https://bitview.space/api/series/search?q=supply_share&limit=60",
+   "status": 200,
+   "seconds": 0.21867,
+   "trimmed": "",
+   "bytes": 2047
+  },
+  "series_search_utxo_count.json": {
+   "url": "https://bitview.space/api/series/search?q=utxo_count&limit=40",
+   "status": 200,
+   "seconds": 0.185744,
+   "trimmed": "",
+   "bytes": 1110
+  },
+  "series_search_utxos_1d_to_1w_old_supply.json": {
+   "url": "https://bitview.space/api/series/search?q=utxos_1d_to_1w_old_supply&limit=60",
+   "status": 200,
+   "seconds": 0.203442,
+   "trimmed": "",
+   "bytes": 2404
+  },
+  "series_search_utxos_over_15y_old_supply.json": {
+   "url": "https://bitview.space/api/series/search?q=utxos_over_15y_old_supply&limit=60",
+   "status": 200,
+   "seconds": 0.218228,
+   "trimmed": "",
+   "bytes": 2404
+  },
+  "series_search_utxos_under_1h_old.json": {
+   "url": "https://bitview.space/api/series/search?q=utxos_under_1h_old&limit=60",
+   "status": 200,
+   "seconds": 0.24231,
+   "trimmed": "",
+   "bytes": 2187
+  },
+  "series_sopr_24h_day1.json": {
+   "url": "https://bitview.space/api/series/sopr_24h/day1?start=-60",
+   "status": 200,
+   "seconds": 0.211443,
+   "trimmed": "",
+   "bytes": 727
+  },
+  "series_sth_realized_price_day1.json": {
+   "url": "https://bitview.space/api/series/sth_realized_price/day1?start=-400",
+   "status": 200,
+   "seconds": 0.211692,
+   "trimmed": "",
+   "bytes": 3811
+  },
+  "series_supply_in_profit_day1.json": {
+   "url": "https://bitview.space/api/series/supply_in_profit/day1?start=-60",
+   "status": 200,
+   "seconds": 0.195847,
+   "trimmed": "",
+   "bytes": 1190
+  },
+  "series_supply_in_profit_share_day1.json": {
+   "url": "https://bitview.space/api/series/supply_in_profit_share/day1?start=-60",
+   "status": 200,
+   "seconds": 0.1956,
+   "trimmed": "",
+   "bytes": 636
+  },
+  "series_utxo_count_day1.json": {
+   "url": "https://bitview.space/api/series/utxo_count/day1?start=-60",
+   "status": 200,
+   "seconds": 0.39284,
+   "trimmed": "",
+   "bytes": 720
+  },
+  "server_sync.json": {
+   "url": "https://bitview.space/api/server/sync",
+   "status": 200,
+   "seconds": 0.19362,
+   "trimmed": "",
+   "bytes": 163,
+   "notes": "Sync heights. `blocks_behind` was 0."
+  },
+  "tx_opreturn.json": {
+   "url": "https://bitview.space/api/tx/025cc8e573dc2b1ea5db8b66c8257a058e6eb8af82d83e0bdf8329e89909cd07",
+   "status": 200,
+   "seconds": 0.216977,
+   "trimmed": "",
+   "bytes": 1592,
+   "notes": "Esplora shape plus an extra `index` field."
+  },
+  "urpd_all_2026-09-18_lin1000.json": {
+   "url": "https://bitview.space/api/urpd/all/2026-09-18?agg=lin1000",
+   "status": 200,
+   "seconds": 0.217837,
+   "trimmed": "",
+   "bytes": 13851,
+   "notes": "`agg=lin1000`: 126 buckets of $1000."
+  },
+  "urpd_all_latest_log10.json": {
+   "url": "https://bitview.space/api/urpd/all?agg=log10",
+   "status": 200,
+   "seconds": 0.275375,
+   "trimmed": "",
+   "bytes": 5306,
+   "notes": "`/api/urpd/all?agg=log10`: 49 buckets. `{cohort, date, weight, aggregation, close, total_supply, buckets[{price_floor, supply, realized_cap, unrealized_pnl}]}`."
+  },
+  "urpd_cohorts.json": {
+   "url": "https://bitview.space/api/urpd",
+   "status": 200,
+   "seconds": 0.093727,
+   "trimmed": "",
+   "bytes": 1670,
+   "notes": "Array of 92 cohort names. The OpenAPI enum lists only 25 of them."
+  },
+  "version.json": {
+   "url": "https://bitview.space/version",
+   "status": 200,
+   "seconds": 0.216772,
+   "trimmed": "",
+   "bytes": 8,
+   "notes": "JSON string `\"0.12.2\"`."
+  },
+  "urpd_all_dates.json": {
+   "url": "https://bitview.space/api/urpd/all/dates",
+   "status": 200,
+   "seconds": 0.683743,
+   "trimmed": "last 10 of 6464 dates",
+   "bytes": 132,
+   "notes": "Array of `YYYY-MM-DD` strings, ascending. 6464 dates, with gaps in early 2009."
+  },
+  "urpd_sth_2026-09-18_raw.json": {
+   "url": "https://bitview.space/api/urpd/sth/2026-09-18",
+   "status": 200,
+   "seconds": 0.29362,
+   "trimmed": "buckets trimmed to first 10 of 9057",
+   "bytes": 1129,
+   "notes": "Default `agg=raw`: 9057 buckets, 893 KB. Always pass `agg`."
+  },
+  "block_template.json": {
+   "url": "https://bitview.space/api/v1/mempool/block-template",
+   "status": 200,
+   "seconds": 2.315563,
+   "trimmed": "transactions trimmed to first 3 of 4428 (response was 9.7 MB)",
+   "bytes": 7634,
+   "notes": "`{hash (integer token), stats{blockSize, blockVSize, nTx, totalFees, medianFee, feeRange[7]}, transactions[<full Esplora tx>...]}`. 9.7 MB and 2.3 s untrimmed."
+  },
+  "mempool.json": {
+   "url": "https://bitview.space/api/mempool",
+   "status": 200,
+   "seconds": 0.207637,
+   "trimmed": "fee_histogram trimmed to first 10",
+   "bytes": 204,
+   "notes": "Same keys as mempool.space. The fee histogram is much finer (31 KB)."
+  },
+  "series_list_page0.json": {
+   "url": "https://bitview.space/api/series/list?page=0&per_page=1000",
+   "status": 200,
+   "seconds": 0.200226,
+   "trimmed": "series trimmed to first 20 of 1000",
+   "bytes": 241,
+   "notes": "`current_page, max_page (61), total_count (61949), per_page, has_more, series[]`."
+  }
+ }
+}

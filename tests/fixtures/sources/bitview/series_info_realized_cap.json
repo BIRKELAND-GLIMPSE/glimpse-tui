@@ -1,0 +1,1 @@
+{"description":"Creation-date value of a UTXO cohort's unspent outputs: the sum of each output's BTC value multiplied by Bitcoin's spot price when that output was created. Uses all UTXOs. Reported in US dollars.","indexes":["minute10","minute30","hour1","hour4","hour12","day1","day3","week1","month1","month3","month6","year1","year10","halving","epoch","height"],"type":"Dollars"}

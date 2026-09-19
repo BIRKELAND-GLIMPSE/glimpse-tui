@@ -1,0 +1,150 @@
+{
+ "_fixture": {
+  "url": "wss://ws.kraken.com/v2",
+  "subscribe": {
+   "method": "subscribe",
+   "params": {
+    "channel": "ticker",
+    "symbol": [
+     "BTC/USD"
+    ]
+   }
+  },
+  "recorded": "2026-09-19",
+  "note": "first messages received, in order, unaltered"
+ },
+ "messages": [
+  {
+   "channel": "status",
+   "type": "update",
+   "data": [
+    {
+     "version": "2.0.10",
+     "system": "online",
+     "api_version": "v2",
+     "connection_id": 12525851468308464523,
+     "upcoming_maintenance": [],
+     "emergency": []
+    }
+   ]
+  },
+  {
+   "method": "subscribe",
+   "result": {
+    "channel": "ticker",
+    "event_trigger": "trades",
+    "snapshot": true,
+    "symbol": "BTC/USD"
+   },
+   "success": true,
+   "time_in": "2026-09-19T18:57:42.603536Z",
+   "time_out": "2026-09-19T18:57:42.603547Z"
+  },
+  {
+   "channel": "ticker",
+   "type": "snapshot",
+   "data": [
+    {
+     "symbol": "BTC/USD",
+     "bid": 81413.2,
+     "bid_qty": 0.26067066,
+     "ask": 81413.3,
+     "ask_qty": 0.17418936,
+     "last": 81413.2,
+     "volume": 2208.75208029,
+     "vwap": 81232.4,
+     "low": 80823.7,
+     "high": 81915.0,
+     "change": 558.4,
+     "change_pct": 0.69,
+     "trades": 93236,
+     "timestamp": "2026-09-19T18:57:42.076589Z"
+    }
+   ]
+  },
+  {
+   "channel": "heartbeat"
+  },
+  {
+   "channel": "heartbeat"
+  },
+  {
+   "channel": "heartbeat"
+  },
+  {
+   "channel": "ticker",
+   "type": "update",
+   "data": [
+    {
+     "symbol": "BTC/USD",
+     "bid": 81413.2,
+     "bid_qty": 0.32343113,
+     "ask": 81413.3,
+     "ask_qty": 0.1858057,
+     "last": 81413.3,
+     "volume": 2208.8208107,
+     "vwap": 81232.4,
+     "low": 80823.7,
+     "high": 81915.0,
+     "change": 558.4,
+     "change_pct": 0.69,
+     "trades": 93238,
+     "timestamp": "2026-09-19T18:57:46.109637Z"
+    }
+   ]
+  },
+  {
+   "channel": "ticker",
+   "type": "update",
+   "data": [
+    {
+     "symbol": "BTC/USD",
+     "bid": 81413.2,
+     "bid_qty": 0.26077066,
+     "ask": 81413.3,
+     "ask_qty": 0.1174054,
+     "last": 81413.2,
+     "volume": 2208.82083682,
+     "vwap": 81232.4,
+     "low": 80823.7,
+     "high": 81915.0,
+     "change": 558.3,
+     "change_pct": 0.69,
+     "trades": 93239,
+     "timestamp": "2026-09-19T18:57:46.468761Z"
+    }
+   ]
+  },
+  {
+   "channel": "heartbeat"
+  },
+  {
+   "channel": "ticker",
+   "type": "update",
+   "data": [
+    {
+     "symbol": "BTC/USD",
+     "bid": 81413.2,
+     "bid_qty": 0.26074454,
+     "ask": 81413.3,
+     "ask_qty": 0.1174054,
+     "last": 81413.3,
+     "volume": 2208.8542793,
+     "vwap": 81232.4,
+     "low": 80823.7,
+     "high": 81915.0,
+     "change": 558.4,
+     "change_pct": 0.69,
+     "trades": 93240,
+     "timestamp": "2026-09-19T18:57:46.849909Z"
+    }
+   ]
+  },
+  {
+   "channel": "heartbeat"
+  },
+  {
+   "channel": "heartbeat"
+  }
+ ]
+}

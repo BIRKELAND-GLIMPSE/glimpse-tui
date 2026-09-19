@@ -1,0 +1,172 @@
+[
+ {
+  "id": "9c196541230ba421baa2a499214564312a46bb47fb6b61ef63db2f70d3ce34c1",
+  "market_hours": {
+   "is_open": false,
+   "next_open": 1789972200,
+   "next_close": 1790024400
+  },
+  "attributes": {
+   "asset_type": "",
+   "description": "UNITED STATES 10 YEAR GOVERNMENT BONDS YIELD",
+   "display_symbol": "US10Y",
+   "quote_currency": "%",
+   "schedule": "America/New_York;0230-1700,0230-1700,0230-1700,0230-1700,0230-1700,C,C;0907/C,1012/C,1111/C,1126/C,1127/0230-1400,1224/0230-1400,1225/C,1228/0800-1700,1231/0230-1400,0101/C,0118/C,0215/C,0325/0230-1400,0326/C,0329/0800-1700,0503/0800-1700,0528/0230-1400,0531/C,0618/C,0702/0230-1400,0705/C,0830/0800-1700",
+   "symbol": "InterestRate.US10Y",
+   "min_channel": "fixed_rate@200ms"
+  }
+ },
+ {
+  "id": "7d01ec0cb9d38918cd497f97b24cb6cea5552993f5da05863886e6a2d33ee0aa",
+  "market_hours": {
+   "is_open": false,
+   "next_open": 1789972200,
+   "next_close": 1790024400
+  },
+  "attributes": {
+   "asset_type": "",
+   "description": "UNITED STATES 2 YEAR GOVERNMENT BONDS YIELD",
+   "display_symbol": "US2Y",
+   "quote_currency": "%",
+   "schedule": "America/New_York;0230-1700,0230-1700,0230-1700,0230-1700,0230-1700,C,C;0907/C,1012/C,1111/C,1126/C,1127/0230-1400,1224/0230-1400,1225/C,1228/0800-1700,1231/0230-1400,0101/C,0118/C,0215/C,0325/0230-1400,0326/C,0329/0800-1700,0503/0800-1700,0528/0230-1400,0531/C,0618/C,0702/0230-1400,0705/C,0830/0800-1700",
+   "symbol": "InterestRate.US2Y",
+   "min_channel": "fixed_rate@200ms"
+  }
+ },
+ {
+  "id": "25ac38864cd1802a9441e82d4b3e0a4eed9938a1849b8d2dcd788e631e3b288c",
+  "market_hours": {
+   "is_open": false,
+   "next_open": 1789972200,
+   "next_close": 1790024400
+  },
+  "attributes": {
+   "asset_type": "",
+   "description": "UNITED STATES 3 YEAR GOVERNMENT BONDS YIELD",
+   "display_symbol": "US3Y",
+   "quote_currency": "%",
+   "schedule": "America/New_York;0230-1700,0230-1700,0230-1700,0230-1700,0230-1700,C,C;0907/C,1012/C,1111/C,1126/C,1127/0230-1400,1224/0230-1400,1225/C,1228/0800-1700,1231/0230-1400,0101/C,0118/C,0215/C,0325/0230-1400,0326/C,0329/0800-1700,0503/0800-1700,0528/0230-1400,0531/C,0618/C,0702/0230-1400,0705/C,0830/0800-1700",
+   "symbol": "InterestRate.US3Y",
+   "min_channel": "fixed_rate@200ms"
+  }
+ },
+ {
+  "id": "7d220b081152db0d74a93d3ce383c61d0ec5250c6dd2b2cdb2d1e4b8919e1a6e",
+  "market_hours": {
+   "is_open": false,
+   "next_open": 1789972200,
+   "next_close": 1790024400
+  },
+  "attributes": {
+   "asset_type": "",
+   "description": "UNITED STATES 5 YEAR GOVERNMENT BONDS YIELD",
+   "display_symbol": "US5Y",
+   "quote_currency": "%",
+   "schedule": "America/New_York;0230-1700,0230-1700,0230-1700,0230-1700,0230-1700,C,C;0907/C,1012/C,1111/C,1126/C,1127/0230-1400,1224/0230-1400,1225/C,1228/0800-1700,1231/0230-1400,0101/C,0118/C,0215/C,0325/0230-1400,0326/C,0329/0800-1700,0503/0800-1700,0528/0230-1400,0531/C,0618/C,0702/0230-1400,0705/C,0830/0800-1700",
+   "symbol": "InterestRate.US5Y",
+   "min_channel": "fixed_rate@200ms"
+  }
+ },
+ {
+  "id": "2087a47ebf7bb31aee61ffd003a71efe2bed0dda16746ddde63f498f68ece6ce",
+  "market_hours": {
+   "is_open": false,
+   "next_open": 1789972200,
+   "next_close": 1790024400
+  },
+  "attributes": {
+   "asset_type": "",
+   "description": "UNITED STATES 7 YEAR GOVERNMENT BONDS YIELD",
+   "display_symbol": "US7Y",
+   "quote_currency": "%",
+   "schedule": "America/New_York;0230-1700,0230-1700,0230-1700,0230-1700,0230-1700,C,C;0907/C,1012/C,1111/C,1126/C,1127/0230-1400,1224/0230-1400,1225/C,1228/0800-1700,1231/0230-1400,0101/C,0118/C,0215/C,0325/0230-1400,0326/C,0329/0800-1700,0503/0800-1700,0528/0230-1400,0531/C,0618/C,0702/0230-1400,0705/C,0830/0800-1700",
+   "symbol": "InterestRate.US7Y",
+   "min_channel": "fixed_rate@200ms"
+  }
+ },
+ {
+  "id": "d95ba41330c700be721a7ef0931a7a995ddbf7efaac98aad11995a4822cd8dc2",
+  "market_hours": {
+   "is_open": false,
+   "next_open": 1789972200,
+   "next_close": 1790024400
+  },
+  "attributes": {
+   "asset_type": "",
+   "description": "UNITED STATES 20 YEAR GOVERNMENT BONDS YIELD",
+   "display_symbol": "US20Y",
+   "quote_currency": "%",
+   "schedule": "America/New_York;0230-1700,0230-1700,0230-1700,0230-1700,0230-1700,C,C;0907/C,1012/C,1111/C,1126/C,1127/0230-1400,1224/0230-1400,1225/C,1228/0800-1700,1231/0230-1400,0101/C,0118/C,0215/C,0325/0230-1400,0326/C,0329/0800-1700,0503/0800-1700,0528/0230-1400,0531/C,0618/C,0702/0230-1400,0705/C,0830/0800-1700",
+   "symbol": "InterestRate.US20Y",
+   "min_channel": "fixed_rate@200ms"
+  }
+ },
+ {
+  "id": "424c69939fc52a459f6dde758d80f74a3628c0e9b48bfc142df1270c9b9131be",
+  "market_hours": {
+   "is_open": false,
+   "next_open": 1789972200,
+   "next_close": 1790024400
+  },
+  "attributes": {
+   "asset_type": "",
+   "description": "UNITED STATES 30 YEAR GOVERNMENT BONDS YIELD",
+   "display_symbol": "US30Y",
+   "quote_currency": "%",
+   "schedule": "America/New_York;0230-1700,0230-1700,0230-1700,0230-1700,0230-1700,C,C;0907/C,1012/C,1111/C,1126/C,1127/0230-1400,1224/0230-1400,1225/C,1228/0800-1700,1231/0230-1400,0101/C,0118/C,0215/C,0325/0230-1400,0326/C,0329/0800-1700,0503/0800-1700,0528/0230-1400,0531/C,0618/C,0702/0230-1400,0705/C,0830/0800-1700",
+   "symbol": "InterestRate.US30Y",
+   "min_channel": "fixed_rate@200ms"
+  }
+ },
+ {
+  "id": "0f5fd558019a7cad9eaa012cd7228c65f2b7ed31db3f66ec557087a769df0f67",
+  "market_hours": {
+   "is_open": true,
+   "next_open": null,
+   "next_close": null
+  },
+  "attributes": {
+   "asset_type": "",
+   "description": "SECURED OVERNIGHT FINANCING RATE",
+   "display_symbol": "SOFR",
+   "quote_currency": "%",
+   "schedule": "America/New_York;O,O,O,O,O,O,O;0101/C,0119/C,0216/C,0525/C,0619/C,0704/C,0907/C,1012/C,1111/C,1126/C,1225/C",
+   "symbol": "InterestRate.SOFR",
+   "min_channel": "fixed_rate@200ms"
+  }
+ },
+ {
+  "id": "7b4dec92f417eaaa9505157f49aa76893e70a53e9704bc48c0c77b0b45d7b3da",
+  "market_hours": {
+   "is_open": true,
+   "next_open": null,
+   "next_close": null
+  },
+  "attributes": {
+   "asset_type": "",
+   "description": "EFFECTIVE FEDERAL FUNDS RATE",
+   "display_symbol": "EFFR",
+   "quote_currency": "%",
+   "schedule": "America/New_York;O,O,O,O,O,O,O;0101/C,0119/C,0216/C,0525/C,0619/C,0704/C,0907/C,1012/C,1111/C,1126/C,1225/C",
+   "symbol": "InterestRate.EFFR",
+   "min_channel": "fixed_rate@200ms"
+  }
+ },
+ {
+  "id": "af83c3680722a0b0139414679efade7265f9f7e8e4aa91d233ca1d0a3aabaac6",
+  "market_hours": {
+   "is_open": true,
+   "next_open": null,
+   "next_close": null
+  },
+  "attributes": {
+   "asset_type": "",
+   "description": "OVERNIGHT BANK FUNDING RATE",
+   "display_symbol": "OBFR",
+   "quote_currency": "%",
+   "schedule": "America/New_York;O,O,O,O,O,O,O;0101/C,0119/C,0216/C,0525/C,0619/C,0704/C,0907/C,1012/C,1111/C,1126/C,1225/C",
+   "symbol": "InterestRate.OBFR",
+   "min_channel": "fixed_rate@200ms"
+  }
+ }
+]

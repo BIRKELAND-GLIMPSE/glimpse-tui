@@ -1,0 +1,68 @@
+{
+ "_fixture": {
+  "url": "wss://ws.bitstamp.net",
+  "subscribe": {
+   "event": "bts:subscribe",
+   "data": {
+    "channel": "live_trades_btcusd"
+   }
+  },
+  "recorded": "2026-09-19",
+  "note": "first messages received, in order, unaltered"
+ },
+ "messages": [
+  {
+   "event": "bts:subscription_succeeded",
+   "channel": "live_trades_btcusd",
+   "data": {}
+  },
+  {
+   "data": {
+    "id": 638754577,
+    "timestamp": "1789844278",
+    "amount": 6.203e-05,
+    "amount_str": "0.00006203",
+    "price": 81425.15,
+    "price_str": "81425.15",
+    "type": 1,
+    "microtimestamp": "1789844278744000",
+    "buy_order_id": 2052134053056513,
+    "sell_order_id": 2052134109540353
+   },
+   "channel": "live_trades_btcusd",
+   "event": "trade"
+  },
+  {
+   "data": {
+    "id": 638754626,
+    "timestamp": "1789844281",
+    "amount": 6.2e-05,
+    "amount_str": "0.00006200",
+    "price": 81425.16,
+    "price_str": "81425.16",
+    "type": 0,
+    "microtimestamp": "1789844281002000",
+    "buy_order_id": 2052134118789122,
+    "sell_order_id": 2052133976424450
+   },
+   "channel": "live_trades_btcusd",
+   "event": "trade"
+  },
+  {
+   "data": {
+    "id": 638754647,
+    "timestamp": "1789844285",
+    "amount": 6.2e-05,
+    "amount_str": "0.00006200",
+    "price": 81425.16,
+    "price_str": "81425.16",
+    "type": 0,
+    "microtimestamp": "1789844285910000",
+    "buy_order_id": 2052134138892288,
+    "sell_order_id": 2052133976424450
+   },
+   "channel": "live_trades_btcusd",
+   "event": "trade"
+  }
+ ]
+}

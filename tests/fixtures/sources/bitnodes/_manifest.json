@@ -1,0 +1,23 @@
+{
+ "recorded": "2026-09-19",
+ "user_agent": "glimpse-tui/0.1 (+https://github.com/BIRKELAND-GLIMPSE/glimpse-tui)",
+ "note": "Real responses. Values never altered. Trimmed files were re-serialised as compact JSON after cutting arrays; untrimmed files are byte-for-byte as received.",
+ "files": {
+  "snapshots_limit1.json": {
+   "url": "https://btcnodes.io/api/v1/snapshots/?limit=1",
+   "status": 200,
+   "seconds": 0.527962,
+   "trimmed": "",
+   "bytes": 191,
+   "notes": "Fetched from `btcnodes.io` after a 302 from `bitnodes.io`. `count, next, previous, results[{url, timestamp, total_nodes, latest_height}]`."
+  },
+  "snapshots_latest_field_top.json": {
+   "url": "https://btcnodes.io/api/v1/snapshots/latest/?field=top",
+   "status": 200,
+   "seconds": null,
+   "trimmed": "",
+   "bytes": 1293,
+   "notes": "`?field=top`: `timestamp, total_nodes, latest_height, metadata{..., networks{tor,ipv4,ipv6,i2p,cjdns}, node_modes{full,pruned}}, top{top_asns[[asn,count]], top_user_agents[[ua, pct, height]]}`. 579 bytes."
+  }
+ }
+}

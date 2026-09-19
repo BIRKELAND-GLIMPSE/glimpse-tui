@@ -1,0 +1,19 @@
+{"_meta": {"host": "bitcoin.lu.ke", "port": 50002, "tls": "TLSv1.3", "connect_ms": 234, "recorded": "2026-09-19"}}
+{"dir": "send", "msg": {"jsonrpc": "2.0", "id": 0, "method": "server.version", "params": ["glimpse-tui/0.1", "1.4"]}}
+{"dir": "recv", "ms": 991, "msg": {"jsonrpc": "2.0", "result": ["ElectrumX 1.18.0", "1.4"], "id": 0}}
+{"dir": "send", "msg": {"jsonrpc": "2.0", "id": 1, "method": "server.banner", "params": []}}
+{"dir": "recv", "ms": 695, "msg": {"jsonrpc": "2.0", "result": "You are connected to an ElectrumX 1.18.0 server.", "id": 1}}
+{"dir": "send", "msg": {"jsonrpc": "2.0", "id": 2, "method": "server.features", "params": []}}
+{"dir": "recv", "ms": 699, "msg": {"jsonrpc": "2.0", "result": {"hosts": {"bitcoin.lu.ke": {"tcp_port": 50001, "ssl_port": 50002}, "electrum.lu.ke": {"wss_port": 443}, "lukebtcygzrosjtcklev2fhlvpbyu25saienzorhbf3vwc2fpa475qyd.onion": {"tcp_port": 50001, "ssl_port": 50002}}, "pruning": null, "server_version": "ElectrumX 1.18.0", "protocol_min": "1.4", "protocol_max": "1.4.3", "genesis_hash": "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f", "hash_function": "sha256", "services": ["tcp://bitcoin.lu.ke:50001", "ssl://bitcoin.lu.ke:50002", "wss://electrum.lu.ke:443", "tcp://lukebtcygzrosjtcklev2fhlvpbyu25saienzorhbf3vwc2fpa475qyd.onion:50001", "ssl://lukebtcygzrosjtcklev2fhlvpbyu25saienzorhbf3vwc2fpa475qyd.onion:50002"]}, "id": 2}}
+{"dir": "send", "msg": {"jsonrpc": "2.0", "id": 3, "method": "blockchain.headers.subscribe", "params": []}}
+{"dir": "recv", "ms": 700, "msg": {"jsonrpc": "2.0", "result": {"hex": "00404a2d6d052d034d9dbe829a7904ef4a46661822c457cdded7000000000000000000009d023b233ced4fa35372b7830a4fb63f8cc74a6b85ce0f91f819c8725c19b9fc36d4ae6ac51e0217c83db38f", "height": 967731}, "id": 3}}
+{"dir": "send", "msg": {"jsonrpc": "2.0", "id": 4, "method": "mempool.get_fee_histogram", "params": []}}
+{"dir": "recv", "ms": 695, "msg": {"jsonrpc": "2.0", "result": [[12.7, 30707], [8.5, 34519], [7.6, 45746], [6.7, 42465], [6.2, 45226], [5.6, 49734], [5.2, 77709], [5.0, 62635], [4.7, 79406], [4.2, 112206], [4.0, 101134], [3.6, 91923], [3.2, 98816], [3.1, 120295], [3.0, 169983], [2.4, 147505], [2.1, 203805], [2.0, 352104], [1.2, 224706], [1.0, 516280]], "id": 4}}
+{"dir": "send", "msg": {"jsonrpc": "2.0", "id": 5, "method": "blockchain.estimatefee", "params": [2]}}
+{"dir": "recv", "ms": 699, "msg": {"jsonrpc": "2.0", "result": 2.12e-05, "id": 5}}
+{"dir": "send", "msg": {"jsonrpc": "2.0", "id": 6, "method": "blockchain.estimatefee", "params": [25]}}
+{"dir": "recv", "ms": 700, "msg": {"jsonrpc": "2.0", "result": 1e-05, "id": 6}}
+{"dir": "send", "msg": {"jsonrpc": "2.0", "id": 7, "method": "blockchain.relayfee", "params": []}}
+{"dir": "recv", "ms": 699, "msg": {"jsonrpc": "2.0", "result": 1e-05, "id": 7}}
+{"dir": "send", "msg": {"jsonrpc": "2.0", "id": 8, "method": "server.ping", "params": []}}
+{"dir": "recv", "ms": 695, "msg": {"jsonrpc": "2.0", "result": null, "id": 8}}

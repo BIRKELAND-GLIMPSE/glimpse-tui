@@ -1,0 +1,1 @@
+{"description":"Total value of all unspent transaction outputs in the UTXO set. Reported in BTC; one BTC equals 100,000,000 satoshis.","indexes":["minute10","minute30","hour1","hour4","hour12","day1","day3","week1","month1","month3","month6","year1","year10","halving","epoch","height"],"type":"Bitcoin"}

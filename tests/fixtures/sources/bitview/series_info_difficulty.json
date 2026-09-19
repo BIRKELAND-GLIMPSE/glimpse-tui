@@ -1,0 +1,1 @@
+{"description":"Mining difficulty encoded by the block header, calculated as Bitcoin's maximum target divided by this block's proof-of-work target.","indexes":["minute10","minute30","hour1","hour4","hour12","day1","day3","week1","month1","month3","month6","year1","year10","halving","epoch","height"],"type":"StoredF64"}

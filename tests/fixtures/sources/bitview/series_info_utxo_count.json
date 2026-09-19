@@ -1,0 +1,1 @@
+{"description":"Number of transaction outputs that are unspent at the represented block. Uses all UTXOs.","indexes":["minute10","minute30","hour1","hour4","hour12","day1","day3","week1","month1","month3","month6","year1","year10","halving","epoch","height"],"type":"StoredU64"}
