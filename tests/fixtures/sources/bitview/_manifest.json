@@ -824,6 +824,159 @@
    "trimmed": "series trimmed to first 20 of 1000",
    "bytes": 241,
    "notes": "`current_page, max_page (61), total_count (61949), per_page, has_more, series[]`."
+  },
+  "series_bulk_onch_day1_start-61.json": {
+   "url": "https://bitview.space/api/series/bulk?series=price_close%2Crealized_price%2Cmvrv%2Cnupl%2Csopr_24h%2Csth_realized_price%2Clth_realized_price%2Cpuell_multiple%2Cprice_sma_200d_ratio%2Csupply_in_profit_share%2Csupply_in_profit%2Cliveliness&index=day1&start=-61",
+   "status": 200,
+   "seconds": 0.283811,
+   "trimmed": "",
+   "bytes": 9121,
+   "notes": "ONCH's one bulk request: price_close and the 11 dashboard metrics of onchain.toml, 61 points (60 complete days and today). The URL is percent-encoded exactly as httpx sends it, so tests/offline.py matches it in full.",
+   "recorded_for": "tests/test_funcs_onchain.py, fetched 2026-09-19 about 19:51 UTC"
+  },
+  "series_bulk_waves_day1_start-401.json": {
+   "url": "https://bitview.space/api/series/bulk?series=utxos_under_1h_old_supply_dominance%2Cutxos_1h_to_1d_old_supply_dominance%2Cutxos_1d_to_1w_old_supply_dominance%2Cutxos_1w_to_1m_old_supply_dominance%2Cutxos_1m_to_2m_old_supply_dominance%2Cutxos_2m_to_3m_old_supply_dominance%2Cutxos_3m_to_4m_old_supply_dominance%2Cutxos_4m_to_5m_old_supply_dominance%2Cutxos_5m_to_6m_old_supply_dominance%2Cutxos_6m_to_9m_old_supply_dominance%2Cutxos_9m_to_1y_old_supply_dominance%2Cutxos_1y_to_18m_old_supply_dominance%2Cutxos_18m_to_2y_old_supply_dominance%2Cutxos_2y_to_3y_old_supply_dominance%2Cutxos_3y_to_4y_old_supply_dominance%2Cutxos_4y_to_5y_old_supply_dominance%2Cutxos_5y_to_6y_old_supply_dominance%2Cutxos_6y_to_7y_old_supply_dominance%2Cutxos_7y_to_8y_old_supply_dominance%2Cutxos_8y_to_10y_old_supply_dominance%2Cutxos_10y_to_12y_old_supply_dominance%2Cutxos_12y_to_15y_old_supply_dominance%2Cutxos_over_15y_old_supply_dominance&index=day1&start=-401",
+   "status": 200,
+   "seconds": 0.257987,
+   "trimmed": "",
+   "bytes": 73438,
+   "notes": "WAVE's default window: the 23 age bands of onchain.toml, 401 points. Percent-encoded as httpx sends it.",
+   "recorded_for": "tests/test_funcs_onchain.py, fetched 2026-09-19 about 19:51 UTC"
+  },
+  "series_bulk_waves_day1_start-61.json": {
+   "url": "https://bitview.space/api/series/bulk?series=utxos_under_1h_old_supply_dominance%2Cutxos_1h_to_1d_old_supply_dominance%2Cutxos_1d_to_1w_old_supply_dominance%2Cutxos_1w_to_1m_old_supply_dominance%2Cutxos_1m_to_2m_old_supply_dominance%2Cutxos_2m_to_3m_old_supply_dominance%2Cutxos_3m_to_4m_old_supply_dominance%2Cutxos_4m_to_5m_old_supply_dominance%2Cutxos_5m_to_6m_old_supply_dominance%2Cutxos_6m_to_9m_old_supply_dominance%2Cutxos_9m_to_1y_old_supply_dominance%2Cutxos_1y_to_18m_old_supply_dominance%2Cutxos_18m_to_2y_old_supply_dominance%2Cutxos_2y_to_3y_old_supply_dominance%2Cutxos_3y_to_4y_old_supply_dominance%2Cutxos_4y_to_5y_old_supply_dominance%2Cutxos_5y_to_6y_old_supply_dominance%2Cutxos_6y_to_7y_old_supply_dominance%2Cutxos_7y_to_8y_old_supply_dominance%2Cutxos_8y_to_10y_old_supply_dominance%2Cutxos_10y_to_12y_old_supply_dominance%2Cutxos_12y_to_15y_old_supply_dominance%2Cutxos_over_15y_old_supply_dominance&index=day1&start=-61",
+   "status": 200,
+   "seconds": 0.241115,
+   "trimmed": "",
+   "bytes": 13608,
+   "notes": "WAVE's 60-day window: the 23 age bands, 61 points. Percent-encoded as httpx sends it.",
+   "recorded_for": "tests/test_funcs_onchain.py, fetched 2026-09-19 about 19:51 UTC"
+  },
+  "series_bulk_cyc_day1_start-401.json": {
+   "url": "https://bitview.space/api/series/bulk?series=price_close%2Crealized_price%2Csth_realized_price%2Clth_realized_price%2Cprice_sma_200d&index=day1&start=-401",
+   "status": 200,
+   "seconds": 0.219857,
+   "trimmed": "",
+   "bytes": 18839,
+   "notes": "CYC's default window: price_close, realized_price, sth_realized_price, lth_realized_price, price_sma_200d, 401 points.",
+   "recorded_for": "tests/test_funcs_onchain.py, fetched 2026-09-19 about 19:51 UTC"
+  },
+  "urpd_all_latest_lin1000.json": {
+   "url": "https://bitview.space/api/urpd/all?agg=lin1000",
+   "status": 200,
+   "seconds": 0.226502,
+   "trimmed": "",
+   "bytes": 13839,
+   "notes": "URPD in linear mode, latest day: 126 buckets of $1,000.",
+   "recorded_for": "tests/test_funcs_onchain.py, fetched 2026-09-19 about 19:51 UTC"
+  },
+  "urpd_sth_dates.json": {
+   "url": "https://bitview.space/api/urpd/sth/dates",
+   "status": 200,
+   "seconds": 0.419071,
+   "trimmed": "last 10 of 6464 dates",
+   "bytes": 131,
+   "notes": "Dates for the sth cohort. Array of `YYYY-MM-DD` strings, ascending.",
+   "recorded_for": "tests/test_funcs_onchain.py, fetched 2026-09-19 about 19:51 UTC"
+  },
+  "urpd_sth_latest_log10.json": {
+   "url": "https://bitview.space/api/urpd/sth?agg=log10",
+   "status": 200,
+   "seconds": 0.215729,
+   "trimmed": "",
+   "bytes": 469,
+   "notes": "URPD after `c` cycles from all to sth: three log10 buckets, because short-term coins all last moved between $50k and $100k.",
+   "recorded_for": "tests/test_funcs_onchain.py, fetched 2026-09-19 about 19:51 UTC"
+  },
+  "urpd_all_latest_log50.json": {
+   "url": "https://bitview.space/api/urpd/all?agg=log50",
+   "status": 200,
+   "seconds": 0.244151,
+   "trimmed": "",
+   "bytes": 22022,
+   "notes": "URPD in a tall pane: 50 log buckets a decade, 210 buckets.",
+   "recorded_for": "tests/test_funcs_onchain.py, fetched 2026-09-19 about 19:51 UTC"
+  },
+  "series_info_lth_mvrv.json": {
+   "url": "https://bitview.space/api/series/lth_mvrv",
+   "status": 200,
+   "seconds": 0.116353,
+   "trimmed": "",
+   "bytes": 466,
+   "notes": "`/api/series/{name}`: `{description, indexes, type}` for one of the first eight results of the recorded search for mvrv (FLDS describes eight rows a load).",
+   "recorded_for": "tests/test_funcs_onchain.py, fetched 2026-09-19 about 19:51 UTC"
+  },
+  "series_info_p2a_mvrv.json": {
+   "url": "https://bitview.space/api/series/p2a_mvrv",
+   "status": 200,
+   "seconds": 0.220011,
+   "trimmed": "",
+   "bytes": 443,
+   "notes": "`/api/series/{name}`: `{description, indexes, type}` for one of the first eight results of the recorded search for mvrv (FLDS describes eight rows a load).",
+   "recorded_for": "tests/test_funcs_onchain.py, fetched 2026-09-19 about 19:51 UTC"
+  },
+  "series_info_sth_mvrv.json": {
+   "url": "https://bitview.space/api/series/sth_mvrv",
+   "status": 200,
+   "seconds": 0.117124,
+   "trimmed": "",
+   "bytes": 467,
+   "notes": "`/api/series/{name}`: `{description, indexes, type}` for one of the first eight results of the recorded search for mvrv (FLDS describes eight rows a load).",
+   "recorded_for": "tests/test_funcs_onchain.py, fetched 2026-09-19 about 19:51 UTC"
+  },
+  "series_info_p2ms_mvrv.json": {
+   "url": "https://bitview.space/api/series/p2ms_mvrv",
+   "status": 200,
+   "seconds": 0.232354,
+   "trimmed": "",
+   "bytes": 450,
+   "notes": "`/api/series/{name}`: `{description, indexes, type}` for one of the first eight results of the recorded search for mvrv (FLDS describes eight rows a load).",
+   "recorded_for": "tests/test_funcs_onchain.py, fetched 2026-09-19 about 19:51 UTC"
+  },
+  "series_info_p2sh_mvrv.json": {
+   "url": "https://bitview.space/api/series/p2sh_mvrv",
+   "status": 200,
+   "seconds": 0.199526,
+   "trimmed": "",
+   "bytes": 448,
+   "notes": "`/api/series/{name}`: `{description, indexes, type}` for one of the first eight results of the recorded search for mvrv (FLDS describes eight rows a load).",
+   "recorded_for": "tests/test_funcs_onchain.py, fetched 2026-09-19 about 19:51 UTC"
+  },
+  "series_info_p2tr_mvrv.json": {
+   "url": "https://bitview.space/api/series/p2tr_mvrv",
+   "status": 200,
+   "seconds": 0.375922,
+   "trimmed": "",
+   "bytes": 444,
+   "notes": "`/api/series/{name}`: `{description, indexes, type}` for one of the first eight results of the recorded search for mvrv (FLDS describes eight rows a load).",
+   "recorded_for": "tests/test_funcs_onchain.py, fetched 2026-09-19 about 19:51 UTC"
+  },
+  "series_info_p2pkh_mvrv.json": {
+   "url": "https://bitview.space/api/series/p2pkh_mvrv",
+   "status": 200,
+   "seconds": 0.206401,
+   "trimmed": "",
+   "bytes": 452,
+   "notes": "`/api/series/{name}`: `{description, indexes, type}` for one of the first eight results of the recorded search for mvrv (FLDS describes eight rows a load).",
+   "recorded_for": "tests/test_funcs_onchain.py, fetched 2026-09-19 about 19:51 UTC"
+  },
+  "series_bulk_flds_mvrv_day1_start-2.json": {
+   "url": "https://bitview.space/api/series/bulk?series=mvrv%2Clth_mvrv%2Cp2a_mvrv%2Csth_mvrv%2Cp2ms_mvrv%2Cp2sh_mvrv%2Cp2tr_mvrv%2Cp2pkh_mvrv&index=day1&start=-2",
+   "status": 200,
+   "seconds": 0.21848,
+   "trimmed": "",
+   "bytes": 1104,
+   "notes": "FLDS mvrv: the last two daily points of the first eight search results that have a day1 index, one bulk request. Some envelopes carry null data.",
+   "recorded_for": "tests/test_funcs_onchain.py, fetched 2026-09-19 about 19:51 UTC"
+  },
+  "series_bulk_waves_week1_start-60.json": {
+   "url": "https://bitview.space/api/series/bulk?series=date%2Cutxos_under_1h_old_supply_dominance%2Cutxos_1h_to_1d_old_supply_dominance%2Cutxos_1d_to_1w_old_supply_dominance%2Cutxos_1w_to_1m_old_supply_dominance%2Cutxos_1m_to_2m_old_supply_dominance%2Cutxos_2m_to_3m_old_supply_dominance%2Cutxos_3m_to_4m_old_supply_dominance%2Cutxos_4m_to_5m_old_supply_dominance%2Cutxos_5m_to_6m_old_supply_dominance%2Cutxos_6m_to_9m_old_supply_dominance%2Cutxos_9m_to_1y_old_supply_dominance%2Cutxos_1y_to_18m_old_supply_dominance%2Cutxos_18m_to_2y_old_supply_dominance%2Cutxos_2y_to_3y_old_supply_dominance%2Cutxos_3y_to_4y_old_supply_dominance%2Cutxos_4y_to_5y_old_supply_dominance%2Cutxos_5y_to_6y_old_supply_dominance%2Cutxos_6y_to_7y_old_supply_dominance%2Cutxos_7y_to_8y_old_supply_dominance%2Cutxos_8y_to_10y_old_supply_dominance%2Cutxos_10y_to_12y_old_supply_dominance%2Cutxos_12y_to_15y_old_supply_dominance%2Cutxos_over_15y_old_supply_dominance&index=week1&start=-60",
+   "status": 200,
+   "seconds": 0.206719,
+   "trimmed": "",
+   "bytes": 14229,
+   "notes": "The weekly index with the `date` series first: 60 weeks of the 23 age bands. `date` at week1 is each week's Monday (type Date); the last week is the current one. WAVE reads all of history this way (start=0, 165 KB, not recorded) because 23 bands of daily history is refused: `weight_exceeded`, 'Request weight 1190664 exceeds maximum 320000' (8 bytes a value).",
+   "recorded_for": "tests/test_funcs_onchain.py, fetched 2026-09-19 about 20:03 UTC"
   }
  }
 }
