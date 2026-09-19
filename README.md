@@ -1,167 +1,177 @@
 # Glimpse Terminal
 
-The Glimpse prediction market in your terminal. Read the market's forecast for every close,
-price a range, buy it, watch your portfolio, run a bot. Works anywhere Python does, including
-over SSH.
+A keyboard-driven terminal for Bitcoin and the markets around it, in your terminal. It looks inside Bitcoin (the
+mempool as it fills, the next block as it forms, every block, transaction and address), charts tens of thousands of
+open on-chain series, follows gold, FX, indices, oil and rates, reads company filings, and trades the Glimpse
+prediction market. It is built entirely on data anyone can fetch for free. It needs no key, no account and no
+configuration to start. Free and open source. Works anywhere Python does, including over SSH.
 
 ```
-uv run glimpse-tui
+uv run glimpse-tui              # the default launchpad
+uv run glimpse-tui MEMP         # open on any GO bar command: MEMP, "LP MACRO", "TX <txid>", "GP BTC XAU SPX"
+uv run glimpse-tui DEMO         # a two-minute tour
+uv run glimpse-tui --markets    # open on the Glimpse markets and ladder, as the terminal did before launchpads
 ```
 
-No key is needed to look around: all market data is public. To trade, press `L` and paste an
-API key. To get one, register at glimpse.markets, complete verification, then create a key
-under Settings → Developer API Keys.
-
-## Reading the screen
-
-- **Left, markets.** One row per close, nearest first. `median` and `80% band` are the market's
-  own forecast for that close. Read down the column to see where the market thinks price goes.
-- **Right, ladder.** Price ranges of the selected market. `prob` is the market's probability,
-  `odds` what one contract returns per sat staked, net of fees. `◂` marks spot, `●` a position.
-- **Bottom, ticket.** What the selected range costs and pays at the current size, updated as
-  you move. Cost includes the 2% fee. Payout is net of the 2% settlement fee.
-
-## The forecast heatmap
-
-Press `f`. Time runs across, price runs up, and every character is one price cell of one close. The
-denser the glyph, the more probability the market puts there:
-
 ```
-·  :  -  =  +  *     0.6% to 10% per bin, log spaced
-#  %  @              10% up to certainty
+ GLIMPSE  TERMINAL   BTC 81,608 +2.1%  FEE 2 s/vB  #967,653 7m                    READ-ONLY   UTC 18:32  NY 14:32
+ MEMP 38 MvB  SPX 6,612 +0.4% d  USDJPY 147.82 -0.2% d  XAU 3,684 proxy +0.8%  BRENT 68.40 -1.1% d  US10Y 4.12% d
+ > BTC <GO>   BTC Bitcoin · CRYPTO   1 GP  2 MEMP  3 ONCH  4 OMON
+┌1  GP  BTC · 1H ──────────────────────── coinbase · live ┐┌2  MEMP  mempool ──── mempool.space ws · live ┐
+│ ━ BTC 81,608 +2.1%  to NOW, then Glimpse's median ━ … ░ ││ NEXT BLOCKS      fee s/vB    txs     eta     │
+│                         ⢀⡠⠔⠒⠢⣀│░░░░░░░░░░░░░ ┤83,000     ││ #1  ████████████   3-40    3.4k     ~9m     │
+│                   ⣀⡠⠔⠊⠉      │┄┄┄┄┄┄┄┄┄┄┄┄┄ ◂81,608     ││ #2  ███████████▌   2-3     3.9k    ~19m     │
+│          ⢀⣀⠤⠔⠒⠉⠁             │░░░░░░░░░░░░░ ┤80,000     ││ NEXT BLOCK 3,412 tx · 998 kvB               │
+│ ⠤⠤⠒⠒⠉⠁                       │                          ││ ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀ │
+│ 17 Sep       18 Sep          NOW          20 Sep        ││ FEES next 3 30m 2 1h 2  POOL 38 MvB         │
+└─────────────────────────────────────────────────────────┘└─────────────────────────────────────────────┘
 ```
 
-in four colours, dim orange to white. Blank is untraded. The cyan rule is each close's median and `◂` on the right marks spot. Left of the orange `NOW` line is price
-history on the same axis and time scale: 30-minute candles on hourly series (two under each close), daily candles
-on daily series. The top line reads out the cell under the cursor with its probability and odds, and for that close
-the market's σ and annualised implied volatility, read off its 80% band.
+## The GO bar
 
-It is plain ASCII on purpose: a row is a few colour runs of ordinary characters, the drawn chart is
-cached so a clock tick redraws nothing, and the market list refreshes once a minute, never twice at
-once. Every live close loads: 168 on hourly BTC (seven days out) and about 172 on each daily series.
-`<` zooms time out past one character a close, to 2, 3, 4, 6 or 12 hours a column (2 days or a week on
-daily series); a zoomed-out cell draws its closes' average density and bets on all of them. `zf` fits the
-whole forecast on screen.
+Bloomberg grammar: `<TICKER> [<CLASS>] <FUNCTION> <GO>`, where Enter is GO. Press `` ` `` or `:` to focus it.
 
-### Keys
+| you type | you get |
+|---|---|
+| `BTC` | the Bitcoin page |
+| `MEMP` | the mempool, with the next block drawn |
+| `TX 8a4666…` · `ADDR bc1q…` · `BLK 967653` | a transaction, an address, a block. A bare txid, address or height works too |
+| `USDJPY GP` · `GP BTC XAU SPX` · `GP mvrv` | a chart; several instruments rebased to compare; any Bitview series by name |
+| `MSTR DES` · `MSTR FA` · `MSTR CF` | a company: description, financials, filings |
+| `LP MACRO` · `LP SAVE desk` | load a launchpad · save the current layout |
+| `HELP` · `HELP MEMP` · `F1` | every function by category · one function's page · help on the focused pane |
+| `FIND gold` | search functions, instruments, companies and launchpads |
+| `what is the fee right now` | anything that is not a command goes to `ASK`, which shows the command it chose before running it |
 
-Every key for the view you are in is listed at the bottom of the screen, under a vim status line that
-shows the mode (`NORMAL`, `VISUAL`, `SLIP`) and the keys typed so far. Terminals under 40 rows show two
-lines of it and `?` for the rest.
+Tab completes, the arrows pick a suggestion, ↑ and ↓ walk a history kept between sessions. A bare function runs
+against the focused pane's security. Digits pick the numbered menu items beside the bar. Classes work like
+Bloomberg's yellow keys (`CRYPTO`, `CURNCY`, `CMDTY`, `INDEX`, `GOVT`, `EQUITY`, `ETF`, `SERIES`) and an unambiguous
+ticker needs none.
+
+## Panes and launchpads
+
+Up to nine tiled panes, each running one function against its own security. Each pane's frame shows its number, the
+function as an amber chip, its security, and on the right where the data came from and how fresh it is.
 
 | | |
 |---|---|
-| `h` `j` `k` `l`, with counts (`5j`, `12l`) | move |
-| `{` `}` · `w` `W` | a day (a week on daily series) · next / previous midnight |
-| `0` `^` `$` · `12\|` | first / last close · close no. 12 |
-| `gg` `G` | top / bottom of that close's 80% band |
-| `ctrl-d` `ctrl-u` · `ctrl-f` `ctrl-b` · `ctrl-e` `ctrl-y` | half page · page · scroll without moving the cursor |
-| `zt` `zz` `zb` · `zh` `zl` `zH` `zL` | cursor row to top / centre / bottom · scroll sideways |
-| `zf` · `zi` `zo` · `<` `>` · `za` · `zm` | whole forecast · zoom price · zoom time · auto-fit · median on / off |
-| `v` · `V` · `o` · `gv` · `esc` | box select · select the 80% band · other corner · reselect · clear |
-| `ma` `'a` · `''` | set mark a, jump to it · jump back |
-| `/` · `:` | go to a price · command line: `:q` `:help` `:78000` `:size 50` `:size 500s` `:buy` `:series daily btc` `:noh` |
-| `b` · `enter` · `tab` | BET · open the close in the ladder · bet slip |
-| `q` `ZZ` `:q` | quit |
+| `tab` `shift-tab` | next / previous pane |
+| `ctrl-w` `h` `j` `k` `l` | move focus |
+| `ctrl-w` `s` `v` | split: stacked, side by side |
+| `ctrl-w` `q` · `o` · `=` | close · zoom one pane and back · even the sizes |
+| `j` `k` `ctrl-d` `ctrl-u` `g` `G` | scroll the page, or move its row cursor |
+| `enter` | open the row under the cursor |
+| `EXP` | export the focused pane's table to `~/Downloads/glimpse/` as CSV, with its sources |
 
-**If the colours look wrong, press `c`.** It switches between 24-bit colour and a palette built only
-from colours a 256-colour terminal can draw exactly, and remembers your choice.
+Shipped launchpads: `BTC` (the default), `CHAIN`, `MINER`, `MACRO`, `TRADER`, `TREASURY`. Yours are TOML files in
+`~/.config/glimpse/layouts/`.
 
-## The bet slip
-
-On the right, as on the web. Top to bottom: **your prediction** (Low, High, From, To and Size, each
-editable), then the **ticket** (cost, payout, profit, odds and ROI, all in the same plain bold text), then the
-bet button. Nothing else.
-
-Text size is your terminal's font size (Cmd/Ctrl and +): an app inside a terminal cannot change it.
-
-`tab` moves onto it.
+## Functions
 
 | | |
 |---|---|
-| `j` `k` | pick a field: Low, High, From, To (or Close, in the ladder view), Size |
-| `h` `l` or `-` `+` | step it by one price cell, one close, or one contract. Edges cannot cross |
-| `enter` | type a price or a size; prices snap to the market's bins |
-| `b` | place the bet · `tab` or `esc` goes back to the chart |
+| **Bitcoin** | `BTC` the Bitcoin page · `MEMP` mempool and the next block · `FEES` fees and a calculator · `BLK` blocks · `TX` a transaction · `ADDR` an address · `RBF` live replacements · `MINE` pools · `HASH` hashrate and difficulty · `DIFF` the retarget · `HASHP` hashprice · `HALV` the halving · `SUPL` supply · `LN` Lightning · `ORCL` the price read from the chain alone |
+| **On-chain** | `FLDS` search 60,000 Bitview series · `GP` chart anything · `ONCH` the cycle dashboard · `URPD` realized price distribution · `WAVE` HODL waves · `CYC` valuation bands · `CORR` rolling correlations |
+| **Markets** | `QM` quote monitor · `WEI` world indices · `FX` currencies and the dollar index · `GLCO` commodities · `RATES` the Treasury curve · `MACRO` liquidity · `ECO` economic prints · `HMAP` performance heatmap · `RV` BTC against gold · `DVOL` implied volatility |
+| **Companies** | `DES` description · `FA` financials · `CF` filings, read inside the pane · `CFS` full-text search · `TRSY` Bitcoin treasuries · `MINR` public miners · `ETF` spot ETFs · `N` news and filings · `TOP` the feed |
+| **Glimpse** | `MKT` markets and ladder · `HM` the forecast heatmap · `SLIP` the bet slip · `PORT` portfolio · `BOTS` the model zoo · `OMON` every close as an options chain · `GIV` Glimpse's implied volatility against Deribit |
+| **Wallet** | `WAL` the Glimpse account, your own barkd Ark wallet, and watch-only keys |
+| **Tools** | `AL` alerts · `NOTE` notes · `CALC` sats, fees, Kelly · `EXP` export · `SRC` every source's health · `SET` settings · `ASK` plain English · `HELP` · `FIND` · `DEMO` |
 
-Editing the slip moves the box on the chart, and moving the box updates the slip. Terminals
-narrower than 118 columns keep a compact ticket under the chart instead.
+Every function has a `HELP` page: what it shows, where each number comes from, how often it refreshes, and what it
+does when a source is down.
 
-A box across several closes is several independent bets. The ticket shows what each close pays
-and the most the box can pay; `all land` is the chance every close hits, treating them as
-independent. A box may span every loaded close; the terminal sends it as requests of 24 closes each and tells
-you how many were sent if one fails.
+## Where the numbers come from
 
-## Keys
+Every default source is public and needs no key. [SOURCES.md](SOURCES.md) records each one's terms, limits and a
+sample response, all checked live.
 
-| | |
-|---|---|
-| `j` `k` `↓` `↑` `s` `w` | move · `gg` `G` top / bottom · `ctrl-d` `ctrl-u` half page |
-| `h` `l` `←` `→` `a` `d` `tab` | switch pane · `zz` jump to the most likely range |
-| `[` `]` | previous / next series: `BTC` (hourly), `BTC 1D`, `ETH`, `SOL`, `XAU`. Opens on BTC, then on whichever you viewed last. Every market is titled by its question: `BTC at 18 Sep 11:00 UTC` |
-| `v` | start a range, move to extend it, `esc` to clear |
-| `+` `-` | double / halve contracts · `S` exact size, or a budget like `500s` |
-| `b` `enter` | buy, after a confirmation |
-| `f` | forecast heatmap |
-| `p` | portfolio · `x` sells the selected position |
-| `B` | bots: `j` `k` move · `h` `l` category · `/` search · `S` sort · `i` how the model works · `tab` walk the closes ahead · `enter` run / stop · `e` budget · `x` stop · `L` log in to trade real sats |
-| `L` `O` `r` `?` `q` | log in · log out · refresh · help · quit |
+- **Bitcoin:** mempool.space (REST and WebSocket), Bitview (the Bitcoin Research Kit), Blockstream Esplora as a fallback.
+- **Prices:** Coinbase, Kraken and Bitstamp public tickers. BTC is the median of the three.
+- **Macro:** FRED's keyless CSV, the US Treasury's yield curve, ECB reference rates, Deribit's public API.
+- **Companies:** SEC EDGAR, once you give it a contact (below).
 
-## Your key
+The terminal says what it knows and how well. Each panel names its source and its delay (`live`, `daily`, `weekly`,
+`monthly`) and the date a daily value describes. A value it could not refresh stays on screen, dimmed, marked `stale`
+with its age. Where no open feed carries an instrument, a labelled proxy stands in: gold shows through PAXG, and a
+few shares and ETFs through Kraken's tokenised versions, each marked `proxy` with the stand-in's ticker. A proxy is
+never presented as the instrument. Several live feeds the original design hoped for now need paid keys, so indices,
+USD/JPY, oil and rates are official daily values, and say so.
 
-Looked up in this order: `GLIMPSE_API_KEY`, the OS keychain, then
-`~/.config/glimpse/credentials` (mode 0600) on servers with no keychain. It is validated
-before it is saved, shown only as `glp_live_…last4`, and never written to a log. `O` removes it.
+The terminal is a good citizen: per-host rate limits, shared connections, caching (memory, and SQLite at
+`~/.cache/glimpse/terminal.db`), exponential backoff with jitter, and a descriptive User-Agent. `SRC` shows every
+source's health, latency, budget and last error.
 
-A Glimpse key can trade. It cannot withdraw, and it cannot create or list other keys.
+## Your own node, Tor, and privacy
 
-## Safety
+Every Bitcoin backend is a URL. Point the terminal at your own and it takes effect at once, no restart:
+
+```
+SET bitcoin.mempool http://umbrel.local:3006      a self-hosted mempool
+SET bitcoin.bitview http://localhost:3110         bitviewd
+SET bitcoin.electrum ssl://your-server:50002      Electrum, never a public server by default
+SET socks5 socks5h://127.0.0.1:9050               every request through Tor
+```
+
+Looking up an address or a transaction on a public backend tells that backend what you care about. The terminal
+says so the first time, and watch-only wallets never touch a public backend without your explicit consent.
+
+**The SEC asks for a contact.** Company functions read SEC EDGAR, which refuses requests without a name and email in
+the User-Agent. The terminal sends nothing to the SEC until you set one, and then the SEC receives it on every
+request: `SET sec_user_agent Your Name you@example.com`.
+
+Settings live in `~/.config/glimpse/terminal.toml`. Secrets (the Glimpse API key, the barkd token) live in the OS
+keychain, never in that file, a log or a commit.
+
+## Trading Glimpse
+
+No key is needed to look around: all market data is public. To trade, press `L` and paste an API key (register at
+glimpse.markets, complete verification, then Settings → Developer API Keys). A Glimpse key can trade. It cannot
+withdraw, and it cannot create or list other keys.
+
+`MKT`, `HM`, `SLIP`, `PORT` and `BOTS` are the screens the terminal has always had, with every key they have always
+had. `f` `p` `B` reach them from a launchpad and `t` returns.
+
+- **Markets and ladder (`MKT`).** One row per close with the market's median and 80% band; the ladder of price
+  ranges with probability, odds net of fees, and your position. `j` `k` move, `h` `l` switch pane, `v` selects a
+  range, `+` `-` size, `b` buys after a confirmation, `[` `]` change series (`BTC`, `BTC 1D`, `ETH`, `SOL`, `XAU`).
+- **The forecast heatmap (`HM`, `f`).** Time runs across, price runs up, each character is one price cell of one
+  close, denser where the market puts more probability (`·:-=+*#%@`), candles left of `NOW`, the median in cyan.
+  Full vim motion: counts, `{` `}` a day, `gg` `G`, `zf` the whole forecast, `zi` `zo` zoom price, `<` `>` zoom
+  time, `v` box select, `V` the 80% band, marks, `/` go to a price. `tab` opens the bet slip, `b` bets.
+- **Options on every close (`OMON`).** Digital calls, puts and ranges read off each close's distribution, an implied
+  volatility from a lognormal fit, and the Greeks. Enter hands the range to the heatmap as a box. `OMON` never places
+  an order itself.
+- **If the colours look wrong, press `c`.** It switches between 24-bit colour and a palette built only from colours a
+  256-colour terminal draws exactly, and remembers your choice.
+
+### Safety
 
 - Every order asks for confirmation and shows cost, payout and what you lose.
-- Before an order is sent, the terminal asks the server for its own estimate and refuses if the
-  price has moved more than 0.5%. The API has no slippage limit of its own, so this is the guard.
-- Orders are never retried. If the connection drops mid-order the terminal tells you the fill is
-  unknown and reloads the portfolio, rather than risk buying twice.
+- Before an order is sent, the terminal asks the server for its own estimate and refuses if the price has moved more
+  than 0.5%. The API has no slippage limit of its own, so this is the guard.
+- Orders are never retried. If the connection drops mid-order the terminal says the fill is unknown and reloads the
+  portfolio, rather than risk buying twice.
 
-## Bots
+## Wallets (`WAL`)
 
-Press `B`. The list is the model zoo from the Glimpse Forecast Lab: every model there that can run on
-hourly candles alone (trend, mean reversion, volatility, calendar, regimes and jumps, pattern models, named
-distributions, scenario views and option-payoff views), running on this computer from public Coinbase
-candles. No server, no database, no GPU.
+- **The Glimpse account:** balance, exposure against its cap, open positions valued locally. Deposits and
+  withdrawals stay on the website, because an API key cannot move funds.
+- **Your own Ark wallet through [barkd](https://gitlab.com/ark-bitcoin/bark):** a self-custodial Ark, Lightning and
+  on-chain wallet daemon you run. barkd alone holds the seed. The terminal only calls its API, and never the routes
+  that reveal or delete a wallet. `SET wallet.barkd http://127.0.0.1:3000`, then `t` in `WAL` stores its token in the
+  keychain. Receive with a QR code. A send shows the fee first, asks for the amount to be typed back, asks for a
+  final confirmation, enforces a daily cap, refuses a destination on the wrong network, and is never retried. Try
+  it on signet first.
+- **Watch-only:** an xpub, ypub, zpub or output descriptor. Addresses are derived on this machine (gap limit 20) and
+  looked up only on your own backend or through Tor, unless you explicitly allow otherwise.
 
-Each row says what that bot believes about the nearest close *right now*: bullish, bearish, sideways or
-volatile, and the price it calls. The tabs
-(`h` `l`) sort the zoo by that live view: Bullish, Bearish, Sideways, Volatile. The right pane is one model, top to bottom:
-the idea in two lines; a ladder with two bars per price range, what the bot thinks and what the market thinks, with
-`BUYS` next to the ranges the bot would bet on; and under it a time series chart. The chart runs the hourly candles the
-model actually read (merged to the chart's time scale) into the model's own forecast: its median path `─` and 80% band
-`░` at every close ahead, the market's median `·` through it for contrast, and the close the ladder shows marked `▒`.
-`tab` walks the closes ahead, close by close. None of it is a track record, and the terminal shows none.
+## Bots (`BOTS`, `B`)
 
-`i` opens the model's account of itself, written to be checked against the code: **idea** (what it believes and why),
-**reads** (the candle columns, windows and how many bars it needs), **maths** (the signal formula with the parameters
-the code uses, the estimator, and how a reading moves the picture), **trades** (which ranges it puts more weight on
-than the market, and when it says nothing), **now** (its stance on the close shown: median, 80% band, lean against the
-baseline in σ, width, and how much of its probability sits differently from the market), then the machinery every
-picture shares (percentile strength, exponential tilt, timing clocks, or path simulation, named distributions, option
-payoffs), the volatility clock that sizes every picture, the runner's buy and sell rules, and the reference. The same
-text is on the command line: `glimpse-tui about <bot>`.
-
-`enter` deploys the selected bot: type a budget in sats, or press `enter` again to accept the one shown.
-Small budgets are fine; there is no minimum bet. Each cycle the runner
-
-- buys only ranges the bot values above the market price after both fees, sized by quarter-Kelly against
-  the budget, never paying past the price the bot's picture justifies;
-- sells a position it bought once the market pays more for it than the picture says it is worth;
-- never touches a position it did not open (what it owns is recorded in `~/.config/glimpse/bot-ledger.json`);
-- checks the server's estimate before every order, never has more than the budget at risk, and stops at its
-  per-cycle and per-hour caps.
-
-There is no testnet: bots use the production API. With no API key loaded (`L` to log in) a bot can only
-practise on paper, with a paper ledger, logging what it would do. With a key, deploying asks one more
-question, and typing `LIVE` makes it trade real sats through that key. Several bots can run at once. They stop when the terminal closes; to
-keep one running without the screen:
+The model zoo from the Glimpse Forecast Lab: 130 forecasting models that run on this computer from public Coinbase
+candles. Each row says what that bot believes about the nearest close right now. `i` opens a model's account of
+itself (idea, data, maths, trades). `enter` runs one on paper; with a key and the word `LIVE`, with real sats,
+sized by quarter-Kelly, never above its budget, checking the server's estimate before every order.
 
 ```sh
 glimpse-tui bots [search]                                  # list them
@@ -169,13 +179,7 @@ glimpse-tui about ema_crossover                            # idea, data, maths, 
 glimpse-tui run ema_crossover --series BTC --budget 20000  # dry run in this shell; add --live for real sats
 ```
 
-How the terminal's models differ from the lab's: the lab simulates thousands of paths against a feature
-database and calibrates each signal on a year of history. The terminal keeps each model's signal, its
-conviction rule and its shape, and draws the picture as a density on a grid, scaled by the same EWMA
-volatility clock. Models that need funding, options, sentiment or downloaded weights are not included.
-Each bot's `maths` says where it differs.
-
-Your own bot is one function in `~/.config/glimpse/bots/<name>.py`, listed under the Mine tab:
+Your own bot is one function in `~/.config/glimpse/bots/<name>.py`:
 
 ```python
 def forecast(book, closes, hours):
@@ -183,28 +187,18 @@ def forecast(book, closes, hours):
     Return one probability per bin, summing to 1."""
 ```
 
-Defaults live in `~/.config/glimpse/bots.toml`; a bot's budget lowers the caps to a quarter of it per cycle
-and half of it per hour:
-
-```toml
-markets = 2               # nearest closes traded each cycle
-interval_s = 300
-bankroll_sats = 20000     # default budget
-kelly = 0.25
-min_edge = 0.10           # the round trip costs ~4% in fees alone
-exit_edge = 0.05          # sell when the market pays 5% more than the picture's value
-max_per_cycle_sats = 2000
-max_per_hour_sats = 5000
-```
-
-Bot files are Python that runs with your permissions. Only install ones you have read.
+Defaults live in `~/.config/glimpse/bots.toml`. Bot files are Python that runs with your permissions. Only install
+ones you have read.
 
 ## Development
 
 ```
 uv sync
-uv run pytest        # offline; pricing is pinned to server estimates recorded live
+uv run pytest        # offline: every source is replayed from tests/fixtures/sources/, no test touches the network
 uv run ruff check .
 ```
 
-Design, verified API facts and open questions: [PLAN.md](PLAN.md).
+- [TERMINAL.md](TERMINAL.md): the build brief. [PLAN.md](PLAN.md): decisions, verified facts, open questions, and the
+  checklist of what is built. [SOURCES.md](SOURCES.md): every data source, checked live.
+- A function page is one class: `src/glimpse_tui/funcs/__init__.py` explains how to write one, and
+  `funcs/btc.py` is the worked example.

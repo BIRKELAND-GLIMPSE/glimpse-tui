@@ -149,6 +149,22 @@ async def test_every_function_has_a_help_page_and_a_category():
         assert f.make is not None or f.legacy or f.code in ("EXP", "DEMO"), f.code     # these two the shell runs itself
 
 
+async def test_the_demo_walks_real_commands_and_any_key_stops_it(make):
+    from glimpse_tui.funcs import demo
+    app = make(launchpad="BTC")
+    async with app.run_test(size=(132, 36)) as pilot:
+        await until(pilot, lambda: len(app.shell.ws.panes) == 4)
+        steps = (("MEMP", True, 1, "the mempool"), ("TX", True, 1, "a transaction"), ("LP MACRO", False, 1, "macro"),
+                 ("HM", False, 1, "the heatmap"))
+        await demo.run(app.shell, steps, pace=0.2)
+        assert app.view == "heatmap" and not app.shell.demo and "That was the tour" in app.flash
+        app.shell.run("DEMO")                                               # the registered function starts the full tour
+        await until(pilot, lambda: app.shell.demo and "DEMO" in app.flash)
+        await pilot.press("x")
+        await until(pilot, lambda: not app.shell.demo)
+        assert app.view == "term"                                           # the key stopped the tour and did nothing else
+
+
 async def test_set_repoints_a_backend_without_a_restart(make, no_network):
     app = make(launchpad="CHAIN")
     async with app.run_test(size=(132, 36)) as pilot:

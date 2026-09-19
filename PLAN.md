@@ -406,11 +406,26 @@ command that opens it.
 - [ ] `DES <ticker>` · [ ] `FA <ticker>` · [ ] `CF <ticker>` with the in-pane reader · [ ] `CFS <words>` · [ ] `TRSY` · [ ] `MINR` · [ ] `ETF` · [ ] `N [ticker]` · [ ] `TOP`
 
 **Phase 6: wallet and Glimpse depth** (sections 8 and 10)
-- [ ] `WAL`: the Glimpse account · barkd (balance, receive with QR, send with fee, typed-back amount, final confirmation, daily cap, boards, exits, history) · watch-only (xpub, zpub, descriptors, gap limit 20, consent before any public lookup)
-- [ ] `OMON` hands a box to the heatmap · [ ] `GIV`
-- [ ] barkd send and receive exercised on signet or regtest
+- [x] `WAL`: the Glimpse account · barkd (`wallet/barkd.py`: balance, receive with QR, send with the fee first, the amount typed back, a final
+      confirmation, the daily cap, a wrong-network refusal, never retried, boards, exits, history, VTXO expiry warning; the mnemonic and
+      wallet-delete routes are refused in the client) · watch-only (`wallet/watch.py`: xpub, ypub, zpub, descriptors, single addresses,
+      gap limit 20, embit; refuses private keys; no public lookup without `wallet.watch_public_ok`)
+- [x] `OMON` hands a box to the heatmap (enter a range, `C` the call, `U` the put) and never orders · [x] `GIV`
+- [ ] **barkd send and receive on signet or regtest: NOT exercised.** No `barkd` or `bitcoind` binary is on this machine, and none was
+      installed. Everything is tested against a fake daemon that accepts only routes present in barkd 0.7.1's recorded OpenAPI
+      (tests/test_funcs_wallet.py). Before trusting it with funds: run `barkd` on signet (SOURCES.md has the steps), `SET wallet.barkd
+      http://127.0.0.1:3000`, press `t` in `WAL`, receive from the signet faucet, send a small amount back. No real funds were moved.
+- [ ] barkd notifications on the status line (the long-poll route is in the client, not wired to the status line)
+- [ ] Paying a Glimpse deposit invoice from barkd (waits on TERMINAL.md section 12 question 1)
 
 **Phase 7: tools and polish** (section 11)
-- [ ] `AL` · [ ] `NOTE` · [ ] `CALC` · [ ] `EXP` · [ ] `ASK <words>`
-- [ ] Both palettes checked at 80×24, 132×36 and 200×58
-- [ ] README rewritten around the GO bar · [ ] the two-minute demo script
+- [x] `AL [rule]` (price, fee, mempool, block, difficulty, Glimpse odds; evaluated each second from cached state; bell and status line)
+- [~] `AL` filing rules fire only if something emits `filing` events into `hub.events` (check `TOP`/`N` once the SEC contact is set);
+      news rules wait for the Jev hub, which is not in this repository
+- [x] `NOTE [ticker] [text]` · [x] `CALC <expression>` · [x] `EXP`
+- [~] `ASK <words>`: the keyword router is built and always shows the command before running it. Routing through Jev's function calling
+      with a TypeSafe key is NOT built.
+- [x] `DEMO`: the two-minute tour (`uv run glimpse-tui DEMO`), any key stops it
+- [~] Sizes: pages are tested for no line wider than the pane from 40 to 196 columns, and the default launchpad was looked at on
+      recorded data at 80×24 and live at 132×36. 200×58 and the 256-colour palette were covered by tests (`charts.snap`), not by eye.
+- [x] README rewritten around the GO bar
