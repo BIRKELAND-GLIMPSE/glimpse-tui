@@ -1,0 +1,19 @@
+# secrets (the terminal reads GLIMPSE_API_KEY from the env or the OS keychain; never commit one)
+.env
+.env.*
+credentials
+
+# python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+
+# os / editors
+.DS_Store
+.vscode/
+.idea/

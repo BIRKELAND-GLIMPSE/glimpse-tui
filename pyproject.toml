@@ -1,0 +1,42 @@
+[project]
+name = "glimpse-tui"
+version = "0.1.0"
+description = "The Glimpse prediction market in your terminal: forecasts, odds, trading and local bots."
+authors = [
+    { name = "jamespierog", email = "james.pierog@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "glimpse-markets>=0.1.0",
+    "keyring>=25.7.0",
+    "numpy>=2.5.3",
+    "pandas>=2.2",
+    "scipy>=1.18.1",
+    "textual>=1.0",
+]
+
+[project.scripts]
+glimpse-tui = "glimpse_tui:main"
+
+[build-system]
+requires = ["uv_build>=0.9.22,<0.10.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "ruff>=0.16.8",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 145
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "W"]
+ignore = ["E701", "E702"]
