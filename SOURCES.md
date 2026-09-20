@@ -34,7 +34,9 @@ request a second per host. No 429 was received except where noted.
 | ETF issuers' holdings files | dropped | n/a | n/a |
 | GDELT | dropped from defaults | news search | n/a |
 | Stooq | dropped | n/a | n/a |
-| barkd (Second's Bark) | keep | the user's own Ark, Lightning and on-chain wallet daemon | live, localhost |
+| Yahoo Finance chart API | keep, added 2026-09-19, default on (`SET sources.yahoo false`) | index levels, the VIX, the dollar index, Treasury yields, COMEX and NYMEX futures, FX, US shares and ETFs | delayed (its own last print) |
+| News RSS: BBC World, CNBC (international, economy, finance), Federal Reserve, ECB, CoinDesk | keep, added 2026-09-19 | headlines: title, time, link | delayed, polled every 5 min |
+| barkd (Second's Bark) | removed 2026-09-19: no Ark wallet in the terminal yet, trading is by Glimpse API key only | n/a | n/a |
 
 ## Bitcoin sources
 
@@ -432,7 +434,55 @@ If a free Pyth key is judged acceptable, the client can put `keyed` in front of 
 have no Pyth feed. RUT, SX5E, DAX, UKX, NIFTY and HSI have no Pyth index feed either, so a key gives them an ETF
 proxy at best, and UKX has none.
 
-## Company and wallet sources
+### Yahoo Finance chart API
+
+- **Access.** `GET https://query1.finance.yahoo.com/v7/finance/spark?symbols=<up to 20>&range=1mo&interval=1d` for quotes with 30 daily
+  closes, and `/v8/finance/chart/<symbol>?range=2y&interval=1d` for history. Keyless. Both answered 200 on 2026-09-19 with the
+  terminal's own User-Agent. A browser User-Agent was refused (the body was not JSON), so the terminal sends its own, as it does
+  everywhere. `spark` refuses more than 20 symbols (HTTP 400 at 25); the client batches in twenties.
+- **What it carries that nothing else open does.** The S&P 500, Nasdaq 100, Dow, Russell, Euro Stoxx, DAX, FTSE, Nikkei, Hang Seng,
+  Kospi and Nifty as levels rather than official daily closes; the VIX; the ICE dollar index itself (`DX-Y.NYB`); Treasury yields
+  (`^TNX`, `^IRX`, `^FVX`, `^TYX`); COMEX gold, silver and copper, NYMEX crude and gas, CBOT grains and ICE sugar as front-month
+  futures; FX crosses; and every US share and ETF (MSTR, IBIT, the miners), which had no keyless source at all before.
+- **Terms.** Yahoo's terms allow personal, non-commercial use. The terminal fetches for the person running it, names `yahoo` on every
+  number it draws, caches for 60 s, keeps within one request per second, and stores nothing beyond its cache. `SET sources.yahoo false`
+  turns it off, and every pane falls back to the official daily sources (FRED, the Treasury, the ECB) as before. A user who cannot
+  accept those terms loses nothing but freshness.
+- **Verdict.** Keep, default on, because the alternative for a dozen instruments is nothing at all.
+- **Sample.** `^GSPC`: `regularMarketPrice` 7650.5, `previousClose` 7637.76, day range 7610.52 to 7657.17, `regularMarketTime`
+  1789766988, 22 daily closes. `GC=F` (gold, Dec 26) 4424.9. `^TNX` 4.998, already in percent.
+- **Quirks.** `chartPreviousClose` is the previous *session's* close, which on an intraday range is not yesterday's: the client
+  prefers the second-to-last daily close when the last one is today's. A symbol with no print in half an hour is marked closed. The
+  v7 `quote` endpoint now needs a crumb (401) and is not used. Futures are the front month, so gold sits a few dollars above spot;
+  Glimpse's own gold market settles on PAXG, and the forecast pages say so.
+- **Fixture.** `tests/fixtures/sources/yahoo/spark_all.json` holds all 72 symbols the instrument map names, recorded in four
+  requests and merged by symbol; `chart_gspc_2y.json` is two years of the S&P 500. The offline transport answers any spark request
+  with the recorded rows for the symbols asked for.
+
+## News sources
+
+Checked live on 2026-09-19 with the terminal's own User-Agent (`glimpse-tui/0.1.0 (+https://github.com/…)`): every feed
+answered 200 with RSS 2.0. Fixtures are under `tests/fixtures/sources/news/`. The terminal shows each item's title, time
+and link, and opens the link in the browser on request. It never copies an article's text. Each feed is its own source
+on `SRC`, polled at most every five minutes.
+
+| key | outlet · tag | URL | items on the day |
+|---|---|---|---|
+| `bbc_world` | BBC · WORLD | `https://feeds.bbci.co.uk/news/world/rss.xml` | 24 |
+| `cnbc_world` | CNBC International · WORLD | `https://www.cnbc.com/id/100727362/device/rss/rss.html` | 30 |
+| `cnbc_econ` | CNBC Economy · ECONOMY | `https://www.cnbc.com/id/20910258/device/rss/rss.html` | 30 |
+| `cnbc_finance` | CNBC Finance · MARKETS | `https://www.cnbc.com/id/10000664/device/rss/rss.html` | 30 |
+| `fed_press` | Federal Reserve press releases · FED | `https://www.federalreserve.gov/feeds/press_all.xml` | 20 |
+| `ecb_press` | ECB press releases, speeches · ECB | `https://www.ecb.europa.eu/rss/press.html` | 15 |
+| `coindesk` | CoinDesk · CRYPTO | `https://www.coindesk.com/arc/outboundfeeds/rss` (the `/rss/` form redirects here) | 25 |
+
+- **Tried and not used.** MarketWatch top stories (`feeds.content.dowjones.io/public/rss/mw_topstories`) answered, but on the
+  day it was mostly personal finance. BBC Business was UK-centred. FT and the Guardian redirect to pages that are not feeds.
+  Google News topic feeds answered but aggregate other publishers' headlines through Google's redirect links.
+- **Quirks.** `pubDate` is RFC 822 with `GMT`, `+0000` or `+0200`. CNBC's feeds overlap: the same story is shown once, by title.
+  The ECB feed puts every item on one line.
+
+## Company sources
 
 Checked on 19 Sep 2026 with curl from the development machine.
 
@@ -482,50 +532,9 @@ premium or discount are not available from a cleared source.
 
 ### barkd (Second's Bark)
 
-- **Serves.** A self-custodial Ark, Lightning and on-chain wallet daemon with a REST API.
-- **Source.** `https://gitlab.com/ark-bitcoin/bark` is the primary repository. `https://github.com/ark-bitcoin/bark` is described as a mirror. `github.com/second-tech/bark` does not exist (404). The licence is MIT, confirmed by the `LICENSE` file, GitHub's licence detection and `info.license` in the OpenAPI file.
-- **Version.** The latest tag is `bark-0.7.1` (2026-09-11). `bark-rest/openapi.json` on `master` was byte-identical to the tag on the day. The project is pre-1.0 and releases often, so the API will move.
-- **Access.** Default address `http://127.0.0.1:3000`, default port 3000, API under `/api/v1`. Flags: `--port` or `BARKD_BIND_PORT`, `--host` or `BARKD_BIND_HOST`, `--datadir` or `BARKD_DATADIR` (default `~/.bark`), `--allowed-origins`. The daemon serves Swagger UI at `/swagger-ui` and the spec at `/api-docs/openapi.json`. Plain HTTP only, no TLS. The daemon itself was not run.
-- **Auth.** `Authorization: Bearer <token>` on every route except `GET /ping`. The token is base64url without padding of one version byte and a 32-byte secret. barkd creates it on first start and stores it in `<datadir>/auth_token` with owner-only permissions. `barkd --datadir <dir> secret show` prints it. `secret refresh` rotates it. "Bearer" is matched case-sensitively. A missing or wrong token gives 401 in plain text. `--no-auth` disables auth and refuses a non-loopback bind.
-- **Networks.** `mainnet`, `signet`, `mutinynet`, `regtest`.
-- **Verdict.** Keep. Open licence, a published OpenAPI spec, local only.
-- **Fixture.** `tests/fixtures/sources/barkd/openapi.json` is the 0.7.1 spec: all 74 operations on 72 paths and 119 schemas. It was minified, and `info.contact` was removed because it held an email address. Nothing else was touched.
-- **Running on signet for tests** (not run here). Install barkd from `https://second.tech/docs/barkd/install`. Run `barkd --datadir /tmp/bark-signet`. Run `barkd --datadir /tmp/bark-signet secret show`. Then `POST /api/v1/wallet/create` with `{"network": "signet", "ark_server": "https://ark.signet.2nd.dev", "chain_source": {"esplora": {"url": "https://esplora.signet.2nd.dev"}}}`. Both URLs are from Second's docs at `https://second.tech/docs/barkd/clients`, which also name a faucet and test store at `https://signet.2nd.dev`. `CreateWalletRequest` requires only `network`.
-- **Sample**, from the spec: "`spendable_sat`: Sats that are immediately spendable, either in-round or out-of-round."
-
-| need | method and path | 200 response |
-|---|---|---|
-| health | `GET /ping`, no auth | "pong" |
-| wallet exists, server link | `GET /api/v1/wallet`, `GET /api/v1/wallet/connected` | `{fingerprint?}`, `{connected}` |
-| Ark server info | `GET /api/v1/wallet/ark-info` | `ArkInfo {network, fees, vtxo_expiry_delta, vtxo_exit_delta, round_interval, ...}` |
-| Ark balance | `GET /api/v1/wallet/balance` | `{spendable_sat, pending_in_round_sat, pending_lightning_send_sat, claimable_lightning_receive_sat, pending_board_sat, pending_exit_sat?}` |
-| on-chain balance | `GET /api/v1/onchain/balance` | `{total_sat, confirmed_sat, trusted_spendable_sat, trusted_pending_sat, untrusted_pending_sat, immature_sat}` |
-| sync | `POST /api/v1/wallet/sync`, `POST /api/v1/onchain/sync` | |
-| receive addresses | `POST /api/v1/wallet/addresses/next`, `POST /api/v1/onchain/addresses/next` | `{address}` |
-| Lightning invoice and its status | `POST /api/v1/lightning/receives/invoice` with `{amount_sat, description?, token?}`, `GET /api/v1/lightning/receives/{identifier}` | `{invoice}`, `LightningReceiveInfo` |
-| BIP 321 URI | `POST /api/v1/wallet/bip321` | see the spec |
-| send Ark or Lightning | `POST /api/v1/wallet/send` with `{destination, amount_sat?, comment?}` | `{message, payment_hash?}` |
-| send Lightning only, and its status | `POST /api/v1/lightning/pay`, `GET /api/v1/lightning/sends/{identifier}` | `{message, payment_hash?}`, `{payment_hash, state, invoice?, preimage?}` |
-| send on-chain from the Ark balance | `POST /api/v1/wallet/send-onchain` with `{destination, amount_sat}` | `{offboard_txid}` |
-| send on-chain from the on-chain wallet | `POST /api/v1/onchain/send`, also `send-many` and `drain` | `{txid}` |
-| fee estimates | `GET /api/v1/fees/lightning/pay`, `/fees/lightning/receive`, `/fees/send-onchain`, `/fees/board`, `/fees/offboard-all`, `POST /api/v1/fees/offboard` | `{fee_sat, gross_amount_sat, net_amount_sat, vtxos_spent}` |
-| on-chain fee rates | `GET /api/v1/fees/onchain` | `{fast_sat_per_vb, regular_sat_per_vb, slow_sat_per_vb}` |
-| boards | `GET /api/v1/boards/pending`, `POST /api/v1/boards/board-amount`, `POST /api/v1/boards/board-all` | `PendingBoardInfo` |
-| exits | `GET /api/v1/exits/status/all`, `/status/live`, `/status/finished`, `/status/vtxo/{vtxo_id}`, `GET /api/v1/exits/fee`, `POST /exits/start/all`, `/start/vtxos`, `/progress`, `/claim/all`, `/claim/vtxos`, `/cancel/{vtxo_id}` | `[ExitTransactionStatus {vtxo_id, state, history?, transactions?}]` |
-| VTXOs with expiry | `GET /api/v1/wallet/vtxos?all=`, `GET /api/v1/wallet/vtxos/{id}` | `VtxoInfo {id, amount_sat, expiry_height, exit_delta, ...}` plus `state` |
-| chain tip, next round | `GET /api/v1/bitcoin/tip`, `GET /api/v1/wallet/next-round` | `{tip_height}`, `{start_time}` |
-| refresh before expiry | `POST /api/v1/wallet/refresh/all`, `/refresh/vtxos`, `/refresh/counterparty` | |
-| history | `GET /api/v1/history?type=&value=` | `[Movement {id, status, subsystem, intended_balance_sat, effective_balance_sat, offchain_fee_sat, sent_to, received_on, time, ...}]` |
-| notifications, long poll | `GET /api/v1/notifications/wait?since=<RFC 3339>` | `{last_pushed_at?, notifications}`. `type` is `movement-created`, `movement-updated` or `channel-lagging` |
-| notifications, WebSocket | `GET /api/v1/notifications/ws/ticket`, then `ws://<host>/api/v1/notifications/ws?ticket=<ticket>` | a single-use ticket valid for 10 minutes. The `/ws` route is in the source but not in the OpenAPI paths |
-
-- **Quirks.**
-  - All amounts are integer sats. Times are RFC 3339 strings. VTXO ids and `chain_anchor` are `txid:vout`. The expiry warning is `expiry_height - tip_height` blocks.
-  - Union types are tagged by a `type` field in kebab-case. `ExitState.type` is one of `start`, `processing`, `awaiting-delta`, `claimable`, `claim-in-progress`, `claimed`, `vtxo-already-spent`, `canceled`. Unknown values are shown, not treated as fatal.
-  - The balance is computed from local state. The client calls `sync` first for fresh figures. Errors are JSON `{message}` for 400 and 500, and `{message, resources}` for 404.
-  - Deprecated in 0.7.1 and not used: `GET /api/v1/wallet/history`, `GET /api/v1/wallet/movements`, `GET /api/v1/exits/status`, `GET /api/v1/exits/status/{vtxo_id}`.
-  - Never called from the terminal: `GET /api/v1/wallet/mnemonic`, `DELETE /api/v1/wallet`, and `POST /api/v1/wallet/create` with a mnemonic. The terminal never holds a seed. The user creates the wallet with barkd's own tools.
-  - An official Python client exists (`barkd-client` 0.7.2 on PyPI, MIT). It is synchronous and pulls pydantic. The terminal is async on httpx, so it uses a small hand-written client.
+Removed on 2026-09-19 with the `WAL` page, the `wallet/` package and its fixture: the terminal has no Ark wallet yet, and
+trades through a Glimpse API key only. The research that was here (barkd 0.7.1, its routes and auth) is in git history
+at commit `90956d8` for when a wallet returns.
 
 ### Library choices
 

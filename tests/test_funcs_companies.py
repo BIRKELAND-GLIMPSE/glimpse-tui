@@ -563,14 +563,16 @@ async def test_mstr_go_opens_des_and_enter_in_cf_reads_the_filing_in_the_pane(mo
         await pilot.press("enter")
 
     async with app.run_test(size=(140, 44)) as pilot:
-        await T.until(pilot, lambda: len(app.shell.ws.panes) == 4)
-        top = next(p for p in app.shell.ws.panes if p.code == "TOP")
+        await T.until(pilot, lambda: len(app.shell.ws.panes) == 16)
+        await go(pilot, "TOP")
+        await T.until(pilot, lambda: app.shell.ws.pane.code == "TOP")
+        top = app.shell.ws.pane
         await T.until(pilot, lambda: top.loaded_at and top.filings)
         assert "MSTR 8-K" in top.render().plain and "news · filings" in top.render().plain and "mempool live · sec daily" in top.render().plain
         await go(pilot, "MSTR")                             # a bare ticker opens DES
         await T.until(pilot, lambda: app.shell.ws.pane.code == "DES" and app.shell.ws.pane.loaded_at)
         assert "held 600,000 BTC" in app.shell.ws.pane.render().plain
-        await pilot.press("2")                              # the digits menu: CF
+        await pilot.press("enter", "2")                     # zoom into the page, then the digits menu: CF
         await T.until(pilot, lambda: app.shell.ws.pane.code == "CF" and app.shell.ws.pane.filings)
         cf = app.shell.ws.pane
         await pilot.press("enter")

@@ -10,9 +10,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-CATEGORIES = ("Bitcoin", "On-chain", "Markets", "Companies", "Glimpse", "Wallet", "Tools")
+CATEGORIES = ("Bitcoin", "On-chain", "Markets", "Companies", "Glimpse", "Tools")
 CLASSES = ("CRYPTO", "CURNCY", "CMDTY", "INDEX", "GOVT", "EQUITY", "ETF", "SERIES")
-FAMILIES = ("tools", "glimpse", "btc", "chain", "mining", "gp", "onchain", "markets", "companies", "wallet", "options", "toolbox", "demo")
+FAMILIES = ("tools", "glimpse", "btc", "chain", "mining", "gp", "onchain", "markets", "companies", "news", "forecast", "options",
+            "swarm", "toolbox", "demo")
 
 
 @dataclass(frozen=True)
@@ -31,6 +32,9 @@ class Function:
     legacy: str = ""                    # one of today's screens: the app view it opens
     default_for: tuple[str, ...] = ()   # instrument classes whose bare ticker opens this function
 
+
+# Codes the terminal used to have. `MKT` was the ladder before it became the odds screen.
+ALIASES = {"MKT": "ODDS", "LADDER": "ODDS", "ZOO": "BOTS"}
 
 _functions: dict[str, Function] = {}
 _failed: dict[str, str] = {}
@@ -59,7 +63,8 @@ def load_all() -> None:
 
 def get(code: str) -> Function | None:
     load_all()
-    return _functions.get(code.upper())
+    code = code.upper()
+    return _functions.get(code) or _functions.get(ALIASES.get(code, ""))
 
 
 def every() -> list[Function]:

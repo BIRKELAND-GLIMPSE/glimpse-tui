@@ -16,18 +16,21 @@ T0 = 2_000_000_000 - 2_000_000_000 % 86400          # a future UTC midnight: eve
 KEY = "glp_live_" + "ab" * 32
 
 
-def test_glyph_ramp_is_one_absolute_log_scale():
+def test_glyph_ramp_is_four_shade_blocks_on_one_absolute_log_scale():
+    assert H.GLYPHS == "░▒▓█" and len(H.GLYPHS) == 4                         # four steps, one hue: no ramp to decode
     assert H.level(H.P_FLOOR) == -1                                          # seed, not belief: blank
     assert H.level(0.0061) == 0 and H.level(0.0999) == H.KNEE - 1 and H.level(0.10) == H.KNEE
-    assert H.level(1.0) == len(H.GLYPHS) - 1 and H.GLYPHS[-1] == "@"
+    assert H.level(1.0) == len(H.GLYPHS) - 1 and H.GLYPHS[-1] == "█"
     levels = [H.level(p) for p in (0.007, 0.01, 0.02, 0.05, 0.09, 0.1, 0.3, 0.6, 1.0)]
-    assert levels == sorted(levels)                                          # a denser glyph always means more probable
+    assert levels == sorted(levels)                                          # a solider block always means more probable
     for i in (1, H.KNEE, len(H.GLYPHS) - 1):
         assert H.level(H.threshold(i) * 1.001) == i and H.level(H.threshold(i) * 0.999) == i - 1
     for pal in (H.TRUECOLOR, H.ANSI256):
-        assert len({pal.heat(i) for i in range(len(H.GLYPHS))}) == 4         # four colours, no more
+        assert [pal.heat(i) for i in range(len(H.GLYPHS))] == list(pal.tiers)   # one colour a block, in order
         lum = [0.2126 * r + 0.7152 * g + 0.0722 * b for r, g, b in pal.tiers]
-        assert lum == sorted(lum) and pal.tiers[-1] == (255, 255, 255)
+        assert lum == sorted(lum) and max(lum) < 200                         # it brightens, and never reaches white
+        assert all(r > g > b for r, g, b in pal.tiers)                       # every step is the same orange
+    assert H.BAND == "#{:02x}{:02x}{:02x}".format(*H.TRUECOLOR.tiers[0])     # what GP paints an 80% band in
 
 
 def test_256_palette_survives_a_256_colour_terminal():
@@ -185,7 +188,7 @@ async def test_opens_on_spot_with_history_left_of_now(make):
         text = app.query_one("#heatmap").render().plain
         assert "│" in text and "NOW" in text and "◂" in text and "76,000–77,000" in text and "█" in text
         assert "┤" in text and "80,000" in text and "─" in text             # ruled grid, labelled on round prices
-        assert any(ch in text for ch in "#%@") and any(ch in text for ch in "·:")   # dense at the mode, sparse in the tails
+        assert any(ch in text for ch in "▓█") and any(ch in text for ch in "░▒")   # solid at the mode, thin in the tails
         pane = app.query_one("#heatmap")
 
         def drawn(rgb):
@@ -195,7 +198,7 @@ async def test_opens_on_spot_with_history_left_of_now(make):
 
         assert drawn(pane.palette.tiers[1]) and drawn(pane.palette.median) and drawn(pane.palette.up)
         legend = pane.legend().plain
-        assert "p/bin" in legend and "10.0%" in legend and "median" in legend and "@" in legend
+        assert "p/bin" in legend and "10.0%" in legend and "median" in legend and "░▒▓" in legend
         await pilot.press("z", "m")
         assert not drawn(pane.palette.median) and drawn(pane.palette.tiers[1])
         assert app.ticket.markets == 1 and app.ticket.bins == 1           # a single cell is already a priced ticket

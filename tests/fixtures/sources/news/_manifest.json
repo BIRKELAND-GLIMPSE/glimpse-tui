@@ -1,0 +1,14 @@
+{
+ "files": {
+  "bbc_article.html": {
+   "url": "https://www.bbc.co.uk/news/articles/c63d7lexyym1o?at_medium=RSS&at_campaign=rss",
+   "status": 200,
+   "trimmed": "script, style and svg elements removed"
+  },
+  "cnbc_article.html": {
+   "url": "https://www.cnbc.com/2026/09/19/goldman-sachs-happiness-struggling-consumer-sentiment.html",
+   "status": 200,
+   "trimmed": "script, style and svg elements removed"
+  }
+ }
+}

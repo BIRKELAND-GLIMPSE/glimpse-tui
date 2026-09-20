@@ -885,11 +885,6 @@ def net_effect(tx: dict, address: str) -> int:
     return got - gave
 
 
-WATCH_MEANS = ("Watching writes this address into wallet.watch in terminal.toml. WAL then asks your Bitcoin backend for its balance on every "
-               "refresh. On a public backend that tells the operator, again and again, that you care about this address. With your own "
-               "node or Tor (SET) nobody learns it. Nothing is signed or spent: the terminal holds no keys.")
-
-
 class AddrPane(ChainPane):
     code, selectable = "ADDR", True
     TOP_UTXOS = 8
@@ -906,8 +901,6 @@ class AddrPane(ChainPane):
         self.want_older = False
         self.ended = False
         self.effects: dict[str, tuple[int, float | None]] = {}     # txid -> (net effect on this address, fee rate), worked out once
-        self.asking = False                     # `w` was pressed once: the explanation is on screen
-        self.said = ""
         self.title = f"address {mid(self.address, 17)}" if self.address else "address"
 
     async def load(self) -> None:
@@ -970,11 +963,7 @@ class AddrPane(ChainPane):
         return f"TX {rows[self.cur]['txid']}" if self.cur < len(rows) else None
 
     def key(self, k: str, ch: str | None) -> bool:
-        if ch == "w":
-            self._watch()
-        elif self.asking:
-            self.asking, self.said = False, "Not added."
-        elif ch == "u":
+        if ch == "u":
             self.all_utxos, self.cur = not self.all_utxos, 0
         elif ch == "]" and not self.ended and not self.want_older:
             self.want_older, self.loaded_at = True, 0.0
@@ -982,22 +971,11 @@ class AddrPane(ChainPane):
             return False
         return True
 
-    def _watch(self) -> None:
-        watch = self.hub.cfg.setdefault("wallet", {}).setdefault("watch", [])
-        if self.address in watch:
-            self.asking, self.said = False, "Already watched. WAL shows it. Edit wallet.watch in terminal.toml to remove it."
-        elif not self.asking:
-            self.asking, self.said, self.top = True, "", 0
-        else:
-            watch.append(self.address)
-            config.save(self.hub.cfg)
-            self.asking, self.said = False, f"Watching {mid(self.address, 21)}. It is in wallet.watch now."
-
     def hint(self) -> str:
-        return "w again adds it · any other key cancels" if self.asking else "enter opens the tx · w watch · u all UTXOs · ] older"
+        return "enter opens the tx · u all UTXOs · ] older"
 
     def menu(self) -> list[tuple[str, str]]:
-        return [("WAL", "WAL"), ("RBF", "RBF"), ("SET", "SET"), ("MEMP", "MEMP")]
+        return [("RBF", "RBF"), ("SET", "SET"), ("MEMP", "MEMP")]
 
     def export(self):
         rows = [["utxo", u["txid"], u.get("vout"), (u.get("status") or {}).get("block_height"), (u.get("status") or {}).get("block_time"),
@@ -1013,19 +991,13 @@ class AddrPane(ChainPane):
             return []
         now, price = time.time(), self.hub.btc_price()
         out = self.privacy(w)
-        if self.asking:
-            out += [sect("WATCH THIS ADDRESS?", w)] + ui.wrap(WATCH_MEANS, w, style=TEXT)
-            out += [ui.t(("w", f"bold {ORANGE}"), (" adds it   ", DIM), ("any other key", f"bold {ORANGE}"), (" cancels", DIM)), Text("")]
-        elif self.said:
-            out += ui.wrap(self.said, w, style=f"bold {GREEN}" if self.said.startswith("Watching") else DIM) + [Text("")]
         out += self._summary(w, now, price)
         utxos = self._utxo_rows()
         self.line_of = {}
         out += [Text("")] + self._utxo_table(utxos, w, len(out) + 1, price)
         out += [Text("")] + self._history_table(w, len(out) + 1, len(utxos), price)
         self.n_rows = len(utxos) + len(self.history)
-        if not self.asking:
-            self.keep_in_view(self.line_of.get(self.cur, 0), h)
+        self.keep_in_view(self.line_of.get(self.cur, 0), h)
         return out
 
     def _summary(self, w: int, now: float, price: float | None) -> list[Text]:
@@ -1122,11 +1094,8 @@ class RbfPane(ChainPane):
         self._stream_at = 0.0
         self.title = "replacements"
 
-    def on_mount(self) -> None:
-        self.hub.track("rbf", True)                 # 2.5 MB a minute: held only while this pane is open
-
-    def on_unmount(self) -> None:
-        self.hub.track("rbf", False)
+    def visibility_changed(self, on: bool) -> None:
+        self.hub.track("rbf", on)                   # 2.5 MB a minute: held only while this page is on screen
 
     async def load(self) -> None:
         self.start_load()
@@ -1253,14 +1222,14 @@ register(Function(
          "address, on a package or replacement row that transaction. Dollar values use the price now. Refreshed every 60 s. "
          + _PRIVATE + " " + _DOWN))
 register(Function(
-    "ADDR", "Address", "Bitcoin", "an address: balance, totals, UTXOs, history with the net effect of each transaction, watch it", AddrPane,
+    "ADDR", "Address", "Bitcoin", "an address: balance, totals, UTXOs, history with the net effect of each transaction", AddrPane,
     args="<address>", needs=("address", "address_txs", "address_utxo"),
     help="Balance is everything the address received minus everything it spent, confirmed, with the unconfirmed change beside it "
          "(/api/address/{a}: chain_stats and mempool_stats). Received and sent are lifetime totals. The UTXO table shows the eight largest "
          "unspent outputs, and u shows them all. mempool.space refuses the list above 500 UTXOs, and the page says so and keeps the exact "
          "balance. History is newest first with what each transaction did to this address: received minus spent, in sats. ] loads the next "
          "older page. First seen is exact once the whole history is loaded. Until then the page says oldest loaded. Enter opens the "
-         "transaction under the cursor. w explains what watching means and a second w adds the address to wallet.watch, which WAL reads. "
+         "transaction under the cursor. "
          "Dollar values use the price now, not the price on the day. Refreshed every 60 s. " + _PRIVATE + " " + _DOWN))
 register(Function(
     "RBF", "Replacements", "Bitcoin", "live fee bumps: old and new fee rate, the bump, seconds between versions, full-RBF", RbfPane,

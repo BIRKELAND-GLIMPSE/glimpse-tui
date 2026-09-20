@@ -17,14 +17,14 @@ if TYPE_CHECKING:
 
 # (command, zoom the pane, seconds, what to say). `TX` is filled in with a transaction from the newest block.
 STEPS: tuple[tuple[str, bool, float, str], ...] = (
-    ("LP BTC", False, 16, "The default launchpad. Price into Glimpse's own forecast, the mempool, on-chain, and the news. ` opens the GO bar."),
-    ("BTC", True, 14, "BTC <GO>: the Bitcoin page. A composite price, the price read from the chain alone, supply, the halving, fees."),
-    ("MEMP", True, 16, "MEMP <GO>: the next blocks as a train, and the next block drawn, every transaction, coloured by its fee."),
-    ("TX", True, 16, "TX <txid> <GO> explains any transaction: inputs, outputs, fee rate, RBF, CPFP. This one is from the newest block."),
-    ("ONCH", True, 16, "ONCH <GO>: the cycle metrics from Bitview's open series, each named and dated. FLDS searches 60,000 more."),
-    ("LP MACRO", False, 18, "LP MACRO: the curve, liquidity, FX, commodities and indices. Every number says its source and how old it is."),
-    ("TRSY", True, 14, "TRSY <GO>: companies that hold Bitcoin, from their SEC filings, once you give the SEC a contact (SET)."),
-    ("HM", False, 16, "HM <GO>: Glimpse's forecast heatmap. v draws a box, tab opens the bet slip. t returns to the launchpad. q quits."),
+    ("LP BTC", False, 16, "One long page, most important first: Bitcoin, the bots, gold, the chain, the news, the world."),
+    ("GP BTC 24H", True, 14, "The last 24 hours and the next 24: the price to NOW, then Glimpse's median and 80% band."),
+    ("DIST BTC", False, 14, "o is the odds: every outcome of the next hour, with what the market gives it."),
+    ("CONS BTC", True, 16, "Every bot on this machine, read against the market: how many are bullish, and where they agree."),
+    ("BOT BTC", True, 14, "One bot at a time. [ and ] walk the zoo; enter runs one, on paper or for real."),
+    ("NEWS", False, 14, ": opens anything. NEWS: the headlines, and enter reads a story right here. backspace goes back."),
+    ("LP MACRO", False, 16, "SPC is the leader: SPC w for windows, SPC b for buffers, SPC t f o B p for the screens."),
+    ("HM", False, 16, "f is the forecast: the whole heatmap. v draws a box, tab opens the bet slip. SPC t returns. q quits."),
 )
 
 
@@ -79,8 +79,9 @@ def _install() -> None:
 
 
 _install()
-register(Function("DEMO", "Demo", "Tools", "a two-minute tour: BTC, MEMP, TX, ONCH, MACRO, TRSY and HM", None,
-                  help="Walks through the default launchpad, the Bitcoin page, the mempool with the next block drawn, a transaction from "
-                       "the newest block, the on-chain dashboard, the MACRO launchpad, the treasury companies and the forecast heatmap, "
-                       "about fifteen seconds each, with a line on the status bar saying what is on screen. Everything shown is live. "
+register(Function("DEMO", "Demo", "Tools", "a ninety-second tour: the page, the odds, the chart, news, HM",
+                  None,
+                  help="Walks through the default launchpad, the next hour's odds, gold maximized, the news, the "
+                       "MACRO launchpad and the full forecast heatmap, about fifteen seconds each, with a line on the status bar saying what "
+                       "is on screen. Everything shown is live. "
                        "Any key stops the tour and leaves you where it was. From a shell: glimpse-tui DEMO."))

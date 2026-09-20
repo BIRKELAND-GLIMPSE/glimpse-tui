@@ -2,4 +2,4 @@
 name = "TRADER"
 layout = { split = "row", weights = [3.0, 2.0], panes = [
   { split = "col", weights = [3.0, 2.0], panes = ["OMON", "GP BTC"] },
-  { split = "col", weights = [1.0, 1.0, 1.0], panes = ["GIV", "DVOL", "WAL"] } ] }
+  { split = "col", weights = [1.0, 1.0, 1.0], panes = ["GIV", "DVOL", "NEWS CRYPTO"] } ] }

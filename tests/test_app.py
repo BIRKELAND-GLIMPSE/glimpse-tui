@@ -104,6 +104,26 @@ async def test_vim_navigation_and_range_selection(make):
         assert "76,000–77,000" in app.query_one("#ladder").render().plain
 
 
+async def test_o_opens_the_odds_and_still_swaps_the_ends_of_a_range(make):
+    app = make(None)
+    async with app.run_test(size=(140, 34)) as pilot:
+        await ready(app, pilot)
+        await pilot.press("f")
+        await until(pilot, lambda: app.view == "heatmap")
+        await pilot.press("o")                                  # no box on the chart: o is the odds screen
+        await until(pilot, lambda: app.view == "main")
+        assert app.pane == 1                                    # and it lands on the odds themselves
+        mode = app.b_cur
+        await pilot.press("v", "k", "k")
+        assert app.selection == (mode, mode + 2)
+        await pilot.press("o")                                  # on the odds screen o is still the other end
+        assert app.anchor == mode + 2 and app.b_cur == mode
+        await pilot.press("escape", "f")
+        await until(pilot, lambda: app.view == "heatmap")
+        await pilot.press("v", "l", "o")                         # a box on the chart: o swaps its corners
+        assert app.view == "heatmap" and app.hm_anchor is not None
+
+
 async def test_logged_out_cannot_buy(make):
     app = make(None)
     async with app.run_test(size=(140, 34)) as pilot:
@@ -215,7 +235,7 @@ async def test_function_bar_and_market_probability(make):
         await ready(app, pilot)
         top = app.query_one("#head").render().plain.split("\n")
         assert top[0].startswith(" GLIMPSE  TERMINAL ")
-        assert all(w in top[1] for w in ("FORECAST", "LADDER", "BOTS", "PORTFOLIO", "[", "]", "HELP", "QUIT"))
+        assert all(w in top[1] for w in ("FORECAST", "ODDS", "BOTS", "PORTFOLIO", "[", "]", "HELP", "QUIT"))
         mode = app.b_cur
         await pilot.press("l", "v", "k")
         slip = app.query_one("#slip").render().plain

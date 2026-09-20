@@ -1,12 +1,14 @@
-"""Forecast heatmap in ASCII: time runs across, price runs up, and density is a character.
+"""Forecast heatmap: time runs across, price runs up, and probability is how solid the orange is.
 
-Each cell is one plain character from the ramp  · : - = + * # % @  (sparse to dense), in one of
-four colours, so the picture reads like a retro terminal plot and costs almost nothing to draw:
-a text row is a handful of colour runs of ordinary characters, not hundreds of individually
-coloured blocks. The ramp is one absolute log scale of probability per bin (six steps from the
-0.6% seed floor to 10%, three from 10% to certainty), the same in every column and at every zoom.
-What each close draws is computed once when data arrives and the drawn chart is cached, so a
-clock tick redraws nothing and a cursor move redraws once.
+Each cell is one shade block  ░ ▒ ▓ █  in one hue, so the forecast reads as a single orange cloud
+thickening towards the closes the market is sure of — the same picture the site draws, and the same
+one the front page's chart puts behind its band. Four steps, not nine, and one hue rather than a
+heat gradient: the shape of the distribution is the thing to see, not a colour to decode. It still
+costs almost nothing to draw, because a text row is a handful of colour runs of ordinary characters
+rather than hundreds of individually coloured blocks. The ramp is one absolute log scale of
+probability per bin (three steps from the 0.6% seed floor to 10%, then one for everything above),
+the same in every column and at every zoom. What each close draws is computed once when data
+arrives and the drawn chart is cached, so a clock tick redraws nothing and a cursor move redraws once.
 
 History candles sit left of the NOW divider on the same price axis. Terminals without 24-bit colour
 snap colours to the 256 palette, so there are two small palettes: one for truecolor, and one using
@@ -39,8 +41,9 @@ RGB = tuple[int, int, int]
 
 P_FLOOR = 0.006                # probability per bin below which a bin is market-maker seed, not belief
 P_KNEE = 0.10
-GLYPHS = "·:-=+*#%@"           # sparse to dense
-KNEE = 6                       # GLYPHS[:KNEE] span P_FLOOR..P_KNEE, the rest span P_KNEE..1
+GLYPHS = "░▒▓█"                # thin to solid
+KNEE = 3                       # GLYPHS[:KNEE] span P_FLOOR..P_KNEE, the rest span P_KNEE..1
+BAND = "#8a4a10"               # tier 0 as hex: what a chart paints an 80% band in (GP), so both pictures match
 ZOOMS = (1, 2, 5, 10, 20, 50)  # bins per cell
 WIDTHS = (1, 2, 4, 6)          # characters per close; even widths split into two half-hour candles on hourly series
 PACKS = {3600: (12, 6, 4, 3, 2), 86400: (7, 2)}    # zoomed out: closes per character, by cadence (hours, days)
@@ -83,7 +86,7 @@ def threshold(i: int) -> float:
 @dataclass(frozen=True)
 class Palette:
     name: str
-    tiers: tuple[RGB, RGB, RGB, RGB]   # faint, warm, hot, peak: the only colours the heat uses
+    tiers: tuple[RGB, RGB, RGB, RGB]   # one colour per shade block, thin to solid: the only colours the heat uses
     median: RGB
     rule: RGB          # grid lines
     select: RGB        # background of a box selection
@@ -94,17 +97,20 @@ class Palette:
     cursor_hist: RGB = (148, 148, 148)
 
     def heat(self, lvl: int) -> RGB:
-        return self.tiers[0 if lvl < 3 else 1 if lvl < KNEE else 2 if lvl < len(GLYPHS) - 1 else 3]
+        return self.tiers[min(max(lvl, 0), len(self.tiers) - 1)]
 
 
+# One hue, four steps. The thinnest is BAND, the colour a chart paints an 80% band in, so the front page's
+# forecast and this one are the same orange; the solid one is the terminal's orange. Nothing goes white: a
+# bright cell is the mode, not an alarm.
 TRUECOLOR = Palette(
-    name="truecolor", tiers=((168, 78, 8), (255, 125, 8), (255, 208, 72), (255, 255, 255)),
+    name="truecolor", tiers=((138, 74, 16), (176, 86, 12), (216, 104, 10), (255, 140, 26)),
     median=(84, 190, 232), rule=(46, 46, 46), select=(70, 42, 14), held=(11, 217, 138), up=(14, 173, 105), down=(222, 60, 75),
 )
 # Every colour here is an exact xterm-256 entry (cube levels 0/95/135/175/215/255 or the grey ramp), so a
 # 256-colour terminal draws it as written instead of snapping it to a neighbour of a different hue.
 ANSI256 = Palette(
-    name="256", tiers=((175, 95, 0), (255, 135, 0), (255, 215, 0), (255, 255, 255)),
+    name="256", tiers=((135, 95, 0), (175, 95, 0), (215, 95, 0), (255, 135, 0)),
     median=(95, 175, 215), rule=(58, 58, 58), select=(68, 68, 68), held=(0, 215, 135), up=(0, 175, 95), down=(215, 95, 95),
 )
 
@@ -463,14 +469,14 @@ class HeatmapPane(Widget):
         return out
 
     def legend(self) -> Text:
-        """The ramp with the probability per bin where it starts, turns hot, and tops out."""
+        """The ramp with the probability per bin where it starts, turns solid, and tops out."""
         pal, out = self.palette, Text(no_wrap=True)
         out.append(f" p/bin {fmt.pct(P_FLOOR)} ", style=DIM)
         for i, ch in enumerate(GLYPHS):
             if i == KNEE:
                 out.append(f" {fmt.pct(P_KNEE)} ", style=DIM)
-            out.append(f"{ch} ", style=_style(pal.heat(i)))
-        out.append("100%  ", style=DIM)
+            out.append(f"{ch}", style=_style(pal.heat(i)))
+        out.append(" 100%  ", style=DIM)
         out.append("─", style=_style(pal.median))
         out.append(" median ", style=DIM)
         return out

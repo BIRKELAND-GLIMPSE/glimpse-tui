@@ -138,14 +138,6 @@ def pixels(grid: Sequence[Sequence[RGB | None]], blank: RGB = (13, 13, 13)) -> l
     return out
 
 
-def qr(matrix: Sequence[Sequence[bool]], dark: RGB = (13, 13, 13), light: RGB = (244, 244, 244), quiet: int = 2) -> list[Text]:
-    """A QR code in half blocks, light modules on a quiet zone so a phone camera reads it off a dark terminal."""
-    w = len(matrix[0]) + 2 * quiet if matrix else 0
-    blank = [False] * w
-    rows = [blank] * quiet + [[False] * quiet + list(r) + [False] * quiet for r in matrix] + [blank] * quiet
-    return pixels([[dark if m else light for m in r] for r in rows], blank=light)
-
-
 # ── axes ────────────────────────────────────────────────────
 
 def nice_step(span: float, target: int) -> float:

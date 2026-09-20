@@ -31,6 +31,13 @@ EXTRA: dict[tuple[str, str], str] = {
     ("api.alternative.me", "/fng/"): "alternative_me/fng_limit30.json",
     ("www.ecb.europa.eu", "/stats/eurofxref/eurofxref-daily.xml"): "ecb/eurofxref-daily.xml",
     ("www.ecb.europa.eu", "/stats/eurofxref/eurofxref-hist-90d.xml"): "ecb/eurofxref-hist-90d.xml",
+    ("feeds.bbci.co.uk", "/news/world/rss.xml"): "news/bbc_world.xml",
+    ("www.cnbc.com", "/id/20910258/device/rss/rss.html"): "news/cnbc_economy.xml",
+    ("www.cnbc.com", "/id/10000664/device/rss/rss.html"): "news/cnbc_finance.xml",
+    ("www.cnbc.com", "/id/100727362/device/rss/rss.html"): "news/cnbc_world.xml",
+    ("www.federalreserve.gov", "/feeds/press_all.xml"): "news/fed.xml",
+    ("www.ecb.europa.eu", "/rss/press.html"): "news/ecb.xml",
+    ("www.coindesk.com", "/arc/outboundfeeds/rss"): "news/coindesk.xml",
 }
 
 
@@ -108,6 +115,14 @@ class Recorded:
             for name in (("ticker_xstocks.json",) if tokens else ("ticker_xbtusd.json", "ticker_fx.json")):
                 merged.update(json.loads((ROOT / "kraken" / name).read_text())["result"])
             return httpx.Response(200, json={"error": [], "result": merged})
+        if u.netloc == "query1.finance.yahoo.com" and u.path == "/v7/finance/spark":
+            # One request names up to 20 symbols: answer with the recorded rows for those symbols. Values are untouched.
+            want = set(dict(parse_qsl(u.query)).get("symbols", "").split(","))
+            doc = json.loads((ROOT / "yahoo" / "spark_all.json").read_text())
+            rows = [r for r in doc["spark"]["result"] if r["symbol"] in want]
+            return httpx.Response(200, json={"spark": {"result": rows, "error": None}})
+        if f is None and u.netloc == "query1.finance.yahoo.com" and u.path.startswith("/v8/finance/chart/"):
+            f = ROOT / "yahoo" / "chart_gspc_2y.json"           # any symbol's history answers with the S&P 500's
         if f is None and u.netloc == "api.exchange.coinbase.com" and u.path.endswith("/ticker"):
             f = ROOT / "coinbase" / f"ticker_{u.path.split('/')[2]}.json"
             f = f if f.is_file() else None

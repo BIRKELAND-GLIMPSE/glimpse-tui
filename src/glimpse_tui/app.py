@@ -41,8 +41,8 @@ SLIP_MIN_WIDTH = 118            # narrower terminals keep the compact ticket und
 WASD = {"w": "up", "a": "left", "s": "down", "d": "right"}
 
 HELP = """\
- The bar along the top names every screen and series with the key that reaches it: f the forecast heatmap
- and back to the ladder, B bots, p portfolio, [ and ] the previous and next series (BTC, BTC 1D, ETH, SOL, XAU).
+ The bar along the top names every screen and series with the key that reaches it: t the front page, f the
+ forecast, o the odds, B bots, p portfolio, [ and ] the previous and next series (BTC, BTC 1D, ETH, SOL, XAU).
  The panel at the bottom lists what the screen you are on does, one row per kind of action. Above it is a
  vim status line: the mode (NORMAL, VISUAL while a box is selected, SLIP on the bet slip), messages, and
  on the right the keys typed so far, so 5 then j moves five cells and 12| goes to the twelfth close.
@@ -56,10 +56,10 @@ HELP = """\
            ctrl-e ctrl-y scroll   zt zz zb place the row   zh zl zH zL scroll sideways   zi zo zoom price   < > zoom time
            zf the whole forecast   za auto-fit   zm median   v box   V the 80% band   o other corner   gv reselect   esc clear
            ma 'a mark, jump   '' jump back   enter open the close   tab bet slip   + - S size   b BET   / : price, command   [ ] series
-           f ladder / heatmap   p portfolio   B bots   L O log in / out   c colours   r refresh   ctrl-l redraw   q ZZ :q quit
+           t front page   f forecast   o odds   p portfolio   B bots   L O log in / out   c colours   r refresh   ctrl-l redraw   q ZZ :q quit
 
- THE HEATMAP   Each character is one price cell of one close. Denser glyph, more probability per bin:
-               · : - = + *  run from 0.6% to 10%, then  # % @  up to certainty. Blank is untraded.
+ THE HEATMAP   Each character is one price cell of one close, one orange thickening with the market's
+               belief:  ░  from 0.6% a bin,  ▒  from 1.5%,  ▓  from 3.9%,  █  above 10%. Blank is untraded.
                The cyan rule is that close's median. Candles left of NOW are price history. Every live close
                is loaded (a week of hourly closes, half a year of daily ones): < zooms time out until one
                character holds several closes (drawn as their average, and bet together), zf fits them all.
@@ -90,6 +90,32 @@ HELP = """\
 
  No account? Register at glimpse.markets, complete verification, then create a key under
  Settings → Developer API Keys. Market data needs no key."""
+
+
+TERM_HELP = """\
+ The front page (t) is one long page, most important at the top: Bitcoin, the bots, gold, the chain, the news,
+ then the world's markets. j and k walk it; everything else on this list works from anywhere.
+
+ ON THE PAGE   j and k (or ↓ ↑, or ctrl-j ctrl-k) move down and up, window by window; the page scrolls to follow.
+               h and l move across. g and G go to the top and the bottom. 1 to 9 jump to a window.
+               The window you are on has an orange frame. The mouse wheel scrolls too.
+ IN A WINDOW   enter opens it full screen with a green frame: j and k scroll or choose, enter opens what is chosen.
+               esc goes back a step, and out to the page.
+ ANY WINDOW    f opens the full forecast on the series that window shows, o the odds on every outcome of a close.
+               Both are where betting happens; the page itself never trades.
+ NEWS          enter on the news, then j k to a headline and enter (or l) to read it here. n and p go to the next
+               and previous story; h or esc goes back to the headlines.
+ SEARCH        : (or SPC SPC) lists everything that can be opened. Type to filter, ctrl-j ctrl-k to choose, enter.
+ SPC MENU      SPC w windows (/ - split, d close, m maximize)   SPC b buffers (b list, n p, d close)
+               SPC t this page   SPC f the forecast   SPC o the odds   SPC B bots   SPC p portfolio
+
+ THE PAGE      Bitcoin's next 24 hours and the odds on its next hour · what the bots expect of the next hour,
+               day and three days, and one bot at a time ([ ] walks the zoo) · gold, and the odds on its next
+               close · hashrate and the difficulty adjustment · the news and world prices · dollar liquidity
+               and the Treasury curve · currencies, commodities and world indices · fees, last.
+
+ Numbers are live where a free feed exists and daily where only official data does; each window says which on
+ its frame, and dims when it is out of date. SRC names every source behind them. Trading needs a key: L."""
 
 
 @dataclass
@@ -314,10 +340,14 @@ class Confirm(ModalScreen[bool]):
 
 
 class Help(ModalScreen[None]):
+    def __init__(self, body: str = HELP) -> None:
+        super().__init__()
+        self._body = body
+
     def compose(self) -> ComposeResult:
         with Vertical(id="dialog", classes="wide"):
             yield Static("GLIMPSE TERMINAL", id="dialog-title")
-            yield Static(HELP)
+            yield Static(self._body)
 
     def on_key(self, e: events.Key) -> None:
         self.dismiss(None)
@@ -387,8 +417,9 @@ class Terminal(App):
     CSS = f"""
     Screen {{ background: #0D0D0D; color: {TEXT}; }}
     #head {{ height: 2; }}
-    #gobar {{ height: 1; display: none; }}
-    #suggest {{ height: auto; max-height: 9; display: none; background: #111111; }}
+    #strip {{ height: 1; display: none; }}
+    #gobar {{ height: 1; display: none; background: #111111; }}
+    #suggest {{ height: auto; max-height: 16; display: none; background: #111111; }}
     #term {{ display: none; }}
     #foot {{ height: auto; max-height: 9; color: {DIM}; }}
     Pane, SlipPane {{ border: round {RULE}; border-title-color: {DIM}; }}
@@ -958,8 +989,7 @@ class Terminal(App):
 
     def compose(self) -> ComposeResult:
         yield Static(id="head")
-        yield Static(id="gobar")
-        yield Static(id="suggest")
+        yield Static(id="strip")
         with Horizontal(id="body"):
             with Vertical(id="stage"):
                 yield Workspace("term")
@@ -975,6 +1005,8 @@ class Terminal(App):
                         yield BotDetailPane(id="botdetail")
                         yield BotLogPane(id="botlog")
             yield SlipPane(id="slip")
+        yield Static(id="suggest")
+        yield Static(id="gobar")
         yield Static(id="foot")
 
     def on_mount(self) -> None:
@@ -1008,21 +1040,31 @@ class Terminal(App):
             return                      # shutting down: a cancelled worker's last paint lands after the screen is gone
         w, sh = self.size.width, self.shell
         term = self.view == "term"
-        self.query_one("#head", Static).update(sh.header(w) if term else chrome.header(self, w))
+        self.query_one("#head", Static).update(chrome.header(self, w))     # one header on every screen
+        strip = self.query_one("#strip", Static)
+        strip.display = term
+        if term:
+            strip.update(sh.strip(w))
         go, sug = self.query_one("#gobar", Static), self.query_one("#suggest", Static)
-        go.display = term or sh.go_focus
+        go.display = sh.go_focus                        # the command line opens at the bottom, as in vim
         if go.display:
             go.update(sh.go_line(w))
-        sug.display = sh.go_focus and bool(sh.line.picks)
-        if sug.display:
-            sug.update(sh.suggestions(w))
+        sug.display = (sh.go_focus and bool(sh.line.picks)) or sh.leader is not None
+        if sh.leader is not None:
+            sug.update(sh.which_key(w))
+        elif sug.display:
+            sug.update(sh.suggestions(w, 15 if self.size.height >= 36 else 8))
         self.query_one("#term").display = term
         visual = (self.hm_anchor if self.view == "heatmap" else self.anchor) is not None
-        mode = "GO" if sh.go_focus else "SLIP" if self.slip_focus else "VISUAL" if visual and self.view in ("main", "heatmap") else "NORMAL"
+        inside = term and sh.ws.inside and sh.ws.pane is not None
+        mode = ("SPC" if sh.leader is not None else "SEARCH" if sh.go_focus else "SLIP" if self.slip_focus
+                else "VISUAL" if visual and self.view in ("main", "heatmap") else "INSIDE" if inside else "NORMAL")
         view = ("go" if sh.go_focus else "slip" if self.slip_focus else "bots-forecast" if self.view == "bots" and self.bot_pane == 1
-                else self.view)
+                else "term-inside" if inside else self.view)
         rows = 8 if self.size.height >= 40 else 4 if self.size.height >= 26 else 2
-        foot = Text("\n", no_wrap=True).join([chrome.status_line(self, mode, w), chrome.legend(view, w, rows)])
+        extra = sh.inside_rows() if view == "term-inside" else []
+        where = sh.ws.where() if term and not sh.go_focus else ""
+        foot = Text("\n", no_wrap=True).join([chrome.status_line(self, mode, w, where), chrome.legend(view, w, rows, extra)])
         self.query_one("#foot", Static).update(foot)
 
         self.query_one("#main").display = self.view == "main"
@@ -1249,8 +1291,16 @@ class Terminal(App):
         if getattr(self.shell, "demo", False):          # any key stops the tour, and is otherwise swallowed
             self.shell.demo = False
             return
-        if self.shell.go_focus:                         # the GO bar owns every key until Enter or Esc
+        if self.shell.go_focus:                         # the command list owns every key until Enter or Esc
             self.shell.go_key(k, ch)
+            self.paint()
+            return
+        if self.shell.leader is not None:               # the key after SPC
+            self.shell.leader_key(k, ch)
+            self.paint()
+            return
+        if k == "space" and not self.pending and not self.slip_focus:
+            self.shell.leader_start()                   # SPC: the leader menu, on every screen
             self.paint()
             return
         if self.view == "term":
@@ -1398,6 +1448,9 @@ class Terminal(App):
             self.shell.run(cmd)                         # anything else is a GO bar command: MEMP, BTC, LP MACRO, TX <txid>
         self.paint()
 
+    def help(self) -> None:
+        self.push_screen(Help(TERM_HELP if self.view == "term" else HELP))
+
     def normal_key(self, k: str, ch: str | None, n: int, counted: bool) -> None:
         page = self.hm_cells_v if self.view == "heatmap" else 20
         if ch == "q" or k == "ctrl+c":
@@ -1405,7 +1458,7 @@ class Terminal(App):
         elif ch == "c":
             self.toggle_colors()
         elif ch == "?":
-            self.push_screen(Help())
+            self.help()
         elif ch == "/" and self.view == "bots":
             self.bot_search()
         elif ch == ":" or ch == "/":
@@ -1436,6 +1489,9 @@ class Terminal(App):
             else:
                 self.view, self.hm_col, self.hm_anchor = "heatmap", self.m_cur, None
                 self.load_candles()
+        elif ch == "o" and self.view != "main" and not (self.view == "heatmap" and self.hm_anchor is not None):
+            self.view, self.pane = "main", 1            # o: the odds on every outcome of a close (o on a box swaps its corners)
+            self.load_book()
         elif k == "escape":
             if self.view == "heatmap" and self.hm_anchor is not None:
                 self.hm_clear_selection()

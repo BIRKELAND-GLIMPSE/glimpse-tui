@@ -259,7 +259,7 @@ async def test_wei_keeps_index_and_proxy_apart():
     dates, values = series("SP500")
     assert f"{M.ytd(dates, values) * 100:+.1f}%" in next(ln for ln in lines if ln.startswith("SPX"))
     spx = next(i for i, ln in enumerate(lines) if ln.startswith("SPX"))
-    assert "7,637.76" in lines[spx] and "daily 17 Sep" in lines[spx] and "fred:SP500" in lines[spx]
+    assert "7,637.76" in lines[spx] and "daily 17 Sep" in lines[spx] and "fred" not in text      # how old, never who served it
     assert "SPY via SPYx" in lines[spx + 1] and "proxy" in lines[spx + 1] and "763.98" in lines[spx + 1] and "7,637" not in lines[spx + 1]
     assert "QQQ via QQQx" in text and "29,644.17" in text and "65,018.95" in text and "51,682.64" in text
     for region in ("AMERICAS", "EMEA", "ASIA"):
@@ -351,7 +351,8 @@ async def test_eco_shows_the_prints_and_says_the_calendar_needs_a_key():
     assert prints["GDPC1"]["value"] == pytest.approx(((real[-1] / real[-2]) ** 4 - 1) * 100)
     text = screen(pane)
     assert "+162k" in text and "4.1%" in text and "3.88%" in text and "Aug 2026" in text and "Q2 2026" in text
-    assert "release calendar needs a free FRED key" in text and "monthly" in text and "quarterly" in text and "fred:GDPC1" in text
+    assert "release calendar needs a free FRED key" in text and "monthly" in text and "quarterly" in text
+    assert "fred:GDPC1" not in text                                        # the series ids live in HELP ECO, not on the page
 
 
 async def test_hmap_colours_cells_and_keeps_what_it_cannot_measure_dim(no_network):
@@ -413,7 +414,7 @@ async def test_dvol_sets_deribit_beside_glimpse_with_the_attribution(no_network)
 
 async def test_dvol_without_glimpse_closes_says_where_to_load_them(no_network):
     pane = await loaded("DVOL")
-    assert pane.error == "" and "open the BTC hourly series in MKT to load Glimpse's closes" in screen(pane)
+    assert pane.error == "" and "open the BTC hourly series (o, or FCST BTC) to load Glimpse's closes" in screen(pane)
     no_network.fail.update({"www.deribit.com", "api.alternative.me"})
     down = await loaded("DVOL")
     assert "deribit" in down.error and down.draw(100, 40) == []
@@ -482,7 +483,7 @@ async def test_lp_macro_opens_six_market_panes_in_the_app(monkeypatch, no_networ
         await T.until(pilot, lambda: len(app.shell.ws.panes) == 6 and "BTC" in app.shell.hub.quotes)
         panes = app.shell.ws.panes
         assert [type(p) for p in panes] == [M.RatesPane, M.MacroPane, M.FxPane, M.GlcoPane, M.WeiPane, M.QmPane]
-        assert all(p.size.width == 44 and p.size.height == 14 for p in panes)
+        assert all(p.size.width == 44 and p.size.height in (14, 15) for p in panes)
         qm = panes[-1]
         await T.until(pilot, lambda: "81,423.45" in qm.render().plain)
         text = qm.render().plain

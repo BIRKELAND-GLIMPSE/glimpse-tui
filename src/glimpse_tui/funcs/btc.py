@@ -79,11 +79,8 @@ def fee_legend(width: int) -> Text:
 class MempPane(FuncPane):
     code, every, tick = "MEMP", 30, 1.0
 
-    def on_mount(self) -> None:
-        self.hub.track("block", True)               # the next block's transactions stream only while this pane is open
-
-    def on_unmount(self) -> None:
-        self.hub.track("block", False)
+    def visibility_changed(self, on: bool) -> None:
+        self.hub.track("block", on)                 # the next block's transactions stream only while this page is on screen
 
     async def load(self) -> None:
         self.title = "mempool"

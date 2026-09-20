@@ -92,7 +92,7 @@ async def test_the_quote_board_fills_from_recorded_sources_with_honest_labels(no
     xau = hub.quotes["XAU"]
     assert xau.proxy_for == "XAU" and xau.via == "PAXG"                     # gold has no open feed: the proxy says it is one
     line = tape.tape(hub, 200).plain
-    assert "XAU" in line and "proxy" in line and "SPX" in line and " d" in line
+    assert "GOLD" in line and "via PAXG" in line and "S&P" in line and " d" in line and "BTC 81,423 " in line
 
 
 def test_the_dollar_index_matches_the_ice_formula_on_the_recorded_ecb_fix():
@@ -188,19 +188,27 @@ def test_autocomplete_covers_instruments_functions_and_layouts(book):
 # ── panes ───────────────────────────────────────────────────
 
 def test_split_tree_rectangles_tile_the_area_exactly():
-    root = panes.load_layout("BTC")
+    root = panes.load_layout("MACRO")
     ls = panes.leaves(root)
-    assert [lf.command for lf in ls] == ["GP BTC", "MEMP", "ONCH", "TOP"]
+    assert [lf.command for lf in ls] == ["RATES", "MACRO", "FX", "GLCO", "WEI", "QM GLOBAL"]
     rs = panes.rects(root, 0, 0, 132, 31)
     assert sum(r.width * r.height for _, r in rs) == 132 * 31               # no gaps, no overlap
     root = panes.split(root, ls[1], panes.Leaf("FEES"), "col")
-    assert len(panes.leaves(root)) == 5
+    assert len(panes.leaves(root)) == 7
     root = panes.close(root, ls[0])
-    assert [lf.command for lf in panes.leaves(root)] == ["MEMP", "FEES", "ONCH", "TOP"]
+    assert [lf.command for lf in panes.leaves(root)] == ["MACRO", "FEES", "FX", "GLCO", "WEI", "QM GLOBAL"]
     panes.even(root)
     assert panes.from_doc(panes.to_doc(root)) is not None
-    assert [lf.command for lf in panes.leaves(panes.from_doc(panes.to_doc(root)))] == ["MEMP", "FEES", "ONCH", "TOP"]
+    assert [lf.command for lf in panes.leaves(panes.from_doc(panes.to_doc(root)))] == ["MACRO", "FEES", "FX", "GLCO", "WEI", "QM GLOBAL"]
 
+
+def test_the_default_page_is_taller_than_the_screen_and_scrolls_to_the_focused_window():
+    root = panes.load_layout("BTC")
+    assert root.row_height == 21 and len(root.children) == 8 and panes.from_doc(panes.to_doc(root)).row_height == 21
+    ls = panes.leaves(root)
+    # Bitcoin first, then the bots, then gold: the most significant thing on the page is the first thing on it.
+    assert [lf.command for lf in ls][:6] == ["GP BTC 24H", "DIST BTC", "CONS BTC", "BOT BTC", "GP XAU 1D", "DIST XAU"]
+    assert [lf.command for lf in ls][-3:] == ["FX", "GLCO", "FEES"] and len(ls) == 16 <= panes.MAX_PANES
 
 def test_launchpads_save_and_load_and_every_shipped_one_parses():
     for name in panes.SHIPPED:
@@ -217,12 +225,12 @@ def test_config_round_trips_and_coerces_types():
     cfg = config.load()
     assert cfg["bitcoin"]["mempool"] == "https://mempool.space" and cfg["default_launchpad"] == "BTC"
     config.set_value(cfg, "bitcoin.mempool", "http://umbrel.local:3006")
-    config.set_value(cfg, "wallet.send_cap_sats_per_day", "250,000")
+    config.set_value(cfg, "gold_stock_tonnes", "250,000")
     config.set_value(cfg, "tape", "BTC MEMP XAU")
     config.set_value(cfg, "privacy_ack", "true")
     config.save(cfg)
     again = config.load()
-    assert again["bitcoin"]["mempool"] == "http://umbrel.local:3006" and again["wallet"]["send_cap_sats_per_day"] == 250_000
+    assert again["bitcoin"]["mempool"] == "http://umbrel.local:3006" and again["gold_stock_tonnes"] == 250_000
     assert again["tape"] == ["BTC", "MEMP", "XAU"] and again["privacy_ack"] is True
     with pytest.raises(KeyError):
         config.set_value(cfg, "bitcoin.nonsense", "x")
@@ -230,14 +238,14 @@ def test_config_round_trips_and_coerces_types():
 
 def test_secrets_never_land_in_the_config_file(monkeypatch):
     monkeypatch.setattr("glimpse_tui.auth._keyring", lambda: None)
-    config.save_secret("barkd", "tok_supersecret")
-    assert config.secret("barkd") == "tok_supersecret"
-    f = config.config_dir() / "secrets" / "barkd"
+    config.save_secret("fred", "key_supersecret")
+    assert config.secret("fred") == "key_supersecret"
+    f = config.config_dir() / "secrets" / "fred"
     assert f.stat().st_mode & 0o077 == 0                                    # 0600, like the API key
     config.save(config.load())
-    assert "tok_supersecret" not in config.path().read_text()
-    config.forget_secret("barkd")
-    assert config.secret("barkd") is None
+    assert "key_supersecret" not in config.path().read_text()
+    config.forget_secret("fred")
+    assert config.secret("fred") is None
 
 
 # ── sessions ────────────────────────────────────────────────

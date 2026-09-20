@@ -86,10 +86,15 @@ class Hub:
         # The Glimpse market's own forecast for hourly BTC, as (close time, median, band low, band high), nearest first.
         # The shell wires this to the app's loaded closes; without the app (tests, scripts) it is empty.
         self.forecast: Callable[[], list[tuple[float, float, float, float]]] = list
-        self.account: Callable[[], dict[str, Any]] = dict       # the Glimpse account as the app last loaded it, for WAL
+        self.account: Callable[[], dict[str, Any]] = dict       # the Glimpse account as the app last loaded it, for OMON and alerts
         # OMON's selection, handed to the heatmap as a box: (close index, lowest bin, highest bin). The order itself goes
         # through the heatmap's bet slip, Confirm and estimate gate, unchanged.
         self.handoff: Callable[[int, int, int], None] = lambda close, lo, hi: None
+        # The app's Glimpse API client, and its loaded closes when it is on a given series: FCST reads both.
+        self.glimpse: Callable[[], Any] = lambda: None
+        self.views: Callable[[str], list] = lambda series: []
+        self.series_views: dict[str, list] = {}         # the closes FCST and DIST last loaded, by series: GP's forecast reads BTC
+        self.swarms: dict[str, Any] = {}                # one pass of the model zoo per asset: CONS and BOT read it
         self._tracking: dict[str, int] = {"block": 0, "rbf": 0}     # how many panes want each heavy subscription
         self._tasks: list[asyncio.Task] = []
         self._stopping = False
@@ -190,6 +195,19 @@ class Hub:
     def tape_tickers(self) -> list[str]:
         want = [t.upper() for t in self.cfg.get("tape", []) if t.upper() != "MEMP"]
         return list(dict.fromkeys(["BTC", *want, *sorted(self.watch)]))
+
+    def swarm(self, asset: str):
+        """What every bot on this machine makes of one asset. Built on first use: the zoo imports numpy and pandas."""
+        if asset not in self.swarms:
+            from .swarm import Swarm
+            self.swarms[asset] = Swarm(self)
+        return self.swarms[asset]
+
+    def forecast_for(self, series: str) -> list[tuple[float, float, float, float]]:
+        """The market's median and 80% band for each close of any series the terminal has loaded, nearest first."""
+        if series.upper() in ("BTC", ""):
+            return self.forecast()
+        return [(float(v.row.end_time_utc), v.median, v.band[0], v.band[1]) for v in self.series_views.get(series.upper(), [])]
 
     def btc_price(self) -> float | None:
         q = self.quotes.get("BTC")

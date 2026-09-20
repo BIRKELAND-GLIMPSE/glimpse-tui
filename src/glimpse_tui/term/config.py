@@ -15,7 +15,7 @@ from typing import Any
 from .. import auth
 
 DEFAULTS: dict[str, Any] = {
-    "tape": ["BTC", "MEMP", "SPX", "USDJPY", "XAU", "BRENT", "US10Y", "DXY"],
+    "tape": ["BTC", "XAU", "SPX", "NDX", "DXY", "US10Y", "BRENT", "EURUSD", "USDJPY", "ETH"],
     "clocks": ["UTC", "America/New_York", "Europe/London", "Asia/Tokyo"],
     "default_launchpad": "BTC",
     "socks5": "",
@@ -30,7 +30,7 @@ DEFAULTS: dict[str, Any] = {
         "core_rpc": "",
     },
     "keys": {"fred": False, "typesafe": False, "stooq": False},
-    "wallet": {"barkd": "", "send_cap_sats_per_day": 1_000_000, "watch": [], "watch_public_ok": False},
+    "sources": {"yahoo": True},     # Yahoo Finance's public chart API: indices, yields, futures, FX, shares
     "lists": {},                    # user watchlists for QM: name -> [tickers]
     "gold_stock_tonnes": 216_265,   # World Gold Council above-ground stock, end 2024; RV says so on screen
 }

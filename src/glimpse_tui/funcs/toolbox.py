@@ -276,10 +276,10 @@ ROUTES: tuple[tuple[tuple[str, ...], str], ...] = (
     (("heatmap of", "performance", "winners", "losers"), "HMAP"), (("implied vol", "volatility", "dvol", "deribit"), "DVOL"),
     (("option", "strike", "digital", "greeks"), "OMON"), (("treasury compan", "who holds", "holdings", "mnav"), "TRSY"),
     (("miners", "mining stocks", "mining compan"), "MINR"), (("etf", "ibit", "spot bitcoin fund"), "ETF"),
-    (("wallet", "balance", "receive", "invoice", "send sats", "deposit"), "WAL"), (("portfolio", "positions", "p&l"), "PORT"),
+    (("portfolio", "positions", "p&l", "balance", "wallet"), "PORT"),
     (("forecast", "prediction", "probab", "odds", "bet"), "HM"), (("bot", "model zoo", "strateg"), "BOTS"),
     (("alert", "notify", "tell me when"), "AL"), (("source", "latency", "is .* down", "health"), "SRC"),
-    (("setting", "tor", "proxy", "self-host", "my node", "backend"), "SET"), (("news", "headline", "filing"), "TOP"),
+    (("setting", "tor", "proxy", "self-host", "my node", "backend"), "SET"), (("filing",), "TOP"), (("news", "headline", "happening"), "NEWS"),
     (("price of",), "GP"), (("bitcoin", "btc"), "BTC"),
 )
 

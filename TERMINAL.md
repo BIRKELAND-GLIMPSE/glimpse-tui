@@ -90,12 +90,12 @@ Bloomberg grammar: `<TICKER> [<CLASS>] <FUNCTION> <GO>`, where Enter is GO.
 
 ### 3.2 Panes and launchpads
 
-- Up to nine panes, tiled. Each pane runs one function against its own security.
+- Up to twenty panes, tiled (the front page uses sixteen). Each pane runs one function against its own security.
 - `ctrl-w` then `h` `j` `k` `l` moves focus; `s` and `v` split; `q` closes; `o` zooms one pane and back; `=` evens the sizes. Tab cycles panes, as in Godel.
-- Pane header: the pane number, the function code as an amber chip, the security, then source and delay on the right.
+- Pane header: the pane number, the function code as an amber chip, the security, then how old the numbers are on the right — `live`, `daily`, `stale 12m` — and never which vendor served them (D61). `SRC` and each function's `HELP` page say where a number comes from.
 - `LP <name>` loads a launchpad. `LP SAVE <name>` writes the current layout to `~/.config/glimpse/layouts/<name>.toml`.
 - Shipped launchpads: `BTC` (the default), `CHAIN`, `MINER`, `MACRO`, `TRADER` and `TREASURY`.
-- Today's screens become functions: `MKT` (markets and ladder), `HM` (the heatmap), `SLIP`, `PORT` and `BOTS`. Their keys keep working inside their panes.
+- Today's screens become functions: `ODDS` (the odds on every outcome, close by close; `MKT` still opens it), `HM` (the forecast heatmap), `SLIP`, `PORT` and `BOTS`. Their keys keep working inside their panes. `f` opens the forecast and `o` the odds from anywhere, on the series the focused window shows (D58).
 
 ### 3.3 Status bar and tape
 
@@ -110,39 +110,73 @@ Bloomberg grammar: `<TICKER> [<CLASS>] <FUNCTION> <GO>`, where Enter is GO.
 - Charts in text: candles and lines as today, braille dots for high-resolution lines (two by four dots per cell), sparklines (`▁▂▃▄▅▆▇█`) inside tables, and half-block pixels (`▀` with separate foreground and background colours) for block pictures.
 - Both palettes stay: truecolor, and exact xterm-256 entries.
 
-### 3.5 The default launchpad (`BTC <GO>`)
+### 3.5 The front page (`LP BTC`, the default)
+
+One page, taller than the screen, ordered by how much a thing matters (D59). `j` and `k` walk it window by window and
+it scrolls to follow; `1`-`9` jump; `enter` opens a window full screen. Sixteen windows in eight rows:
+
+| row | windows |
+|---|---|
+| 1 | `GP BTC 24H` the last 24 hours and the next 24 · `DIST BTC` the odds on the next hour |
+| 2 | `CONS BTC` what every bot on this machine expects · `BOT BTC` one of them at a time |
+| 3 | `GP XAU 1D` gold, the last 45 days and the next 31 · `DIST XAU` the odds on its next close |
+| 4 | `HASH` hashrate and difficulty · `DIFF` this epoch and the retarget |
+| 5 | `NEWS` the headlines, read here · `QM GLOBAL` world prices |
+| 6 | `MACRO` dollar liquidity · `RATES` the Treasury curve · `ECO` the latest prints |
+| 7 | `FX` currencies · `GLCO` commodities |
+| 8 | `FEES` what a transaction costs, where a trailing number belongs |
 
 ```
- GLIMPSE  TERMINAL   BTC 81,608 +2.1%  FEE 2 s/vB  #967,653 7m       ₿182,340   UTC 18:32  NY 14:32 
- MEMP 38 MvB  SPX 6,612 +0.4%  USDJPY 147.82 -0.2%  XAU 3,684 +0.8%  BRENT 68.40 -1.1%  US10Y 4.12% 
- > BTC <GO>   BTC Bitcoin · CRYPTO   1 DES  2 MEMP  3 ONCH  4 TOP  OMON  FEES  BLK  MINE  TRSY      
-┌1  GP  BTC · 1H ────────────────── coinbase+kraken · live ┐┌2  MEMP  mempool ────────── ws · live ┐
-│ hourly to NOW, then the Glimpse market's median and 80%  ││ NEXT BLOCKS   fee s/vB    txs    eta │
-│                                                          ││ #1 ████████  3-40    3.4k    ~9m     │
-│                               │         ░░░░░░░░ ┤83,000 ││ #2 ███████▌  2-3     3.9k   ~19m     │
-│                               │  ░░░░░░░░░░░░░░░         ││ #3 ██████▊   2       4.0k   ~29m     │
-│                              ⢀│───────────────── ◂81,608 ││ +9 ███▏      1-2      41k    2h+     │
-│                           ⣤⡤⠏⠉│░░░░░░░░░░░░░░░░░         ││                                      │
-│                      ⢀⣀⣤⡟⠋⠁   │  ░░░░░░░░░░░░░░░         ││ FEES  next 3  30m 2  1h 2  eco 1     │
-│                   ⡏⠙⠚⠉        │         ░░░░░░░░ ┤80,000 ││ POOL  38 MvB  52,114 tx  min 1.0     │
-│         ⣤⡀ ⢀⣠⠏⠷⠶⠶⠚⠁           │                          ││ TIP   #967,653  7m  Foundry USA      │
-│  ⣀⡀⣠⣄⣠⠏⠉⠁⠙⠋⠉                  │                  ┤79,000 ││       3,288 tx  fees ₿2.1M           │
-│ ⠚⠁⠛⠁⠈⠁                        │                          ││ DIFF  1,204 blk  est +1.8%           │
-│ 17 Sep 18:00        19 Sep 06:00  NOW       20 Sep 06:00 ││                                      │
-└──────────────────────────────────────────────────────────┘└──────────────────────────────────────┘
-┌3  ONCH  on-chain ───────────────── bitview.space · daily ┐┌4  TOP  news · filings ──── jev · sec ┐
-│ realized price 51,840   MVRV 1.57   NUPL 0.36  Puell 1.08││ 12m ▲ ETF inflows extend to day five │
-│ STH cost basis 76,210   SOPR 1.01   Mayer 1.15           ││ 33m ▲ MSTR 8-K: adds BTC to treasury │
-│ chain oracle   81,470   read from the chain alone        ││  1h · Fed speaker: path is data-led  │
-│ URPD · share of supply by the price it last moved at     ││  2h ▼ Brent jumps on supply outage   │
-│ 85k ▏██████▌                                             ││  3h ▲ Hashrate prints a new record   │
-│ 80k ▏████████████████████████████████▌   ◂ 81,608 spot   ││                                      │
-│ 75k ▏████████████████████                                ││ CF  MSTR 8-K 33m  MARA 8-K 3h        │
-│ 70k ▏█████████████▌                                      ││     COIN 10-Q 1d  IBIT N-PORT 2d     │
-│ 65k ▏███████████████████▌                                ││                                      │
-│ 60k ▏█████████                                           ││                                      │
-└──────────────────────────────────────────────────────────┘└──────────────────────────────────────┘
- F1 help  ` GO  ctrl-w hjkl panes  ctrl-w o zoom  LP layouts  AL alerts  1-4 menu  T trade          
+ GLIMPSE  TERMINAL   BTC  81,423 spot                               open-source forecast terminal · Glimpse API                                              READ-ONLY L log in │ 23:24:42 UTC
+  SPC   t  FRONT PAGE   f  FORECAST   o  ODDS   B  BOTS   p  PORTFOLIO    SERIES  [  BTC  BTC 1D  ETH  SOL  XAU  ]                                                         ?  HELP   q  QUIT
+ BTC 81,423 +0.7%  GOLD 4,365 −0.1% via PAXG  S&P 7,638 +1.1% d  NDX 29,644 +0.7% d  DXY 100.282 +0.2% d  10Y 5.01% +0.07 d  OIL 130.80 +7.9% d               NY 19:24  LDN 00:24  TYO 08:24
+┌1  GP  Bitcoin · the last 24 hours and the next 24 hours ────────────────────────────────────────────── delayed ┐┌2  DIST  Bitcoin · odds on the next hour ─────────────────────────── live ┐
+│ Now 81,423     In 24 hours  81,581 median +0.2%   77,000 – 86,000 likely (80%)                                 ││ 00:00 close  in 35m 17s     most likely 81,000 – 82,000  16%             │
+│                                                   │                                                            ││                                                                          │
+│                                                   │                                                ░░░         ││ 85,000 – 86,000  █▏                                        0.4%          │
+│ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ │ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ░░░░░░░░░░░░░░░░░░░░░░░░┤85,000  ││ 84,000 – 85,000  █████▊                                    2.3%          │
+│                                                   │                           ░░░░░░░░░░░░░░░░░░░░░░░░         ││ 83,000 – 84,000  █████████████████▌                        7.1%          │
+│                                                   │            ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░         ││ 82,000 – 83,000  ████████████████████████████████▎        13.0%          │
+│                                                   │            ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░         ││ 81,000 – 82,000  ████████████████████████████████████████ 16.2%  ◂ now   │
+│                                                   │░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░         ││ 80,000 – 81,000  █████████████████████████████████▋       13.6%          │
+│ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ │░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░┤82,500  ││ 79,000 – 80,000  ███████████████████                       7.7%          │
+│ ⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀│⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠄┄◂81,423  ││ 78,000 – 79,000  ██████▋                                   2.7%          │
+│                                                   │░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░         ││ 77,000 – 78,000  █▍                                        0.5%          │
+│                                                   │░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░         ││ 76,000 – 77,000  ▎                                         0.1%          │
+│ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ │░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░┤80,000  ││ 75,000 – 76,000  ▏                                         0.1%          │
+│                                                   │░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░         ││                                                                          │
+│                                                   │░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░         ││                                                                          │
+│                                                   │░░░░░░░░░░░░░   ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░         ││                                                                          │
+│ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ │ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ┄ ░░░░░ ┄ ░░░░░░░░░░░░░░░░░░░░┤77,500  ││                                                                          │
+│                                                   │                       ░░░░░   ░░░░░░░░░░░░░░░░░░░░         ││                                                                          │
+│                                                   │                                       ░░░░░░░░░░           ││                                                                          │
+│                                                   │                                       ░░░░░░░░░░           ││                                                                          │
+│                                                   │                                                            ││                                                                          │
+│ 18 Sep 23:24       19 Sep 11:26                  NOW                  20 Sep 11:28       20 Sep 23:30          ││                                                                          │
+└─────────────────────────────────────────────────────────────────────────────── [ ] window · L log · C candles ─┘└─────────────────────── o or enter to bet on these odds · f the forecast ─┘
+┌3  CONS  Bitcoin · what the bots expect ────────────────────────────────────────────────────────────────── live ┐┌4  BOT  Bitcoin · one bot at a time ──────────────────────────────── live ┐
+│ Now 81,423   17 of 17 bots priced the next hour   they agree 98%   apart from the market 71%                   ││ Random Walk (bootstrap)  Baseline  ▲ bullish                 bot 1 of 17 │
+│                                                                                                                ││   History's own hourly moves, replayed at today's volatility             │
+│ NEXT HOUR ───────────────────────────────────────────────────────────────────────────────── 00:00 · in 35m 17s ││                                                                          │
+│   ▲  17 bullish  ·   0 neutral  ▼   0 bearish                                                                  ││   this bot         median    move   80% band             market          │
+│   ██████████████████████████████████████████████████████████████████████████████████████████████████████████   ││   next hour    ▲   81,491   +0.1%   81,083 – 81,902      81,450          │
+│   bots 81,491  +0.1%   81,078 – 81,904 (80%)    market 81,450   79,416 – 83,481    bots 0.1% above the market  ││   in 24 hours  ▼   81,184   −0.3%   79,156 – 83,273      81,581          │
+│                                                                                                                ││   in 72 hours  ▼   80,876   −0.7%   78,079 – 83,903      81,647          │
+│ IN 24 HOURS ─────────────────────────────────────────────────────────────────────────────── 23:00 · in 23h 35m ││                                                                          │
+│   ▲   2 bullish  ·  10 neutral  ▼   5 bearish      of the neutral: 2 volatile · 1 sideways                     ││   price at close     bot  market                                         │
+│   ████████████▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒███████████████████████████████    ││   84,000–85,000  <0.01%    3.6%  ░                                       │
+│   bots 81,284  −0.2%   79,084 – 83,506 (80%)    market 81,581   77,194 – 85,948    bots 0.4% below the market  ││   83,000–84,000  <0.01%   11.1%  ░░░░                                    │
+│                                                                                                                ││   82,000–83,000   0.47%   20.6%  ░░░░░░░░                                │
+│ IN 72 HOURS ──────────────────────────────────────────────────────────────────────────────── 23:00 · in 1d 23h ││ ▸ 81,000–82,000   97.7%   25.5%  █████████████████████████████████████   │
+│   ▲   2 bullish  ·   9 neutral  ▼   6 bearish      of the neutral: 3 volatile · 1 sideways                     ││   80,000–81,000    1.8%   21.4%  █░░░░░░░                                │
+│   ████████████▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒█████████████████████████████████████    ││   79,000–80,000  <0.01%   12.1%  ░░░░░                                   │
+│   bots 81,253  −0.2%   78,150 – 84,360 (80%)    market 81,647   75,427 – 87,853    bots 0.5% below the market  ││   78,000–79,000  <0.01%    4.2%  ░░                                      │
+│                                                                                                                ││   █ both  █ the bot buys  ░ dearer than the bot                          │
+│ WHO STANDS OUT ────────────────────────────────────────────────────────────── on the next hour · BOT opens one ││                                                                          │
+ -- NORMAL --                                                                                                                                        screen 1 of 4 · j k scroll   ? every key
+ MOVE     j k · ↓ ↑ down and up the page   h l · ← → across   g G top / bottom   1-9 window
+ OPEN     enter this window full screen   esc back   f the forecast   o the odds   B bots   p portfolio
+ FIND     : or SPC SPC search everything   ctrl-j ctrl-k choose   SPC menu   ? every key   q quit
 ```
 
 ---
@@ -319,7 +353,9 @@ Details that matter:
 
 | code | shows |
 |---|---|
-| `MKT` | Today's markets and ladder screen |
+| `CONS` | What every bot on this machine expects of a series, at three horizons at once: how many models lean bullish, bearish or neither, and the one picture they make together (the mean of their distributions) with its median and 80% band against the market's own. `they agree` is one minus the mean distance from a model to that consensus. Under it, the three models worth opening: the most bullish, the most bearish, and the one furthest from the market |
+| `BOT` | One model at a time: what it is, where it puts each of those three horizons with the market's median beside each, and its whole picture of the nearest close against what the market charges for the same ranges. `[` and `]` walk the zoo, `enter` opens it in `BOTS` |
+| `ODDS` | Today's markets and odds screen (called `MKT`, and the ladder, before D58; `MKT` still opens it) |
 | `HM` | Today's forecast heatmap, with the Stars when `JEV_STARS.md` is built |
 | `SLIP`, `PORT`, `BOTS` | Today's bet slip, portfolio and bots |
 | `OMON` | An options chain read off each close's distribution: for every strike on a bin edge, the digital call price P(close above K) and the digital put price, and range prices between strikes. An implied volatility per close from a lognormal fitted to the distribution, a term structure across closes, and the Greeks of each digital under that fit. Deribit's implied volatility for the nearest expiry sits beside it. Enter on a strike preselects the matching range on the heatmap for the normal bet slip |
@@ -565,7 +601,7 @@ watch = []                                 # output descriptors or xpubs, with l
 | `⠁` to `⣿` | braille line charts, two by four dots per cell |
 | `▁▂▃▄▅▆▇█` | sparklines and bars |
 | `▀` | half-block pixels for block pictures and QR codes |
-| `░` `▒` | forecast bands and selections |
+| `░` `▒` `▓` `█` | the forecast heatmap, thin to solid; `░` alone is an 80% band on a chart |
 | `▲` `▼` | direction |
 | `◂` | spot on a price axis |
 | `✦` `✧` | the Stars (from `JEV_STARS.md`) |

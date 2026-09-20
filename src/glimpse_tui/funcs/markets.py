@@ -96,7 +96,9 @@ def reachable(hub: Any, ins: Instrument | None, depth: int = 0) -> bool:
     """Does any keyless source carry this instrument, itself or down its proxy chain?"""
     if ins is None or depth > 3:
         return False
-    return bool(ins.sources) or (bool(ins.proxy) and reachable(hub, hub.book.get(ins.proxy), depth + 1))
+    from ..data.quotes import yahoo_on
+    live = [x for x in ins.sources if not x.startswith("yahoo:") or yahoo_on(hub)]
+    return bool(live) or (bool(ins.proxy) and reachable(hub, hub.book.get(ins.proxy), depth + 1))
 
 
 def dxy_mix(hub: Any, short: bool = False) -> str:
@@ -136,11 +138,6 @@ def status(hub: Any, ticker: str, wide: bool = False) -> Text:
         out.append(cad, style=DIM)
         out.append(f" {asof(q.prov.as_of, cad, wide and cad != DAILY)}", style=FAINT)
     return out
-
-
-def source_name(prov: Provenance) -> str:
-    n = prov.source.count("+") + 1
-    return f"median of {n} venues" if n > 1 else prov.source
 
 
 def price(ins: Instrument | None, v: float | None, decimals: int | None = None) -> str:
@@ -537,7 +534,6 @@ class QmPane(MarketPane):
         cols += [ui.Col("% chg")]
         cols += [ui.Col("day range")] if w >= 96 else []
         cols += [ui.Col("30 closes", "left", spark_w)] if spark_w else []
-        cols += [ui.Col("source", "left", style=FAINT)] if w >= 120 else []
         cols += [ui.Col("delay · as of" if wide else "delay", "left", flex=True)]
         heads = [c.head for c in cols]
         rows: list[list[ui.Cell] | Text] = []
@@ -549,7 +545,7 @@ class QmPane(MarketPane):
             cell = {"ticker": t, "name": ins.name if ins else "", "last": Text(price(ins, q.price), style=f"bold {TEXT}"),
                     "chg": delta(q.change, ins.decimals if ins else 2),
                     "% chg": pct_of(hub, t), "day range": range_cell(q, ins), "30 closes": spark_cell(self.closes(t), spark_w),
-                    "source": source_name(q.prov), "delay": status(hub, t), "delay · as of": status(hub, t, True)}
+                    "delay": status(hub, t), "delay · as of": status(hub, t, True)}
             rows.append([cell.get(hd) for hd in heads])
         at = names.index(self.list_name) + 1 if self.list_name in names else 1
         out = [ui.section(f"{self.list_name} · QUOTE MONITOR" if w >= 60 else self.list_name, w, f"list {at}/{len(names)}")]
@@ -651,7 +647,6 @@ class WeiPane(MarketPane):
         cols += [ui.Col("chg")] if w >= 64 else []
         cols += [ui.Col("% chg"), ui.Col("YTD")]
         cols += [ui.Col("30 closes", "left", 14)] if w >= 120 else []
-        cols += [ui.Col("source", "left", style=FAINT)] if wide else []
         cols += [ui.Col("delay · as of" if wide else "delay", "left", flex=True)]
         heads = [c.head for c in cols]
         rows: list[list[ui.Cell] | Text] = []
@@ -666,7 +661,7 @@ class WeiPane(MarketPane):
                             "last": Text(price(ins, q.price, 0 if tight and q.price >= 10_000 else None), style=f"bold {TEXT}"),
                             "chg": delta(q.change, 2), "% chg": delta_pct(q.pct, 1 if tight else 2),
                             "YTD": delta_pct(self.ytd_of(t, q.price)),
-                            "30 closes": spark_cell(q.history, 14), "source": source_name(q.prov),
+                            "30 closes": spark_cell(q.history, 14),
                             "delay": status(hub, t), "delay · as of": status(hub, t, True)}
                     rows.append([cell.get(hd) for hd in heads])
                 proxy = self.proxy_of(t)
@@ -761,7 +756,6 @@ class FxPane(MarketPane):
         cols += [ui.Col("chg")] if w >= 64 else []
         cols += [ui.Col("% chg")]
         cols += [ui.Col("day range")] if w >= 96 else []
-        cols += [ui.Col("source", "left", style=FAINT)] if wide else []
         cols += [ui.Col("delay · as of" if wide else "delay", "left", flex=True)]
         heads = [c.head for c in cols]
         rows: list[list[ui.Cell] | Text] = []
@@ -772,7 +766,7 @@ class FxPane(MarketPane):
                 continue
             cell = {"pair": t, "name": ins.name if ins else "", "last": Text(price(ins, q.price), style=f"bold {TEXT}"),
                     "chg": delta(q.change, ins.decimals if ins else 4), "% chg": delta_pct(q.pct, 2), "day range": range_cell(q, ins),
-                    "source": source_name(q.prov), "delay": status(hub, t), "delay · as of": status(hub, t, True)}
+                    "delay": status(hub, t), "delay · as of": status(hub, t, True)}
             rows.append([cell.get(hd) for hd in heads])
         out = [ui.section("PAIRS", w, "per unit of the first currency")] + grid(cols, rows, w, None, gap)
 
@@ -838,6 +832,10 @@ class FxPane(MarketPane):
 
 # ── GLCO ────────────────────────────────────────────────────
 
+FUTURES_UNIT = {"GC=F": "$/oz", "SI=F": "$/oz", "HG=F": "$/lb", "CL=F": "$/bbl", "BZ=F": "$/bbl", "NG=F": "$/MMBtu",
+                "ZC=F": "¢/bu", "ZW=F": "¢/bu", "ZS=F": "¢/bu", "SB=F": "¢/lb"}      # front-month futures, as the exchange quotes them
+
+
 class GlcoPane(MarketPane):
     code, every, tick = "GLCO", 120, 5.0
     heading = "commodities"
@@ -854,14 +852,15 @@ class GlcoPane(MarketPane):
 
     async def load(self) -> None:
         hub = self.hub
-        self.keep_fresh(["XAU", "XAG", "BTC"])
-        await self.pull(["XAU", "XAG", "BTC"])
+        want = [*self.tickers(), "BTC"]
+        self.keep_fresh(want)
+        await self.pull(want)                               # futures through Yahoo when it is on: one request for all of them
         self.bump()
         last: SourceError | None = None
-        for t in self.tickers():                            # the EIA and IMF series, straight from FRED: nine small files
+        for t in self.tickers():                            # otherwise the EIA and IMF series, straight from FRED
             ins = hub.book.get(t)
             sid = ins.source("fred") if ins else None
-            if not sid:
+            if not sid or self.futures(t):
                 continue
             try:
                 self.series[t] = await hub.sources["fred"].series(sid, start=start_years(2))
@@ -871,14 +870,22 @@ class GlcoPane(MarketPane):
         if not self.series and "XAU" not in hub.quotes:
             raise last or SourceError("no commodity source answered")
 
+    def futures(self, ticker: str):
+        """The Yahoo futures quote for this commodity, when there is one."""
+        q = self.hub.quotes.get(ticker)
+        return q if q and q.prov.source == "yahoo" and not q.proxy_for else None
+
     def unit(self, ticker: str) -> str:
+        ins = self.hub.book.get(ticker)
+        if self.futures(ticker) and ins and (sym := ins.source("yahoo")):
+            return FUTURES_UNIT.get(sym, "")
         if ticker == "XAU":
             return "$/oz"
         ins = self.hub.book.get(ticker)
         return FRED_META.get((ins.source("fred") if ins else "") or "", ("", ""))[0]
 
     def sources(self) -> list[Provenance]:
-        return distinct(self.quote_provs(["XAU", "BTC"]) + [relabel(s.prov) for s in self.series.values()])
+        return distinct(self.quote_provs([*self.tickers(), "BTC"]) + [relabel(s.prov) for t, s in self.series.items() if not self.futures(t)])
 
     def draw(self, w: int, h: int) -> list[Text]:
         hub = self.hub
@@ -891,15 +898,18 @@ class GlcoPane(MarketPane):
         cols += [ui.Col("last"), ui.Col("unit", "left", style=FAINT)]
         cols += [ui.Col("% chg")] if w >= 54 else []
         cols += [ui.Col("30 obs", "left", spark_w)] if spark_w else []
-        cols += [ui.Col("source", "left", style=FAINT)] if wide else []
         cols += [ui.Col("delay · as of" if wide else "delay", "left", flex=True)]
         heads = [c.head for c in cols]
         rows: list[list[ui.Cell] | Text] = []
         for t in self.tickers():
             ins, s = hub.book.get(t), self.series.get(t)
-            if t == "XAU" and gold:
+            if fq := self.futures(t):
+                cell = {"cmdty": t, "name": ins.name if ins else "", "last": Text(ui.px(fq.price, 2), style=f"bold {TEXT}"),
+                        "unit": self.unit(t), "% chg": delta_pct(fq.pct, 2), "30 obs": spark_cell(fq.history, spark_w),
+                        "delay": status(hub, t), "delay · as of": status(hub, t, True)}
+            elif t == "XAU" and gold:
                 cell = {"cmdty": t, "name": ins.name if ins else "", "last": Text(ui.px(gold.price, 2), style=f"bold {TEXT}"), "unit": "$/oz",
-                        "% chg": delta_pct(gold.pct, 2), "30 obs": spark_cell(gold.history, spark_w), "source": source_name(gold.prov),
+                        "% chg": delta_pct(gold.pct, 2), "30 obs": spark_cell(gold.history, spark_w),
                         "delay": status(hub, t), "delay · as of": status(hub, t, True)}
             elif s and s.last is not None:
                 cad = cadence(s.prov)
@@ -920,19 +930,22 @@ class GlcoPane(MarketPane):
             out.append(ui.t(ui.kv("1 BTC =", f"{btc.price / gold.price:,.2f} oz"), ("   ", ""),
                             ui.kv("1 oz =", f"{gold.price / btc.price:.5f} BTC"),
                             (f"   {fmt.sats(gold.price / btc.price * 1e8)}" if w >= 60 else "", f"bold {ORANGE}")))
-            if wide:
-                out += ui.wrap("Silver in BTC is not shown: no open source publishes silver. Gold is PAX Gold, a token of one troy ounce "
-                               "that trades through the weekend and can sit a little off spot.", w, FAINT)
+            if wide and gold.via:
+                out += ui.wrap("Gold is PAX Gold here, a token of one troy ounce that trades through the weekend and can sit a little "
+                               "off spot.", w, FAINT)
         else:
             out += ui.wrap("needs the BTC composite and the gold proxy", w, FAINT)
-        if w >= 60:
+        if w >= 60 and any(self.futures(t) for t in self.tickers()):
+            out += [Text("")] + ui.wrap("Front-month futures: COMEX metals, NYMEX energy, CBOT grains, ICE sugar. Grains are in US "
+                                        "cents a bushel, as the exchange quotes them. HELP GLCO names the feed behind each row.", w, FAINT)
+        elif w >= 60:
             out += [Text("")] + ui.wrap(
-                "Oil and gas are EIA spot prices through FRED, daily and a few days late. Copper, the grains and sugar are IMF monthly "
-                "averages through FRED, about two months late: the month is shown. The % change of a monthly row is month on month.", w, FAINT)
+                "Oil and gas are official spot prices, daily and a few days late. Copper, the grains and sugar are IMF monthly "
+                "averages, about two months late: the month is shown. The % change of a monthly row is month on month.", w, FAINT)
         return out
 
     def hint(self) -> str:
-        return "gold is PAXG · grains monthly"
+        return "futures" if self.futures("XAU") else "gold is PAXG · grains monthly"
 
     def menu(self) -> list[tuple[str, str]]:
         return [("QM", "QM COMMODITIES"), ("RV", "RV"), ("GP", "GP XAU"), ("BRENT", "GP BRENT"), ("HMAP", "HMAP")]
@@ -1044,7 +1057,7 @@ class RatesPane(MarketPane):
         tenors = [(label, field) for label, field, _ in TENORS if today is not None and today.get(field) is not None]
         if today is not None and len(tenors) >= 3:
             out.append(ui.t(("PAR CURVE ", f"bold {ORANGE}"), (asof(today.date, DAILY, w >= 60), f"bold {TEXT}"),
-                            (" · daily · treasury.gov" if w >= 56 else " · daily", FAINT)))
+                            (" · official daily close" if w >= 56 else " · daily", FAINT)))
             ch = max(5, min(h - 9, 16))
             plot = charts.Plot(w, ch + 1, times=False, gutter=6)
             plot.fmt = lambda v: f"{v:.2f}"
@@ -1122,15 +1135,14 @@ class RatesPane(MarketPane):
                 rows.append(row)
             out += ui.table(cols, rows, w, None, 1 if w < 60 else 2)
         if self.series and (w >= 72 or today is None):
-            out += [Text(""), ui.section("POLICY AND REAL RATES", w, "FRED · daily")]
+            out += [Text(""), ui.section("POLICY AND REAL RATES", w, "daily")]
             rows = []
             for sid, label, what in RATE_SERIES:
                 if (s := self.series.get(sid)) and s.last is not None:
                     rows.append([label, f"{s.last:.2f}%", delta((s.last - s.prev) * 100 if s.prev is not None else None, 0),
-                                 spark_cell(s.values[-60:], 20), asof(s.dates[-1], DAILY, True), f"fred:{sid}", what])
+                                 spark_cell(s.values[-60:], 20), asof(s.dates[-1], DAILY, True), what])
             out += ui.table([ui.Col("rate", "left", style=f"bold {TEXT}"), ui.Col("last"), ui.Col("Δbp"), ui.Col("60 days", "left", 20),
-                             ui.Col("as of", "left", style=DIM), ui.Col("source", "left", style=FAINT),
-                             ui.Col("", "left", flex=True, style=FAINT)], rows, w)
+                             ui.Col("as of", "left", style=DIM), ui.Col("", "left", flex=True, style=FAINT)], rows, w)
         return out
 
     def hint(self) -> str:
@@ -1336,7 +1348,7 @@ class EcoPane(MarketPane):
         cols += [ui.Col("what", "left", style=DIM)] if w >= 132 else []
         cols += [ui.Col("value", style=f"bold {TEXT}"), ui.Col("prev", style=DIM), ui.Col("chg"), ui.Col("period", "left", style=DIM)]
         cols += [ui.Col("3 years", "left", spark_w)] if spark_w else []
-        cols += [ui.Col("source", "left", flex=True, style=FAINT)] if wide else []
+        cols += [ui.Col("", "left", flex=True, style=FAINT)] if wide else []
         rows = []
         for p in prints:
             dg, unit = p["digits"], p["unit"]
@@ -1350,9 +1362,9 @@ class EcoPane(MarketPane):
                                                                                     asof(p["date"], p["cad"], True) if p["cad"] != DAILY
                                                                                     else asof(p["date"])]
             row += [spark_cell(p["hist"], spark_w)] if spark_w else []
-            row += [f"fred:{p['id']} · {p['cad']}"] if wide else []
+            row += [str(p["cad"])] if wide else []
             rows.append(row)
-        out = [ui.section("LATEST PRINTS", w, "FRED, no key")] + ui.table(cols, rows, w, None, 1 if w < 60 else 2)
+        out = [ui.section("LATEST PRINTS", w, "the period each describes")] + ui.table(cols, rows, w, None, 1 if w < 60 else 2)
         out += [Text("")] + ui.wrap("The release calendar needs a free FRED key and is not shown." + (
             " CPI is the year-on-year change of CPIAUCSL. Payrolls is the monthly change of PAYEMS in thousands. GDP growth is quarter on "
             "quarter at an annual rate, real from GDPC1 and nominal from GDP. Each row shows the period it describes, not the day it was "
@@ -1717,7 +1729,7 @@ class DvolPane(MarketPane):
 
     def _glimpse_line(self, vols: list[tuple[float, float]], w: int) -> list[Text]:
         if not vols:
-            return ui.wrap("open the BTC hourly series in MKT to load Glimpse's closes", w, ui.CYAN)
+            return ui.wrap("open the BTC hourly series (o, or FCST BTC) to load Glimpse's closes", w, ui.CYAN)
         line = ui.t(("GLIMPSE ", f"bold {ui.CYAN}"), (f"{horizon(vols[0][0])} ", FAINT), (f"{vols[0][1]:.1f}  ", f"bold {TEXT}"))
         for label, secs in (("24h", DAY), ("7d", 7 * DAY)):
             hit = nearest_horizon(vols, secs)
@@ -1753,7 +1765,7 @@ class DvolPane(MarketPane):
         return "DVOL 90d · Glimpse cyan"
 
     def menu(self) -> list[tuple[str, str]]:
-        return [("MKT", "MKT"), ("HM", "HM"), ("GP", "GP BTC"), ("BTC", "BTC"), ("OMON", "OMON")]
+        return [("ODDS", "ODDS"), ("HM", "HM"), ("GP", "GP BTC"), ("BTC", "BTC"), ("OMON", "OMON")]
 
     def export(self):
         now = _now()
@@ -1866,6 +1878,6 @@ register(Function(
          "interpolated in strike to each expiry's forward. The Glimpse side reads each hourly close's 80% band as a lognormal and "
          "scales its width to a year: the nearest close, the one about 24 hours out and the one about 7 days out, with a term "
          "structure. A horizon with no close near it shows a dash. If no Glimpse closes are loaded the page says to open the BTC "
-         "hourly series in MKT. The cyan rule on the chart is Glimpse's 24 hour volatility. The Fear and Greed index is "
+         "hourly series the terminal has open. The cyan rule on the chart is Glimpse's 24 hour volatility. The Fear and Greed index is "
          "alternative.me's, shown with its attribution. Deribit is polled every 5 minutes at no more than one request a second. "
          + _DOWN))

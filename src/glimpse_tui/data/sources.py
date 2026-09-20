@@ -28,6 +28,7 @@ CATALOGUE = (
     ("sec_www", "sec", "SecWww"),
     ("sec_efts", "sec", "SecSearch"),
     ("fng", "sentiment", "FearGreed"),
+    ("yahoo", "yahoo", "Yahoo"),
 )
 
 
@@ -38,3 +39,8 @@ def build(hub: Hub) -> None:
             hub.add(key, getattr(mod, cls)())
         except (ModuleNotFoundError, AttributeError):
             continue
+    try:
+        from . import news
+        news.build(hub)                             # one source per outlet: NEWS and the headline feed on SRC
+    except ModuleNotFoundError:
+        pass

@@ -1,8 +1,9 @@
 """The quote board: one `Quote` per instrument, from the first of its sources that answers (TERMINAL.md 4.4).
 
-Live where an open feed exists (exchange tickers, Kraken's spot FX and tokenised shares), daily where only
-official data exists (FRED, the Treasury, the ECB), computed where the brief says so (the dollar index), and
-labelled either way. An instrument with no open source of its own is shown through its proxy and says `proxy`.
+Live where an open feed exists (exchange tickers, Kraken's spot FX and tokenised shares), as Yahoo Finance shows it
+for indices, yields, futures and shares, daily where only official data exists (FRED, the Treasury, the ECB),
+computed where the brief says so (the dollar index), and labelled either way. An instrument with no open source
+of its own is shown through its proxy and says `proxy`.
 """
 from __future__ import annotations
 
@@ -106,6 +107,14 @@ async def refresh(hub: Hub, tickers: list[str]) -> None:
     from ..term.hub import Quote
     want = expand(hub, tickers)
     pairs = [i.source("kraken") for i in want if i.source("kraken")]
+    yahoo: dict[str, object] = {}
+    yprov: Provenance | None = None
+    symbols = [s for i in want if (s := i.source("yahoo"))] if yahoo_on(hub) else []
+    if symbols:
+        try:
+            yahoo, yprov = await hub.sources["yahoo"].spark(symbols)
+        except SourceError:
+            yahoo = {}
     batch: dict[str, Tick] = {}
     if pairs and "kraken" in hub.sources:
         try:
@@ -130,7 +139,12 @@ async def refresh(hub: Hub, tickers: list[str]) -> None:
             return
         for s in ins.sources:
             kind, _, ident = s.partition(":")
-            if kind in EXCHANGES:
+            if kind == "yahoo":
+                if (sp := yahoo.get(ident)) and yprov:
+                    hub.quotes[ins.ticker] = Quote(ins.ticker, sp.price, Provenance("yahoo", yprov.fetched_at, sp.at, yprov.delay),
+                                                   prev=sp.prev, high=sp.high, low=sp.low, history=sp.closes[-30:], closed=sp.closed)
+                    return
+            elif kind in EXCHANGES:
                 if t := await _exchange_tick(hub, kind, ident, batch):
                     hub.quotes[ins.ticker] = _quote(hub, ins, t)
                     return
@@ -147,10 +161,10 @@ async def refresh(hub: Hub, tickers: list[str]) -> None:
                     hub.quotes[ins.ticker] = q
                     return
 
-    await asyncio.gather(*[one(i) for i in want if "computed:dxy" not in i.sources], return_exceptions=True)
+    await asyncio.gather(*[one(i) for i in want if i.sources and not i.sources[0].startswith("computed:")], return_exceptions=True)
 
     for ins in want:                                                # computed and proxied, once their inputs are in
-        if "computed:dxy" in ins.sources:
+        if "computed:dxy" in ins.sources and not (ins.ticker in hub.quotes and hub.quotes[ins.ticker].prov.source == "yahoo"):
             legs = {p: hub.quotes[p] for p in fx_ref.DXY_WEIGHTS if p in hub.quotes}
             v = fx_ref.dxy({p: q.price for p, q in legs.items()})
             prev = fx_ref.dxy({p: (q.prev or q.price) for p, q in legs.items()})
@@ -166,6 +180,10 @@ async def refresh(hub: Hub, tickers: list[str]) -> None:
                 q = hub.quotes[via]
                 hub.quotes[ins.ticker] = Quote(ins.ticker, q.price, q.prov, q.prev, q.high, q.low, q.history, proxy_for=ins.ticker,
                                                closed=q.closed, via=via)
+
+
+def yahoo_on(hub: Hub) -> bool:
+    return "yahoo" in hub.sources and bool((hub.cfg.get("sources") or {}).get("yahoo", True))
 
 
 def _late(hub: Hub, ticker: str, task: asyncio.Future) -> None:
@@ -193,6 +211,8 @@ async def history(hub: Hub, ins: Instrument, days: int = 400) -> tuple[list[floa
     for s in ins.sources:
         kind, _, ident = s.partition(":")
         try:
+            if kind == "yahoo" and yahoo_on(hub):
+                return await hub.sources["yahoo"].history(ident, days)
             if kind == "kraken":
                 rows, prov = await hub.sources["kraken"].ohlc(ident, 1440)
                 rows = rows[-days:]

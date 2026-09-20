@@ -41,7 +41,7 @@ KEYMAP: dict[str, list[tuple[str, list[tuple[str, str]]]]] = {
         ("MORE", MORE),
     ],
     "main": [
-        ("MOVE", [(VERT, "move"), (SIDE, "markets / ladder"), ("gg G", "top / bottom"), ("ctrl-d ctrl-u", "half page"),
+        ("MOVE", [(VERT, "move"), (SIDE, "closes / odds"), ("gg G", "top / bottom"), ("ctrl-d ctrl-u", "half page"),
                   ("ctrl-f ctrl-b", "page"), ("zz", "most likely range"), ("5j", "counts")]),
         ("SELECT", [("v", "select a range"), ("o", "other end"), ("esc", "clear")]),
         ("TRADE", [("tab", "bet slip"), ("+ -", "size ×2 ÷2"), ("S", "set size"), ("b enter", "BET"), ("/", "go to price"),
@@ -67,19 +67,20 @@ KEYMAP: dict[str, list[tuple[str, list[tuple[str, str]]]]] = {
         ("MORE", [("r", "re-read the market")]),
     ],
     "term": [
-        ("GO", [("` :", "the GO bar"), ("BTC <GO>", "a security"), ("MEMP <GO>", "a function"), ("MSTR FA <GO>", "both"),
-                ("F1", "help on this pane"), ("HELP", "every function")]),
-        ("PANES", [("tab", "next pane"), ("ctrl-w h j k l", "move"), ("ctrl-w s v", "split"), ("ctrl-w q", "close"),
-                   ("ctrl-w o", "zoom"), ("ctrl-w =", "even"), ("LP <name>", "launchpad"), ("LP SAVE <name>", "save")]),
-        ("PAGE", [("j k", "scroll or move"), ("g G", "top / bottom"), ("enter", "open the row"), ("1-9", "menu item"),
-                  ("EXP", "export to CSV")]),
-        ("MORE", [("f", "forecast heatmap"), ("p", "portfolio"), ("B", "bots"), ("L O", "log in / out"), ("c", "colours"), ("q", "quit")]),
+        ("MOVE", [("j k · ↓ ↑", "down and up the page"), ("h l · ← →", "across"), ("g G", "top / bottom"), ("1-9", "window")]),
+        ("OPEN", [("enter", "this window full screen"), ("esc", "back"), ("f", "the forecast"), ("o", "the odds"),
+                  ("B", "bots"), ("p", "portfolio")]),
+        ("FIND", [(": or SPC SPC", "search everything"), ("ctrl-j ctrl-k", "choose"), ("SPC", "menu"), ("?", "every key"),
+                  ("q", "quit")]),
+    ],
+    "term-inside": [
+        ("MOVE", [("j k · ↓ ↑", "scroll or choose"), ("g G", "top / bottom"), ("ctrl-d ctrl-u", "half page")]),
+        ("OPEN", [("enter", "open"), ("esc", "back"), (":", "search everything"), ("?", "help")]),
     ],
     "go": [
-        ("GO", [("enter", "GO"), ("tab", "complete"), ("↑ ↓", "pick, or walk history"), ("esc", "leave"),
-                ("ctrl-u ctrl-w", "clear line / word")]),
-        ("TRY", [("BTC", "the Bitcoin page"), ("MEMP", "the mempool"), ("TX <txid>", "a transaction"), ("GP BTC XAU SPX", "compare"),
-                 ("MSTR DES", "a company"), ("LP MACRO", "a launchpad"), ("FIND <text>", "search everything")]),
+        ("LIST", [("type", "to filter"), ("ctrl-j ctrl-k · ↓ ↑", "choose"), ("enter", "open it"), ("esc", "cancel")]),
+        ("TRY", [("CONS BTC", "what the bots expect"), ("DIST BTC", "the next hour's odds"), ("NEWS", "headlines"),
+                 ("GP BTC XAU SPX", "compare"), ("LP MACRO", "a layout")]),
     ],
     "slip": [
         ("EDIT", [(VERT, "field"), (SIDE + " · - +", "step it"), ("5l", "counts"), ("enter", "type a value")]),
@@ -148,10 +149,9 @@ def brand_bar(t: Terminal, width: int) -> Text:
 
 
 def tabs(t: Terminal) -> list[tuple[str, str, str, bool]]:
-    """(label, short label, key that reaches it from here, showing now) for each screen."""
-    back = {"heatmap": "f", "bots": "B", "portfolio": "p"}.get(t.view, "")
-    return [("TERMINAL", "TERM", "t", t.view == "term"), ("FORECAST", "FCST", "f", t.view == "heatmap"),
-            ("LADDER", "LDR", back or "f", t.view == "main"),
+    """(label, short label, the key after SPC that reaches it, showing now) for each screen."""
+    return [("FRONT PAGE", "PAGE", "t", t.view == "term"), ("FORECAST", "FCST", "f", t.view == "heatmap"),
+            ("ODDS", "ODDS", "o", t.view == "main"),
             ("BOTS", "BOTS", "B", t.view == "bots"), ("PORTFOLIO", "PORT", "p", t.view == "portfolio")]
 
 
@@ -171,6 +171,8 @@ def nav_bar(t: Terminal, width: int) -> Text:
     for short_tabs, all_series, words in ((False, True, True), (True, True, True), (True, True, False),
                                           (True, False, False)):
         left = Text(no_wrap=True)
+        left.append(" ")
+        left.append(" SPC ", style=f"bold {ORANGE} on {INK}")
         left.append(" ")
         for label, short, key, on in tabs(t):
             keycap(left, key, short if short_tabs else label, on)
@@ -199,29 +201,35 @@ def header(t: Terminal, width: int) -> Text:
 
 # ── bottom ──────────────────────────────────────────────────
 
-def status_line(t: Terminal, mode: str, width: int) -> Text:
+def status_line(t: Terminal, mode: str, width: int, where: str = "") -> Text:
     """vim's status line: the mode, any message, and on the right the keys typed so far (5 then j, 12 then |)."""
-    colour = {"NORMAL": DIM, "VISUAL": ORANGE, "SLIP": GREEN, "GO": ORANGE}[mode]
+    colour = {"NORMAL": DIM, "VISUAL": ORANGE, "SLIP": GREEN, "GO": ORANGE, "SEARCH": ORANGE, "INSIDE": GREEN, "SPC": ORANGE}[mode]
     left = Text(no_wrap=True)
     left.append(f" -- {mode} -- ", style=f"bold {INK} on {colour}")
     if t.flash:
         left.append(f"  {t.flash}", style=f"bold {ORANGE}")
     right = Text(no_wrap=True)
+    if where:
+        right.append(f"{where} · j k scroll   ", style=f"bold {DIM}")
     typed = t.count + t.pending
     if typed:
         right.append(f" {typed}", style=f"bold {TEXT}")
     else:
         right.append("? ", style=f"bold {ORANGE}")
         right.append("every key ", style=FAINT)
+    if left.cell_len + right.cell_len + 1 > width:
+        left.truncate(max(width - right.cell_len - 1, 0), overflow="ellipsis")     # a long message must never wrap the panel
     return fill(left, right, width, BAR)
 
 
-def legend(view: str, width: int, max_lines: int = 5) -> Text:
+def legend(view: str, width: int, max_lines: int = 5, extra: list[tuple[str, list[tuple[str, str]]]] | None = None) -> Text:
     """The keys for this screen as a panel: one labelled row per kind of action. A row too long for the terminal
     carries on underneath rather than dropping keys; a terminal too short for every line keeps the first groups
-    whole, and ? lists everything."""
+    whole, and ? lists everything. `extra` rows (a zoomed pane's own keys and links) go after the first."""
     lines: list[Text] = []
-    for name, keys in KEYMAP[view]:
+    groups = list(KEYMAP[view])
+    groups[1:1] = extra or []
+    for name, keys in groups:
         rows = [Text(no_wrap=True, overflow="crop")]
         rows[0].append(f" {name:<{GROUP_W - 2}} ", style=f"bold {TEXT} on {CHIP}")
         rows[0].append(" ")
@@ -235,7 +243,7 @@ def legend(view: str, width: int, max_lines: int = 5) -> Text:
                 rows[-1].append(GAP)
                 x += len(GAP)
             rows[-1].append(k, style=f"bold {ORANGE}")
-            rows[-1].append(f" {what}", style=DIM)
+            rows[-1].append(f" {what}" if k else what, style=DIM)
             x += item
         if lines and len(lines) + len(rows) > max_lines:
             break

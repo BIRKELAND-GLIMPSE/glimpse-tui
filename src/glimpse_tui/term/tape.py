@@ -1,7 +1,6 @@
-"""The status bar and the ticker tape (TERMINAL.md 3.3), plus world clocks and exchange session states.
+"""The monitor strip under the header: the markets that matter, then world clocks and exchange session states.
 
-Pure rendering from the hub's cached state: brand, BTC and its change, the fastest fee, the tip and its age, the
-Glimpse balance, then clocks. The second line is the tape. A new block makes the height flash for two seconds.
+Pure rendering from the hub's cached state. The header above it is the same one every screen shows (chrome.py).
 """
 from __future__ import annotations
 
@@ -12,9 +11,7 @@ from zoneinfo import ZoneInfo
 
 from rich.text import Text
 
-from .. import fmt
-from ..data.core import ago
-from ..theme import DIM, FAINT, GREEN, ORANGE, RED, TEXT
+from ..theme import DIM, FAINT, GREEN, RED, TEXT
 from . import ui
 
 if TYPE_CHECKING:
@@ -22,7 +19,7 @@ if TYPE_CHECKING:
 
 BAR = "#161616"
 INK = "#0D0D0D"
-FLASH_S = 2.0
+LABEL = {"XAU": "GOLD", "BRENT": "OIL", "US10Y": "10Y", "US2Y": "2Y", "SPX": "S&P", "NDX": "NDX"}   # plain names on the strip
 CITY = {"UTC": "UTC", "America/New_York": "NY", "Europe/London": "LDN", "Asia/Tokyo": "TYO", "Asia/Hong_Kong": "HK",
         "Asia/Singapore": "SG", "Europe/Zurich": "ZRH", "Europe/Berlin": "BER", "Australia/Sydney": "SYD", "America/Chicago": "CHI"}
 
@@ -82,52 +79,31 @@ def next_open(session: str, now: datetime | None = None) -> datetime | None:
     return None
 
 
-def status_bar(hub: Hub, width: int, balance: float | None = None, authenticated: bool = False) -> Text:
-    now = time.time()
-    left = Text(no_wrap=True)
-    left.append(" GLIMPSE ", style=f"bold {INK} on {ORANGE}")
-    left.append(" TERMINAL ", style=f"bold {ORANGE} on #2b1500")
-    q = hub.quotes.get("BTC")
-    if q:
-        stale = q.prov.stale(now)
-        left.append("  BTC ", style=FAINT)
-        left.append(ui.px(q.price, 0), style=f"bold {DIM if stale else TEXT}")
-        left.append(" ")
-        left.append_text(ui.signed_pct(q.pct))
-    c = hub.chain
-    if c.fastest_fee:
-        left.append("  FEE ", style=FAINT)
-        left.append(f"{c.fastest_fee:.0f}" if c.fastest_fee >= 10 or c.fastest_fee == int(c.fastest_fee) else f"{c.fastest_fee:.1f}",
-                    style=f"bold {TEXT}")
-        left.append(" s/vB", style=FAINT)
-    if c.height:
-        flashing = now - c.block_seen_at < FLASH_S
-        left.append("  ")
-        left.append(f"#{c.height:,}", style=f"bold {INK} on {ORANGE}" if flashing else f"bold {TEXT}")
-        if c.tip_time:
-            left.append(f" {ago(now - c.tip_time)}", style=FAINT)
-
-    right = Text(no_wrap=True)
-    if balance is not None:
-        right.append(fmt.sats(balance), style=f"bold {ORANGE}")
-        right.append("   ")
-    elif not authenticated:
-        right.append("READ-ONLY", style=f"bold {DIM}")
-        right.append("   ")
-    zones = hub.cfg.get("clocks", ["UTC", "America/New_York"])
-    shown = zones if width >= 150 else zones[:2]
+def clocks(hub: Hub, width: int, now: float) -> Text:
+    """`NY 16:32  LDN 21:32  TYO 05:32 · NYSE shut`: the world's clocks, and whether the big exchanges are open."""
+    out = Text(no_wrap=True)
     utc_now = datetime.fromtimestamp(now, UTC)
-    for z in shown:
+    zones = [z for z in hub.cfg.get("clocks", ["UTC", "America/New_York"]) if z != "UTC"]
+    for z in zones if width >= 190 else zones[:2]:
         city, hhmm = clock(z, utc_now)
-        right.append(f"{city} ", style=FAINT)
-        right.append(f"{hhmm}  ", style=f"bold {TEXT}")
-    if width >= 170:
+        out.append(f"{city} ", style=FAINT)
+        out.append(f"{hhmm}  ", style=f"bold {TEXT}")
+    if width >= 210:
         for name in ("NYSE", "CME", "TSE"):
             on = session_open(name, utc_now)
-            right.append(f"{name} ", style=FAINT)
-            right.append("open  " if on else "shut  ", style=GREEN if on else DIM)
-    while left.cell_len + right.cell_len + 1 > width and right.cell_len:
-        right = Text("")                                # a narrow terminal keeps the market side
+            out.append(f"{name} ", style=FAINT)
+            out.append("open  " if on else "shut  ", style=GREEN if on else DIM)
+    return out
+
+
+def strip(hub: Hub, width: int) -> Text:
+    """The monitor line under the header: every instrument in the tape list with its change, then the clocks.
+    A narrow terminal keeps the markets and drops the clocks."""
+    now = time.time()
+    right = clocks(hub, width, now)
+    left = tape(hub, width - (right.cell_len + 2 if width >= 120 else 0))
+    if width < 120 or left.cell_len + right.cell_len + 1 > width:
+        right = Text("")
     out = Text(no_wrap=True, overflow="crop")
     out.append_text(left)
     out.append(" " * max(width - left.cell_len - right.cell_len, 1))
@@ -137,7 +113,7 @@ def status_bar(hub: Hub, width: int, balance: float | None = None, authenticated
 
 
 def tape(hub: Hub, width: int) -> Text:
-    """The second line: every instrument in the tape list, with its change. `MEMP` is the mempool's size."""
+    """Every instrument in the tape list, with its change. `MEMP` is the mempool's size, for those who add it."""
     now = time.time()
     out = Text(no_wrap=True, overflow="crop")
     out.append(" ")
@@ -150,26 +126,27 @@ def tape(hub: Hub, width: int) -> Text:
             part.append("MEMP ", style=FAINT)
             part.append(f"{hub.chain.mempool_vsize / 1e6:,.0f} MvB", style=f"bold {TEXT}")
         else:
-            if name == "BTC" or not (q := hub.quotes.get(name)):
-                continue                                # BTC already leads the status bar
+            if not (q := hub.quotes.get(name)):
+                continue
             ins = hub.book.get(name)
             stale = q.prov.stale(now)
-            part.append(f"{name} ", style=FAINT)
+            part.append(f"{LABEL.get(name, name)} ", style=FAINT)
             pct_unit = bool(ins and ins.cls == "GOVT")
-            part.append(ui.px(q.price, ins.decimals if ins else 2) + ("%" if pct_unit else ""), style=f"bold {DIM if stale else TEXT}")
-            if q.proxy_for:
-                part.append(" proxy", style=FAINT)
+            decimals = 0 if q.price >= 1_000 else ins.decimals if ins else 2           # a glance, not a quote screen
+            part.append(ui.px(q.price, decimals) + ("%" if pct_unit else ""), style=f"bold {DIM if stale else TEXT}")
             if q.prev:
                 part.append(" ")
                 part.append_text(ui.signed(q.change, 2) if pct_unit else ui.signed_pct(q.pct))
-            if q.prov.delay != "live":
+            if q.proxy_for:
+                part.append(f" via {q.via or 'proxy'}", style=FAINT)     # a stand-in is quoted: gold is PAXG until a spot feed exists
+            if q.prov.delay in ("daily", "weekly", "monthly"):
                 part.append(f" {q.prov.delay[0]}", style=FAINT)      # d for a daily close
         if out.cell_len + part.cell_len + 2 > width:
             break
         out.append_text(part)
         out.append("  ")
     if out.cell_len <= 1:
-        out.append("the tape fills as sources answer · SRC shows them", style=FAINT)
+        out.append("markets fill in as their sources answer · SRC shows every source", style=FAINT)
     return out
 
 

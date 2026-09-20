@@ -2,7 +2,7 @@
 
 A launchpad is a tree of splits with a command at every leaf. `TileLayout` turns the tree into rectangles, so
 splitting, closing, zooming and evening out never re-mount a widget. `FuncPane` is the base of every function
-page: it draws its own frame (number, amber function chip, security, then source and delay on the right),
+page: it draws its own frame (number, amber function chip, security, then how old the numbers are on the right),
 loads through the hub off the paint path, and renders from whatever it last loaded.
 """
 from __future__ import annotations
@@ -20,14 +20,14 @@ from textual.layout import ArrangeResult, Layout, WidgetPlacement
 from textual.widget import Widget
 
 from ..data.core import Provenance, SourceError, ago
-from ..theme import DIM, FAINT, ORANGE, RED, RULE, TEXT
+from ..theme import DIM, FAINT, GREEN, ORANGE, RED, RULE, TEXT
 from . import config, ui
 from .instruments import Instrument
 
 if TYPE_CHECKING:
     from .hub import Hub
 
-MAX_PANES = 9
+MAX_PANES = 20          # the front page uses sixteen: there is always room to split one more
 INK = "#0D0D0D"
 SHIPPED = ("BTC", "CHAIN", "MINER", "MACRO", "TRADER", "TREASURY")
 
@@ -36,8 +36,10 @@ SHIPPED = ("BTC", "CHAIN", "MINER", "MACRO", "TRADER", "TREASURY")
 
 @dataclass
 class Leaf:
+    """A window. It shows one buffer (`pane`) and remembers the ones it showed before, for back."""
     command: str
     pane: FuncPane | None = None
+    back: list[FuncPane] = field(default_factory=list)
 
 
 @dataclass
@@ -45,6 +47,7 @@ class Split:
     dir: str                                    # "row": side by side · "col": stacked
     children: list[Leaf | Split] = field(default_factory=list)
     weights: list[float] = field(default_factory=list)
+    row_height: int = 0                         # on a stacked root: each row this tall at least, and the page scrolls
 
 
 Node = Leaf | Split
@@ -117,7 +120,10 @@ def even(node: Node) -> None:
 def to_doc(node: Node) -> Any:
     if isinstance(node, Leaf):
         return node.command
-    return {"split": node.dir, "weights": [round(w, 3) for w in node.weights], "panes": [to_doc(c) for c in node.children]}
+    doc = {"split": node.dir, "weights": [round(w, 3) for w in node.weights], "panes": [to_doc(c) for c in node.children]}
+    if node.row_height:
+        doc["row_height"] = node.row_height
+    return doc
 
 
 def from_doc(doc: Any) -> Node:
@@ -126,7 +132,8 @@ def from_doc(doc: Any) -> Node:
     kids = [from_doc(c) for c in doc.get("panes", [])][:MAX_PANES] or [Leaf("HELP")]
     weights = [float(w) for w in doc.get("weights", [])]
     weights = weights if len(weights) == len(kids) and all(w > 0 for w in weights) else [1.0] * len(kids)
-    return Split("col" if doc.get("split") == "col" else "row", kids, weights)
+    rh = doc.get("row_height", 0)
+    return Split("col" if doc.get("split") == "col" else "row", kids, weights, int(rh) if isinstance(rh, int) and rh > 0 else 0)
 
 
 # ── launchpads on disk ──────────────────────────────────────
@@ -171,7 +178,9 @@ class TileLayout(Layout):
 
     def arrange(self, parent: Widget, children: list[Widget], size: Size, greedy: bool = True) -> ArrangeResult:
         ws: Workspace = parent  # type: ignore[assignment]
-        place = {id(lf.pane): r for lf, r in rects(ws.root, 0, 0, size.width, size.height)} if ws.root else {}
+        if ws.follow_pending:
+            ws.follow(size)                                 # scroll with the size this pass lays out, not last frame's
+        place = {id(lf.pane): r for lf, r in ws.page(size)} if ws.root else {}
         if ws.zoomed and ws.focused:
             place = {id(ws.focused.pane): Region(0, 0, size.width, size.height)}
         none = Region(0, 0, 0, 0)
@@ -188,6 +197,9 @@ class Workspace(Widget):
         self.root: Node | None = None
         self.focused: Leaf | None = None
         self.zoomed = False
+        self.inside = False                     # keys go to the focused buffer, not to moving between windows
+        self.page_y = 0                       # the first line of a page taller than the screen
+        self.follow_pending = False
         self.name_ = ""
         self._tile = TileLayout()
 
@@ -207,15 +219,79 @@ class Workspace(Widget):
         return leaves(self.root).index(leaf) + 1 if self.root else 0
 
     def relayout(self) -> None:
+        shown = set()
         for i, lf in enumerate(leaves(self.root) if self.root else [], 1):
             if lf.pane:
-                lf.pane.number, lf.pane.active = i, lf is self.focused
+                shown.add(id(lf.pane))
+                lf.pane.number, lf.pane.active, lf.pane.inside = i, lf is self.focused, self.inside and lf is self.focused
+                lf.pane.set_on_screen(True)
+                lf.pane.bump()              # the frame changed colour: a pane whose size did not change must still redraw
+        for p in self.buffers:
+            if id(p) not in shown:
+                p.number, p.active, p.inside = 0, False, False
+                p.set_on_screen(False)
         self._arrangement_cache.clear()     # Textual caches on (size, children); the tree changed under the same children
         self.refresh(layout=True)
+
+    @property
+    def buffers(self) -> list[FuncPane]:
+        """Every page open, shown in a window or not."""
+        return [c for c in self.children if isinstance(c, FuncPane)]
+
+    def page_height(self, size: Size | None = None) -> int:
+        """The whole page: the screen, or taller when the layout asks for rows of a minimum height."""
+        h = (size or self.size).height
+        root = self.root
+        if isinstance(root, Split) and root.dir == "col" and root.row_height:
+            return max(h, root.row_height * len(root.children))
+        return h
+
+    def page(self, size: Size | None = None) -> list[tuple[Leaf, Region]]:
+        """Every window's rectangle on screen: the page, shifted up by the scroll."""
+        size = size or self.size
+        if not self.root:
+            return []
+        self.page_y = max(0, min(self.page_y, self.page_height(size) - size.height))
+        return rects(self.root, 0, -self.page_y, size.width, self.page_height(size))
+
+    def page_to(self, y: int) -> None:
+        self.page_y = max(0, min(y, self.page_height() - self.size.height))
+        self.relayout()
+
+    def follow(self, size: Size | None = None) -> None:
+        """Scroll just enough to show the focused window whole (or its top, when it is taller than the screen)."""
+        size = size or self.size
+        self.follow_pending = False
+        if not (self.root and self.focused) or size.height <= 0:
+            return
+        r = next((r for lf, r in rects(self.root, 0, 0, size.width, self.page_height(size)) if lf is self.focused), None)
+        if r is None:
+            return
+        top, h = self.page_y, size.height
+        if r.y < top:
+            top = r.y
+        elif r.y + r.height > top + h:
+            top = min(r.y, r.y + r.height - h)
+        self.page_y = max(0, min(top, self.page_height(size) - h))
+
+    def on_mouse_scroll_down(self, event) -> None:
+        self.page_to(self.page_y + 3)
+
+    def on_mouse_scroll_up(self, event) -> None:
+        self.page_to(self.page_y - 3)
+
+    def where(self) -> str:
+        """`screen 1 of 3` when the page is taller than the screen, else ''."""
+        total, h = self.page_height(), max(self.size.height, 1)
+        if self.zoomed or total <= h:
+            return ""
+        return f"screen {min(round(self.page_y / h) + 1, -(-total // h))} of {-(-total // h)}"
 
     def focus_leaf(self, leaf: Leaf | None) -> None:
         if leaf:
             self.focused = leaf
+            self.follow()
+            self.follow_pending = True                      # and again at the next layout pass, with its size
             self.relayout()
 
     def cycle(self, d: int = 1) -> None:
@@ -227,7 +303,7 @@ class Workspace(Widget):
         """ctrl-w h j k l: the nearest pane whose rectangle lies that way."""
         if not (self.root and self.focused):
             return
-        rs = rects(self.root, 0, 0, max(self.size.width, 1), max(self.size.height, 1))
+        rs = rects(self.root, 0, 0, max(self.size.width, 1), max(self.page_height(), 1))
         here = next(r for lf, r in rs if lf is self.focused)
         cx, cy = here.x + here.width / 2, here.y + here.height / 2
         best, best_d = None, 1e9
@@ -265,7 +341,8 @@ class FuncPane(Widget):
         super().__init__()
         self.hub, self.security, self.args = hub, security, tuple(args)
         self.securities: tuple[Instrument, ...] = (security,) if security else ()
-        self.number, self.active = 0, False
+        self.number, self.active, self.inside = 0, False, False
+        self.on_screen = False                          # shown in a window, rather than kept as a background buffer
         self.title = ""                                 # after the chip: "BTC · 1H", "mempool"
         self.provs: list[Provenance] = []               # every source behind what is on screen
         self.error = ""
@@ -302,6 +379,17 @@ class FuncPane(Widget):
     def menu(self) -> list[tuple[str, str]]:
         """Numbered items, picked with the digits: (label, GO bar command)."""
         return []
+
+    def visibility_changed(self, on: bool) -> None:
+        """The page came on screen, or went into the background as a buffer. Hold heavy streams only while shown."""
+
+    def set_on_screen(self, on: bool) -> None:
+        if on != self.on_screen:
+            self.on_screen = on
+            self.visibility_changed(on)
+
+    def on_unmount(self) -> None:
+        self.set_on_screen(False)
 
     def export(self) -> tuple[list[str], list[list[Any]]] | None:
         """(header, rows) for EXP, or None when the page has no table."""
@@ -346,7 +434,7 @@ class FuncPane(Widget):
 
     def on_key_(self, k: str, ch: str | None, n: int = 1) -> bool:
         page = max(self.size.height - 4, 1)
-        step = {"j": n, "down": n, "k": -n, "up": -n, "ctrl+d": page // 2, "ctrl+u": -(page // 2), "ctrl+f": page,
+        step = {"j": n, "down": n, "ctrl+j": n, "k": -n, "up": -n, "ctrl+k": -n, "ctrl+d": page // 2, "ctrl+u": -(page // 2), "ctrl+f": page,
                 "pagedown": page, "ctrl+b": -page, "pageup": -page}.get(k)
         if ch == "G":
             step = 10**9
@@ -368,22 +456,34 @@ class FuncPane(Widget):
 
     # drawing ────────────────────────────────────────────────
 
+    def edge(self) -> str:
+        """Orange: the focused window. Green: inside it, where the keys go to the page."""
+        return GREEN if self.inside else ORANGE if self.active else RULE
+
+    def is_stale(self, now: float) -> bool:
+        """A source older than its kind allows, on a page that has not managed to reload either. A page that reads
+        every half hour is not stale at twenty-nine minutes: it is as fresh as it was ever going to be."""
+        if not any(p.stale(now) for p in self.provs):
+            return False
+        return self.loaded_at <= 0 or now - self.loaded_at > max(self.every * 1.5, 90.0)
+
     def frame_top(self, w: int, now: float) -> Text:
-        edge = ORANGE if self.active else RULE
+        edge = self.edge()
         out = Text(no_wrap=True, overflow="crop")
         out.append("┌", style=edge)
         out.append(f"{self.number} ", style=f"bold {ORANGE if self.active else DIM}")
-        out.append(f" {self.code} ", style=f"bold {INK} on {ORANGE}" if self.active else f"bold {ORANGE} on #2b1500")
+        out.append(f" {self.code} ", style=f"bold {INK} on {self.edge()}" if self.active else f"bold {ORANGE} on #2b1500")
         if self.title:
             out.append(f" {self.title} ", style=f"bold {TEXT}")
         right = Text(no_wrap=True)
         if self.error:
             right.append(f" {self.error[:max(w - out.cell_len - 8, 8)]} ", style=f"bold {RED}")
         elif self.provs:
-            names = list(dict.fromkeys(p.source.split(":")[0] for p in self.provs))
+            # How old the numbers are, never who served them: SRC names every source, and the page's HELP says
+            # which one each number came from. A frame full of vendor names reads like an advertisement.
             delays = list(dict.fromkeys(p.delay for p in self.provs))
-            stale = [p for p in self.provs if p.stale(now)]
-            label = " + ".join(names[:3]) + ("…" if len(names) > 3 else "") + " · " + "/".join(delays[:2])
+            stale = [p for p in self.provs if p.stale(now)] if self.is_stale(now) else []
+            label = "/".join(delays[:2])
             if stale:
                 right.append(f" {label} · stale {ago(max(p.age(now) for p in stale))} ", style=f"bold {RED}")
             else:
@@ -392,7 +492,7 @@ class FuncPane(Widget):
             right.append(" loading ", style=FAINT)
         room = w - out.cell_len - right.cell_len - 1
         if room < 1 and self.provs and not self.error:      # too narrow for the names: keep the delay, and above all keep "stale"
-            stale = [p for p in self.provs if p.stale(now)]
+            stale = [p for p in self.provs if p.stale(now)] if self.is_stale(now) else []
             short = f" stale {ago(max(p.age(now) for p in stale))} " if stale else f" {self.provs[0].delay} "
             right = Text(short, style=f"bold {RED}" if stale else DIM)
             room = w - out.cell_len - right.cell_len - 1
@@ -405,7 +505,7 @@ class FuncPane(Widget):
         return out
 
     def frame_bottom(self, w: int, hint: str = "") -> Text:
-        edge = ORANGE if self.active else RULE
+        edge = self.edge()
         out = Text(no_wrap=True, overflow="crop")
         out.append("└", style=edge)
         hint = f" {hint} " if hint and len(hint) + 6 < w else ""
@@ -423,8 +523,8 @@ class FuncPane(Widget):
         if w < 8 or h < 3:
             return Text("")
         now = time.time()
-        stale = any(p.stale(now) for p in self.provs)
-        key = (w, h, self.version, self.cur, self.top, self.active, self.number, stale, int(now // self.tick) if self.tick else 0,
+        stale = self.is_stale(now)
+        key = (w, h, self.version, self.cur, self.top, self.active, self.inside, self.number, stale, int(now // self.tick) if self.tick else 0,
                self.cache_key())
         if self._cache and self._cache[0] == key:
             return self._cache[1]
@@ -440,7 +540,7 @@ class FuncPane(Widget):
                               inner_w, inner_h, DIM)
         self.top = max(0, min(self.top, max(len(lines) - inner_h, 0)))
         shown = lines[self.top:self.top + inner_h]
-        edge = ORANGE if self.active else RULE
+        edge = self.edge()
         more = len(lines) - self.top - inner_h
         out = [self.frame_top(w, now)]
         for ln in shown + [Text("")] * (inner_h - len(shown)):

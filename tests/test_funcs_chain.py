@@ -217,21 +217,6 @@ async def test_addr_survives_the_too_many_utxos_answer(no_network, monkeypatch):
     assert pane.enter() == "TX e6028e3e834887d04f279c923649df519464bf4e36dcfa495a3933767b40161a"
 
 
-async def test_addr_watch_explains_first_and_saves_on_the_second_w(no_network):
-    hub = make_hub()
-    pane = await opened(chain.AddrPane, hub, ADDRESS)
-    assert pane.key("w", "w") and pane.asking and hub.cfg["wallet"]["watch"] == []
-    text = page(pane, 90)
-    assert "WATCH THIS ADDRESS?" in text and "wallet.watch" in text and "public backend" in text and "holds no keys" in text
-    assert pane.key("x", "x") and not pane.asking and hub.cfg["wallet"]["watch"] == []         # any other key cancels
-    pane.key("w", "w")
-    pane.key("w", "w")
-    assert hub.cfg["wallet"]["watch"] == [ADDRESS] and config.load()["wallet"]["watch"] == [ADDRESS]
-    assert "Watching" in page(pane, 90)
-    pane.key("w", "w")
-    assert "Already watched" in page(pane, 90) and hub.cfg["wallet"]["watch"] == [ADDRESS]
-
-
 def test_net_effect_counts_both_sides():
     tx = {"vin": [{"prevout": {"scriptpubkey_address": "a", "value": 900}}, {"prevout": {"scriptpubkey_address": "b", "value": 50}}],
           "vout": [{"scriptpubkey_address": "a", "value": 300}, {"scriptpubkey_address": "c", "value": 600}]}
@@ -263,7 +248,7 @@ async def test_rbf_polls_replacements_and_toggles_full_rbf(no_network):
 async def test_rbf_reads_the_stream_while_mounted_and_lets_go_after(no_network):
     hub = make_hub()
     pane = chain.RbfPane(hub, None, ())
-    pane.on_mount()
+    pane.set_on_screen(True)
     assert hub.stream_subscriptions() == [{"track-rbf": "all"}] and hub.stream_commands.get_nowait() == {"track-rbf": "all"}
     hub.rbf_latest = fixture("mempool/ws_rbf_latest.json")["rbfLatest"]
     await pane.reload()
@@ -344,13 +329,15 @@ async def test_the_go_bar_opens_the_pages_and_enter_walks_from_block_to_transact
         return app.shell.ws.pane.render().plain
 
     async with app.run_test(size=(132, 40)) as pilot:
-        await T.until(pilot, lambda: len(app.shell.ws.panes) == 4)
+        await T.until(pilot, lambda: len(app.shell.ws.panes) == 16)
         hub = app.shell.hub
         for s in hub.sources.values():
             s.retries, s.bucket = 0, core.TokenBucket(1000, 1000)
         await go(pilot, "967730")                                                   # a bare height is BLK
         await T.until(pilot, lambda: app.shell.ws.pane.code == "BLK" and "SpiderPool" in shown())
-        assert "block 967,730" in shown() and "mempool.space" in shown() and "hash" in shown()      # it opens at the top, on the header
+        assert "block 967,730" in shown() and "hash" in shown()                     # it opens at the top, on the header
+        await pilot.press("enter")                                                  # go inside the window: its keys are live now
+        assert app.shell.ws.inside
         await pilot.press("j")                                                      # the cursor moves, and the view follows it down
         await T.until(pilot, lambda: "₿11,340" in shown())
         await pilot.press("enter")                                                  # the second transaction of the block
@@ -361,7 +348,7 @@ async def test_the_go_bar_opens_the_pages_and_enter_walks_from_block_to_transact
         assert hub._tracking["rbf"] == 1                                            # held while the pane is open
         await go(pilot, "BLK")
         await T.until(pilot, lambda: app.shell.ws.pane.code == "BLK" and "Foundry USA" in shown())
-        assert hub._tracking["rbf"] == 0                                            # and let go when it closed
+        assert hub._tracking["rbf"] == 0                                            # and let go when it went into the background
 
 
 # ── privacy ─────────────────────────────────────────────────

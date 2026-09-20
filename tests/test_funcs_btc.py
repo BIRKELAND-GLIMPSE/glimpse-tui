@@ -75,7 +75,7 @@ def test_the_block_picture_orders_by_fee_and_leaves_unbid_space_empty():
 async def test_memp_holds_the_heavy_subscription_only_while_open(no_network):
     hub = Hub()
     pane = btc.MempPane(hub)
-    pane.on_mount()
+    pane.set_on_screen(True)
     assert hub.stream_subscriptions() == [{"track-mempool-block": 0}] and hub.stream_commands.get_nowait() == {"track-mempool-block": 0}
     pane.on_unmount()
     assert hub.stream_subscriptions() == [] and hub.stream_commands.get_nowait() == {"track-mempool-block": -1}
@@ -155,9 +155,38 @@ async def test_gp_btc_hourly_continues_into_the_glimpse_forecast(no_network):
     pane = gp.GpPane.from_command(hub, gobar.Command("GP", (hub.book.get("BTC"),)))
     await pane.reload()
     out = text(pane.draw(110, 22))
-    assert pane.view == "1H" and "NOW" in out and "░" in out and "Glimpse's median" in out
+    assert pane.view == "1H" and "NOW" in out and "░" in out                # the traded 80% band, past NOW
+    assert "median" in out and "likely (80%)" in out                        # and one sentence saying where it ends up
     pane.key("]", "]")
     assert pane.view == "1D" and pane.loaded_at == 0.0                      # a new window asks for a new load
+
+
+class Close:
+    """A loaded Glimpse close, as the hub hands one to a chart."""
+
+    def __init__(self, end: float, median: float, lo: float, hi: float) -> None:
+        self.row, self.median, self.band = type("R", (), {"end_time_utc": end, "topic_id": int(end)})(), median, (lo, hi)
+
+
+async def test_gp_gold_charts_the_token_the_market_settles_on_and_runs_a_month_ahead(no_network):
+    hub = Hub()
+    now = time.time()
+    hub.series_views["XAU"] = [Close(now + 86400 * (i + 1), 4_400 + 5 * i, 4_300 - 6 * i, 4_500 + 6 * i) for i in range(35)]
+    pane = gp.GpPane.from_command(hub, gobar.Command("GP", (hub.book.get("XAU"),), ("1D",)))
+    await pane.reload()
+    assert pane.lines[0].ins.ticker == "PAXG"                   # gold is forecast, and settles, on the token
+    assert pane.title == "Gold · the last 45 days and the next 31 days" and pane.command() == "GP XAU 1D"
+    out = text(pane.draw(110, 22))
+    assert "NOW" in out and "░" in out and "In 31 days" in out and "likely (80%)" in out
+    assert pane._fc() and pane._fc()[-1][0] <= now + 31 * 86400                 # the window, not every close loaded
+    assert len(pane.lines[0].xs) > 40 and out.count("┄") > 0                    # more history than the window: it is clipped
+
+
+async def test_a_chart_with_no_glimpse_market_behind_it_does_not_look_ahead(no_network):
+    hub = Hub()
+    pane = gp.GpPane.from_command(hub, gobar.Command("GP", (hub.book.get("SPX"),), ("1D",)))
+    await pane.reload()
+    assert not pane._forecasting() and "NOW" not in text(pane.draw(110, 20))
 
 
 async def test_a_series_that_is_not_in_the_catalogue_says_so(no_network):

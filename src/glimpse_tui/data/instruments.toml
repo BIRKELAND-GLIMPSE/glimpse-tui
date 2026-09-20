@@ -18,6 +18,7 @@
 #   treasury:<field>           d:<field> in the daily_treasury_yield_curve XML, percent
 #   pyth:<64 hex feed id>      Hermes, needs a key
 #   computed:<name>            derived locally, labelled computed
+#   yahoo:<symbol>             query1.finance.yahoo.com/v7/finance/spark?symbols=<symbol> (data/yahoo.py), checked 2026-09-19
 #
 # session: "24x7" | "24x5" | "us_equity" | "daily". "daily" means the best keyless source is an end-of-day series
 # (several FRED commodity series are in fact monthly: the note says so).
@@ -85,12 +86,12 @@ class = "CMDTY"
 quote = "USD"
 decimals = 2
 session = "24x5"
-sources = []
+sources = ["yahoo:GC=F"]
 keyed = [
   "pyth:765d2ba906dbc32ca17cc11f5310a89e9ee1f6420508c63861f2f8ba4ee34bb2",  # Metal.XAU/USD
 ]
 proxy = "PAXG"
-note = "unavailable keyless: no open spot gold feed (FRED dropped the LBMA series; Pyth Hermes needs an API key since 2026-08-26). Show PAXG as a labelled proxy. Pyth also lists Metal.Index.GOLD/USD (24/7 synthetic)."
+note = "COMEX gold futures (front month, GC=F) through Yahoo Finance: the nearest open price to spot, a few dollars of carry above it. No open spot gold feed exists (FRED dropped the LBMA series; Pyth needs a key). PAXG is the labelled proxy when Yahoo is off."
 
 [[instrument]]
 ticker = "XAG"
@@ -99,7 +100,7 @@ class = "CMDTY"
 quote = "USD"
 decimals = 3
 session = "24x5"
-sources = []
+sources = ["yahoo:SI=F"]
 keyed = [
   "pyth:f2fb02c32b055c805e7238d628e5e9dadef274376114eb1f012337cabe93871e",  # Metal.XAG/USD
 ]
@@ -113,7 +114,7 @@ class = "CURNCY"
 quote = "USD"
 decimals = 4
 session = "24x5"
-sources = ["kraken:EURUSD", "ecb:USD", "fred:DEXUSEU"]
+sources = ["kraken:EURUSD", "yahoo:EURUSD=X", "ecb:USD", "fred:DEXUSEU"]
 keyed = [
   "pyth:a995d00bb36a63cef7fd2c287dc105fc8f3d93779f062f09551b0af3e81ec30b",  # FX.EUR/USD
 ]
@@ -127,7 +128,7 @@ class = "CURNCY"
 quote = "USD"
 decimals = 4
 session = "24x5"
-sources = ["kraken:GBPUSD", "ecb:GBP", "fred:DEXUSUK"]
+sources = ["kraken:GBPUSD", "yahoo:GBPUSD=X", "ecb:GBP", "fred:DEXUSUK"]
 keyed = [
   "pyth:84c2dde9633d93d1bcad84e7dc41c9d56578b7ec52fabedc1f335d673df0a7c1",  # FX.GBP/USD
 ]
@@ -141,7 +142,7 @@ class = "CURNCY"
 quote = "JPY"
 decimals = 2
 session = "24x5"
-sources = ["ecb:JPY", "fred:DEXJPUS"]
+sources = ["yahoo:JPY=X", "ecb:JPY", "fred:DEXJPUS"]
 keyed = [
   "pyth:ef2c98c804ba503c6a707e38be4dfbb16683775f195b091252bf24693042fd52",  # FX.USD/JPY
 ]
@@ -155,7 +156,7 @@ class = "CURNCY"
 quote = "CAD"
 decimals = 4
 session = "24x5"
-sources = ["kraken:USDCAD", "ecb:CAD", "fred:DEXCAUS"]
+sources = ["kraken:USDCAD", "yahoo:CAD=X", "ecb:CAD", "fred:DEXCAUS"]
 keyed = [
   "pyth:3112b03a41c910ed446852aacf67118cb1bec67b2cd0b9a214c58cc0eaa2ecca",  # FX.USD/CAD
 ]
@@ -169,7 +170,7 @@ class = "CURNCY"
 quote = "SEK"
 decimals = 4
 session = "24x5"
-sources = ["ecb:SEK", "fred:DEXSDUS"]
+sources = ["yahoo:SEK=X", "ecb:SEK", "fred:DEXSDUS"]
 keyed = [
   "pyth:8ccb376aa871517e807358d4e3cf0bc7fe4950474dbe6c9ffc21ef64e43fc676",  # FX.USD/SEK
 ]
@@ -183,7 +184,7 @@ class = "CURNCY"
 quote = "CHF"
 decimals = 4
 session = "24x5"
-sources = ["kraken:USDCHF", "ecb:CHF", "fred:DEXSZUS"]
+sources = ["kraken:USDCHF", "yahoo:CHF=X", "ecb:CHF", "fred:DEXSZUS"]
 keyed = [
   "pyth:0b1e3297e69f162877b577b0d6a47a0d63b2392bc8499e6540da4187a63e28f8",  # FX.USD/CHF
 ]
@@ -197,7 +198,7 @@ class = "CURNCY"
 quote = "USD"
 decimals = 4
 session = "24x5"
-sources = ["kraken:AUDUSD", "ecb:AUD", "fred:DEXUSAL"]
+sources = ["kraken:AUDUSD", "yahoo:AUDUSD=X", "ecb:AUD", "fred:DEXUSAL"]
 keyed = [
   "pyth:67a6f93030420c1c9e3fe37c1ab6b77966af82f995944a9fefce357a22854a80",  # FX.AUD/USD
 ]
@@ -211,7 +212,7 @@ class = "CURNCY"
 quote = "CNH"
 decimals = 4
 session = "24x5"
-sources = []
+sources = ["yahoo:CNH=X"]
 keyed = [
   "pyth:eef52e09c878ad41f6a81803e3640fe04dceea727de894edd4ea117e2e332e66",  # FX.USD/CNH
 ]
@@ -225,7 +226,7 @@ class = "CURNCY"
 quote = "CNY"
 decimals = 4
 session = "daily"
-sources = ["ecb:CNY", "fred:DEXCHUS"]
+sources = ["yahoo:CNY=X", "ecb:CNY", "fred:DEXCHUS"]
 keyed = [
   "pyth:4a134870158ad1ea98bc4e4eb8e4ca824a32e69d4f3da380377c09936ba23954",  # FX.USD/CNY
 ]
@@ -239,7 +240,7 @@ class = "INDEX"
 quote = "USD"
 decimals = 3
 session = "24x5"
-sources = ["computed:dxy"]
+sources = ["yahoo:DX-Y.NYB", "computed:dxy"]
 keyed = [
   "pyth:710afe0041a07156bfd71971160c78a326bf8121403e0d4e140d06bea0353b7f",  # FX.USDXY
 ]
@@ -253,7 +254,7 @@ class = "GOVT"
 quote = "USD"
 decimals = 2
 session = "daily"
-sources = ["treasury:BC_10YEAR", "fred:DGS10"]
+sources = ["yahoo:^TNX", "treasury:BC_10YEAR", "fred:DGS10"]
 keyed = [
   "pyth:9c196541230ba421baa2a499214564312a46bb47fb6b61ef63db2f70d3ce34c1",  # InterestRate.US10Y
 ]
@@ -281,7 +282,7 @@ class = "GOVT"
 quote = "USD"
 decimals = 2
 session = "daily"
-sources = ["treasury:BC_3MONTH", "fred:DGS3MO"]
+sources = ["yahoo:^IRX", "treasury:BC_3MONTH", "fred:DGS3MO"]
 keyed = []
 proxy = ""
 note = ""
@@ -293,7 +294,7 @@ class = "GOVT"
 quote = "USD"
 decimals = 2
 session = "daily"
-sources = ["treasury:BC_5YEAR", "fred:DGS5"]
+sources = ["yahoo:^FVX", "treasury:BC_5YEAR", "fred:DGS5"]
 keyed = [
   "pyth:7d220b081152db0d74a93d3ce383c61d0ec5250c6dd2b2cdb2d1e4b8919e1a6e",  # InterestRate.US5Y
 ]
@@ -307,7 +308,7 @@ class = "GOVT"
 quote = "USD"
 decimals = 2
 session = "daily"
-sources = ["treasury:BC_30YEAR", "fred:DGS30"]
+sources = ["yahoo:^TYX", "treasury:BC_30YEAR", "fred:DGS30"]
 keyed = [
   "pyth:424c69939fc52a459f6dde758d80f74a3628c0e9b48bfc142df1270c9b9131be",  # InterestRate.US30Y
 ]
@@ -321,7 +322,7 @@ class = "INDEX"
 quote = "USD"
 decimals = 2
 session = "daily"
-sources = ["fred:SP500"]
+sources = ["yahoo:^GSPC", "fred:SP500"]
 keyed = [
   "pyth:e266cf0bf9a358bb19c4269f59b3d2e6258ecda5b0707e758f00c087f4baa3e9",  # Equity.Index.US500/USD
 ]
@@ -335,7 +336,7 @@ class = "INDEX"
 quote = "USD"
 decimals = 2
 session = "daily"
-sources = ["fred:NASDAQ100"]
+sources = ["yahoo:^NDX", "fred:NASDAQ100"]
 keyed = [
   "pyth:09a53e8f54215c0ad456ffbef1ed893f824eb65e15168b64151e52e53389be00",  # Equity.Index.US100/USD
 ]
@@ -349,7 +350,7 @@ class = "INDEX"
 quote = "USD"
 decimals = 2
 session = "daily"
-sources = []
+sources = ["yahoo:^RUT"]
 keyed = []
 proxy = "IWM"
 note = "unavailable: no open index level (not on FRED, no Pyth index feed). IWM is the labelled proxy and itself needs a Pyth key."
@@ -361,7 +362,7 @@ class = "INDEX"
 quote = "EUR"
 decimals = 2
 session = "daily"
-sources = []
+sources = ["yahoo:^STOXX50E"]
 keyed = []
 proxy = "EZU"
 note = "unavailable: no open index level. Pyth has no FEZ; EZU (iShares MSCI Eurozone) is the nearest listed ETF and needs a key."
@@ -373,7 +374,7 @@ class = "INDEX"
 quote = "EUR"
 decimals = 2
 session = "daily"
-sources = []
+sources = ["yahoo:^GDAXI"]
 keyed = []
 proxy = "EWG"
 note = "unavailable: no open index level. EWG (iShares MSCI Germany) is a USD proxy and needs a Pyth key."
@@ -385,7 +386,7 @@ class = "INDEX"
 quote = "GBP"
 decimals = 2
 session = "daily"
-sources = []
+sources = ["yahoo:^FTSE"]
 keyed = []
 proxy = ""
 note = "unavailable: no open index level, and Pyth lists no EWU. VGK (Europe-wide) is too broad to stand in."
@@ -397,7 +398,7 @@ class = "INDEX"
 quote = "INR"
 decimals = 2
 session = "daily"
-sources = []
+sources = ["yahoo:^NSEI"]
 keyed = []
 proxy = "NIFTYBEES"
 note = "unavailable: no open index level. Proxy needs a Pyth key."
@@ -409,7 +410,7 @@ class = "INDEX"
 quote = "KRW"
 decimals = 2
 session = "daily"
-sources = []
+sources = ["yahoo:^KS11"]
 keyed = [
   "pyth:ae7d472396d728d458cb0e67111653a3bd045b597fabe24165509aa73c3f321c",  # Equity.Index.KR200/KRW
 ]
@@ -423,7 +424,7 @@ class = "INDEX"
 quote = "HKD"
 decimals = 2
 session = "daily"
-sources = []
+sources = ["yahoo:^HSI"]
 keyed = []
 proxy = "EWH"
 note = "unavailable: no open index level; Pyth lists no Tracker Fund (2800.HK). EWH is a loose USD proxy and needs a key."
@@ -435,7 +436,7 @@ class = "INDEX"
 quote = "JPY"
 decimals = 2
 session = "daily"
-sources = ["fred:NIKKEI225"]
+sources = ["yahoo:^N225", "fred:NIKKEI225"]
 keyed = [
   "pyth:a497c579ec3819d353229549cbe0468bebbb6718f4df1c5b26fad05e8cf882c7",  # Equity.Index.JP225/JPY
 ]
@@ -449,7 +450,7 @@ class = "INDEX"
 quote = "USD"
 decimals = 2
 session = "daily"
-sources = ["fred:DJIA"]
+sources = ["yahoo:^DJI", "fred:DJIA"]
 keyed = [
   "pyth:ffdb40ac3e5b24f32dd77736181bd43eed5fd0b5b019ba90f14901fcda0007d8",  # Equity.Index.US30/USD
 ]
@@ -463,7 +464,7 @@ class = "EQUITY"
 quote = "USD"
 decimals = 2
 session = "us_equity"
-sources = []
+sources = ["yahoo:NVDA"]
 keyed = [
   "pyth:b1073854ed24cbc755dc527418f52b7d271f6cc967bbf8d8129112b18860a593",  # Equity.US.NVDA/USD
 ]
@@ -477,7 +478,7 @@ class = "EQUITY"
 quote = "USD"
 decimals = 2
 session = "us_equity"
-sources = []
+sources = ["yahoo:AAPL"]
 keyed = [
   "pyth:49f6b65cb1de6b10eaf75e7c03ca029c306d0357e91b5311b175084a5ad55688",  # Equity.US.AAPL/USD
 ]
@@ -491,7 +492,7 @@ class = "EQUITY"
 quote = "USD"
 decimals = 2
 session = "us_equity"
-sources = []
+sources = ["yahoo:MSFT"]
 keyed = [
   "pyth:d0ca23c1cc005e004ccf1db5bf76aeb6a49218f43dac3d4b275e92de12ded4d1",  # Equity.US.MSFT/USD
 ]
@@ -505,7 +506,7 @@ class = "EQUITY"
 quote = "USD"
 decimals = 2
 session = "us_equity"
-sources = []
+sources = ["yahoo:GOOGL"]
 keyed = [
   "pyth:5a48c03e9b9cb337801073ed9d166817473697efff0d138874e0f6a33d6d5aa6",  # Equity.US.GOOGL/USD
 ]
@@ -519,7 +520,7 @@ class = "EQUITY"
 quote = "USD"
 decimals = 2
 session = "us_equity"
-sources = []
+sources = ["yahoo:AMZN"]
 keyed = [
   "pyth:b5d0e0fa58a1f8b81498ae670ce93c872d14434b72c364885d4fa1b257cbb07a",  # Equity.US.AMZN/USD
 ]
@@ -533,7 +534,7 @@ class = "EQUITY"
 quote = "USD"
 decimals = 2
 session = "us_equity"
-sources = []
+sources = ["yahoo:META"]
 keyed = [
   "pyth:78a3e3b8e676a8f73c439f5d749737034b139bbbe899ba5775216fba596607fe",  # Equity.US.META/USD
 ]
@@ -547,7 +548,7 @@ class = "EQUITY"
 quote = "USD"
 decimals = 2
 session = "us_equity"
-sources = []
+sources = ["yahoo:TSLA"]
 keyed = [
   "pyth:16dad506d7db8da01c87581c87ca897a012a153557d4d578c3b9c9e1bc0632f1",  # Equity.US.TSLA/USD
 ]
@@ -561,7 +562,7 @@ class = "EQUITY"
 quote = "USD"
 decimals = 2
 session = "us_equity"
-sources = []
+sources = ["yahoo:AVGO"]
 keyed = [
   "pyth:d0c9aef79b28308b256db7742a0a9b08aaa5009db67a52ea7fa30ed6853f243b",  # Equity.US.AVGO/USD
 ]
@@ -575,7 +576,7 @@ class = "EQUITY"
 quote = "USD"
 decimals = 2
 session = "us_equity"
-sources = []
+sources = ["yahoo:MSTR"]
 keyed = [
   "pyth:e1e80251e5f5184f2195008382538e847fafc36f751896889dd3d1b1f6111f09",  # Equity.US.MSTR/USD
 ]
@@ -589,7 +590,7 @@ class = "EQUITY"
 quote = "USD"
 decimals = 2
 session = "us_equity"
-sources = []
+sources = ["yahoo:COIN"]
 keyed = [
   "pyth:fee33f2a978bf32dd6b662b65ba8083c6773b494f8401194ec1870c640860245",  # Equity.US.COIN/USD
 ]
@@ -603,7 +604,7 @@ class = "EQUITY"
 quote = "USD"
 decimals = 2
 session = "us_equity"
-sources = []
+sources = ["yahoo:MARA"]
 keyed = [
   "pyth:0fc2ad77a9ab75bcbc3ebd7a9ff60facd08c517309e2d684baa979c910a0e43e",  # Equity.US.MARA/USD
 ]
@@ -617,7 +618,7 @@ class = "EQUITY"
 quote = "USD"
 decimals = 2
 session = "us_equity"
-sources = []
+sources = ["yahoo:RIOT"]
 keyed = [
   "pyth:46417522a59b245c5af35c33c13426d991b36514c4c85aaefe1cf787e7daad90",  # Equity.US.RIOT/USD
 ]
@@ -631,7 +632,7 @@ class = "EQUITY"
 quote = "USD"
 decimals = 2
 session = "us_equity"
-sources = []
+sources = ["yahoo:CLSK"]
 keyed = [
   "pyth:79e935bc10c55f2c36a08df1564afc5b33425c8dc80829dd954c67e63ed3374a",  # Equity.US.CLSK/USD
 ]
@@ -645,7 +646,7 @@ class = "EQUITY"
 quote = "USD"
 decimals = 2
 session = "us_equity"
-sources = []
+sources = ["yahoo:CORZ"]
 keyed = [
   "pyth:214fc87a8f0f5adc797fc1f7927e1040650366e8f943e20caf13ad0d6e806956",  # Equity.US.CORZ/USD
 ]
@@ -659,7 +660,7 @@ class = "EQUITY"
 quote = "USD"
 decimals = 2
 session = "us_equity"
-sources = []
+sources = ["yahoo:IREN"]
 keyed = [
   "pyth:ba20f6d5532c07da494da803db2523719d339226e69ade6436e7d2f1047138a5",  # Equity.US.IREN/USD
 ]
@@ -673,7 +674,7 @@ class = "EQUITY"
 quote = "USD"
 decimals = 2
 session = "us_equity"
-sources = []
+sources = ["yahoo:WULF"]
 keyed = [
   "pyth:7717b73c7f19ffb1e6e5da542836fa3464559ec971df475455471433a005e2a6",  # Equity.US.WULF/USD
 ]
@@ -687,7 +688,7 @@ class = "EQUITY"
 quote = "USD"
 decimals = 2
 session = "us_equity"
-sources = []
+sources = ["yahoo:HUT"]
 keyed = [
   "pyth:fb88ad7526f97f7ca6f43aaa7d3b620f412968db2cbcfac1e906362def8456f3",  # Equity.US.HUT/USD
 ]
@@ -701,7 +702,7 @@ class = "EQUITY"
 quote = "USD"
 decimals = 2
 session = "us_equity"
-sources = []
+sources = ["yahoo:CIFR"]
 keyed = [
   "pyth:55a91bd14858a0039cb21d56ac87bd796fb257a78786d3a81d64e8dff2373af3",  # Equity.US.CIFR/USD
 ]
@@ -715,7 +716,7 @@ class = "ETF"
 quote = "USD"
 decimals = 2
 session = "us_equity"
-sources = []
+sources = ["yahoo:SPY"]
 keyed = [
   "pyth:19e09bb805456ada3979a7d1cbb4b6d63babc3a0f8e8a9509f68afa5c4c11cd5",  # Equity.US.SPY/USD
 ]
@@ -729,7 +730,7 @@ class = "ETF"
 quote = "USD"
 decimals = 2
 session = "us_equity"
-sources = []
+sources = ["yahoo:QQQ"]
 keyed = [
   "pyth:9695e2b96ea7b3859da9ed25b7a46a920a776e2fdae19a7bcfdf2b219230452d",  # Equity.US.QQQ/USD
 ]
@@ -743,7 +744,7 @@ class = "ETF"
 quote = "USD"
 decimals = 2
 session = "us_equity"
-sources = []
+sources = ["yahoo:IWM"]
 keyed = [
   "pyth:eff690a187797aa225723345d4612abec0bf0cec1ae62347c0e7b1905d730879",  # Equity.US.IWM/USD
 ]
@@ -757,7 +758,7 @@ class = "ETF"
 quote = "USD"
 decimals = 2
 session = "us_equity"
-sources = []
+sources = ["yahoo:DIA"]
 keyed = [
   "pyth:57cff3a9a4d4c87b595a2d1bd1bac0240400a84677366d632ab838bbbe56f763",  # Equity.US.DIA/USD
 ]
@@ -771,7 +772,7 @@ class = "ETF"
 quote = "USD"
 decimals = 2
 session = "us_equity"
-sources = []
+sources = ["yahoo:GLD"]
 keyed = [
   "pyth:e190f467043db04548200354889dfe0d9d314c08b8d4e62fabf4d5a3140fecca",  # Equity.US.GLD/USD
 ]
@@ -785,7 +786,7 @@ class = "ETF"
 quote = "USD"
 decimals = 2
 session = "us_equity"
-sources = []
+sources = ["yahoo:SLV"]
 keyed = [
   "pyth:6fc08c9963d266069cbd9780d98383dabf2668322a5bef0b9491e11d67e5d7e7",  # Equity.US.SLV/USD
 ]
@@ -799,7 +800,7 @@ class = "ETF"
 quote = "USD"
 decimals = 2
 session = "us_equity"
-sources = []
+sources = ["yahoo:USO"]
 keyed = [
   "pyth:d00bd77d97dc5769de77f96d0e1a79cbf1364e14d0dbf046e221bce2e89710dd",  # Equity.US.USO/USD
 ]
@@ -813,7 +814,7 @@ class = "ETF"
 quote = "USD"
 decimals = 2
 session = "us_equity"
-sources = []
+sources = ["yahoo:BNO"]
 keyed = [
   "pyth:3488e477571c3c8aa861d02044a96a71fd81299cf0d915aa019af96335498874",  # Equity.US.BNO/USD
 ]
@@ -827,7 +828,7 @@ class = "ETF"
 quote = "USD"
 decimals = 2
 session = "us_equity"
-sources = []
+sources = ["yahoo:CPER"]
 keyed = [
   "pyth:34b7613ec0b7388fc491162ef6d2b211ef311ea90d35863a7f03017d259c3cd4",  # Equity.US.CPER/USD
 ]
@@ -841,7 +842,7 @@ class = "ETF"
 quote = "USD"
 decimals = 2
 session = "us_equity"
-sources = []
+sources = ["yahoo:IBIT"]
 keyed = [
   "pyth:9db6bc1e6e9e5e60f6884e1cd8e4399cca9d0454c6e7234ad79680cf139748f5",  # Equity.US.IBIT/USD
 ]
@@ -855,7 +856,7 @@ class = "ETF"
 quote = "USD"
 decimals = 2
 session = "us_equity"
-sources = []
+sources = ["yahoo:FBTC"]
 keyed = [
   "pyth:b3a76e70a55517e0405cc90a2545de4c30413c13c532caf96a734103ec4259e9",  # Equity.US.FBTC/USD
 ]
@@ -869,7 +870,7 @@ class = "ETF"
 quote = "USD"
 decimals = 2
 session = "us_equity"
-sources = []
+sources = ["yahoo:GBTC"]
 keyed = [
   "pyth:dc1498a077fef2b6e139e6212da2849c6c64a60f3ce9e13634aea9cf7ff7cae5",  # Equity.US.GBTC/USD
 ]
@@ -883,7 +884,7 @@ class = "ETF"
 quote = "USD"
 decimals = 2
 session = "us_equity"
-sources = []
+sources = ["yahoo:ARKB"]
 keyed = [
   "pyth:8f1c7775f51f7b7990953ad43c336778b8aa1bc3be8d8c1db68a020e078e8a2c",  # Equity.US.ARKB/USD
 ]
@@ -897,7 +898,7 @@ class = "ETF"
 quote = "USD"
 decimals = 2
 session = "us_equity"
-sources = []
+sources = ["yahoo:BITB"]
 keyed = [
   "pyth:b2f5fb947fb6846c9d9860159179f206193a47bab3cd7ade2d3754c25051c0e1",  # Equity.US.BITB/USD
 ]
@@ -911,7 +912,7 @@ class = "ETF"
 quote = "USD"
 decimals = 2
 session = "us_equity"
-sources = []
+sources = ["yahoo:EZU"]
 keyed = [
   "pyth:40f73542415a46944f1288a02e2f6ab171e76932cd44fc131088b415856cbafc",  # Equity.US.EZU/USD
 ]
@@ -925,7 +926,7 @@ class = "ETF"
 quote = "USD"
 decimals = 2
 session = "us_equity"
-sources = []
+sources = ["yahoo:EWG"]
 keyed = [
   "pyth:f48942b892fcb708b680b9c0b3911d12c9025b047296f5f24e217f659cacd143",  # Equity.US.EWG/USD
 ]
@@ -939,7 +940,7 @@ class = "ETF"
 quote = "USD"
 decimals = 2
 session = "us_equity"
-sources = []
+sources = ["yahoo:EWY"]
 keyed = [
   "pyth:7be2b3f9f9d02b1ffcf61fc26ad5cc6aff4dd02044f9abc22ee57f37b3b5d2e5",  # Equity.US.EWY/USD
 ]
@@ -953,7 +954,7 @@ class = "ETF"
 quote = "USD"
 decimals = 2
 session = "us_equity"
-sources = []
+sources = ["yahoo:EWH"]
 keyed = [
   "pyth:5c7e5c28ac515e94b0e4c3addeddd10b997d5e389cc6ded138510fe2987f94ec",  # Equity.US.EWH/USD
 ]
@@ -967,7 +968,7 @@ class = "ETF"
 quote = "USD"
 decimals = 2
 session = "us_equity"
-sources = []
+sources = ["yahoo:EWJ"]
 keyed = [
   "pyth:73560d1ee6daf7f322314d58dd8d0eed720fffcab390c1c1d54b5088d92497a2",  # Equity.US.EWJ/USD
 ]
@@ -1091,7 +1092,7 @@ class = "CMDTY"
 quote = "USD"
 decimals = 2
 session = "daily"
-sources = ["fred:DCOILBRENTEU"]
+sources = ["yahoo:BZ=F", "fred:DCOILBRENTEU"]
 keyed = [
   "pyth:d70cd7dd1d66508e2cc19ebb48327ce824ea075064a068a8711d40c489f33bb9",  # Commodities.Index.BRENT1M/USD
   "pyth:25b67e140c4f6683d86ddaea0efaa20a0c13722da04b16d60361ad0b05d0d394",  # Commodities.BRENTX6/USD
@@ -1106,7 +1107,7 @@ class = "CMDTY"
 quote = "USD"
 decimals = 2
 session = "daily"
-sources = ["fred:DCOILWTICO"]
+sources = ["yahoo:CL=F", "fred:DCOILWTICO"]
 keyed = [
   "pyth:f2464139c45f26097e0173b03207c4a490dbd8bf1b72dfbf064eeb832c7c2933",  # Commodities.Index.WTI1M/USD
   "pyth:498cea0b191242f5fd97f2ff8339db3cb0833001656258261bd0ea1905f475c2",  # Commodities.CLLX6/USD
@@ -1121,7 +1122,7 @@ class = "CMDTY"
 quote = "USD"
 decimals = 3
 session = "daily"
-sources = ["fred:DHHNGSP"]
+sources = ["yahoo:NG=F", "fred:DHHNGSP"]
 keyed = [
   "pyth:3d8ec049064b20008f62b36ac247a751a1c57d8f082132e64d42cd74668db7c1",  # Commodities.Index.HHGAS1M/USD
   "pyth:2f28c1dcf045be15f77ff6e91122d8695ae34e3babc730fc0d83f089a7ba08a6",  # Commodities.HNX6/USD
@@ -1136,7 +1137,7 @@ class = "CMDTY"
 quote = "USD"
 decimals = 2
 session = "daily"
-sources = ["fred:PCOPPUSDM"]
+sources = ["yahoo:HG=F", "fred:PCOPPUSDM"]
 keyed = [
   "pyth:4073f4c331bf7920a3887536093b57c78ea535e88ac09c761e5b949221c33414",  # Commodities.Index.COPPER/USD
   "pyth:719ab84313696fb0d166b7a34064ea5b4da8af2304ccc0b17ad8a881cdfca379",  # Metal.CC3M/USD
@@ -1151,7 +1152,7 @@ class = "CMDTY"
 quote = "USD"
 decimals = 2
 session = "daily"
-sources = ["fred:PSOYBUSDM"]
+sources = ["yahoo:ZS=F", "fred:PSOYBUSDM"]
 keyed = []
 proxy = ""
 note = "FRED: IMF global price, USD per metric ton, MONTHLY. Pyth lists no soybean feed at all."
@@ -1163,7 +1164,7 @@ class = "CMDTY"
 quote = "USD"
 decimals = 2
 session = "daily"
-sources = ["fred:PMAIZMTUSDM"]
+sources = ["yahoo:ZC=F", "fred:PMAIZMTUSDM"]
 keyed = []
 proxy = ""
 note = "FRED: IMF global price, USD per metric ton, MONTHLY. No Pyth feed."
@@ -1175,7 +1176,7 @@ class = "CMDTY"
 quote = "USD"
 decimals = 2
 session = "daily"
-sources = ["fred:PWHEAMTUSDM"]
+sources = ["yahoo:ZW=F", "fred:PWHEAMTUSDM"]
 keyed = []
 proxy = ""
 note = "FRED: IMF global price, USD per metric ton, MONTHLY. No Pyth feed."
@@ -1187,7 +1188,7 @@ class = "CMDTY"
 quote = "USD"
 decimals = 2
 session = "daily"
-sources = ["fred:PSUGAISAUSDM"]
+sources = ["yahoo:SB=F", "fred:PSUGAISAUSDM"]
 keyed = [
   "pyth:dff723417798bd324ca03d568c04b22462a0fe9b6236e0fce1077d13d2ea69b4",  # Commodities.RSH7/USc
 ]
@@ -1205,3 +1206,4 @@ DXY_LEGS = ["EURUSD", "USDJPY", "GBPUSD", "USDCAD", "USDSEK", "USDCHF"]
 RATES = ["US3M", "US2Y", "US5Y", "US10Y", "US30Y"]
 BTC_ETFS = ["IBIT", "FBTC", "GBTC", "ARKB", "BITB"]
 MINERS = ["MARA", "RIOT", "CLSK", "CORZ", "IREN", "WULF", "HUT", "CIFR"]
+WATCH = ["BTC", "XAU", "SPX", "NDX", "DXY", "US10Y", "US2Y", "BRENT", "EURUSD", "USDJPY", "ETH"]

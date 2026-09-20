@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="UTF-8"?><rss xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:atom="http://www.w3.org/2005/Atom" version="2.0" xmlns:media="http://search.yahoo.com/mrss/">
+    <channel>
+        <title><![CDATA[BBC News]]></title>
+        <description><![CDATA[BBC News - World]]></description>
+        <link>https://www.bbc.co.uk/news/world</link>
+        <image>
+            <url>https://news.bbcimg.co.uk/nol/shared/img/bbc_news_120x60.gif</url>
+            <title>BBC News</title>
+            <link>https://www.bbc.co.uk/news/world</link>
+        </image>
+        <generator>RSS for Node</generator>
+        <lastBuildDate>Sat, 19 Sep 2026 20:36:31 GMT</lastBuildDate>
+        <atom:link href="https://feeds.bbci.co.uk/news/world/rss.xml" rel="self" type="application/rss+xml"/>
+        <copyright><![CDATA[Copyright: (C) British Broadcasting Corporation, see https://www.bbc.co.uk/usingthebbc/terms-of-use/#15metadataandrssfeeds for terms and conditions of reuse.]]></copyright>
+        <language><![CDATA[en-gb]]></language>
+        <ttl>15</ttl>
+        <item>
+            <title><![CDATA[Nato welcomes Greenland deal as Trump says it will give US 'permanent security control']]></title>
+            <description><![CDATA[Denmark and the US have reached an agreement after months of threats from Donald Trump to annex the territory. ]]></description>
+            <link>https://www.bbc.co.uk/news/articles/c63d7lexyym1o?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/c63d7lexyym1o#0</guid>
+            <pubDate>Sat, 19 Sep 2026 11:36:55 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/f1ad/live/fd353880-b421-11f1-8a8e-d9778c1036bb.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Houthis say they targeted Saudi capital with ballistic missiles]]></title>
+            <description><![CDATA[A reported strike on a fuel depot at Riyadh airport caused delays on Saturday, as conflict between Saudi Arabia and the Yemen-based group continues.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cwly5d9v7r43o?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cwly5d9v7r43o#0</guid>
+            <pubDate>Sat, 19 Sep 2026 20:16:07 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/39c5/live/a0844fe0-b45d-11f1-b213-1db858c3e27c.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Journalists denied White House access after Trump banned some media outlets]]></title>
+            <description><![CDATA[CNN, MS NOW and Politico reporters' White House press badges were confiscated, the outlets reported.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cj4gklz9dxplo?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cj4gklz9dxplo#0</guid>
+            <pubDate>Sat, 19 Sep 2026 19:13:49 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/1b27/live/d8b31f40-b435-11f1-9fa0-111a12dcb7b0.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Converse pulls 'deeply upsetting' advert after backlash]]></title>
+            <description><![CDATA[Social media users say an image from the brand's Instagram account resembled a KKK hood and hanging.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/crwyzj53pl1lo?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/crwyzj53pl1lo#0</guid>
+            <pubDate>Sat, 19 Sep 2026 14:05:01 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/3993/live/0f1fa560-b433-11f1-9fa0-111a12dcb7b0.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Google's Gemini AI hacked three companies in security test]]></title>
+            <description><![CDATA[The AI model accessed the internet and guessed credentials to three websites, a Google official told the BBC.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/c607l0k72rlvo?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/c607l0k72rlvo#0</guid>
+            <pubDate>Sat, 19 Sep 2026 13:39:32 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/754e/live/31c59420-b3e9-11f1-9fb5-25be39d7a18e.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Trump signs sweeping Russia sanctions bill ]]></title>
+            <description><![CDATA[The bill is named after the late Senator Lindsey Graham, a staunch advocate of aid for Ukraine. ]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cqvgy34ndj4eo?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cqvgy34ndj4eo#0</guid>
+            <pubDate>Fri, 18 Sep 2026 22:05:47 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/402a/live/1f49c870-b3f3-11f1-a710-1de24a8819a3.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Grim discoveries of murdered women spark fear in South Africa]]></title>
+            <description><![CDATA[Dineo Motapane is one of nine recent victims whose deaths have left a nation traumatised over the level of violence against women.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cjkg71e67k17o?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cjkg71e67k17o#0</guid>
+            <pubDate>Fri, 18 Sep 2026 23:04:41 GMT</pubDate>
+            <media:thumbnail width="240" height="134" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/33a2/live/be22b180-b3a0-11f1-a430-4d16ee157c41.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Shark attack prompts rare kill order in Western Australia as victim named]]></title>
+            <description><![CDATA[Greg O'Neill "loved the ocean", his family say, as police boats and helicopters patrol Perth's beaches in search of his body and the shark that attacked him.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cqwyzdnk442lo?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cqwyzdnk442lo#1</guid>
+            <pubDate>Sat, 19 Sep 2026 11:50:22 GMT</pubDate>
+            <media:thumbnail width="240" height="134" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/762a/live/cf51bb00-b41c-11f1-a430-4d16ee157c41.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Millions without power as Cuba hit by latest major blackout]]></title>
+            <description><![CDATA[Widespread power outages have become increasingly common due to fuel shortages made worse by a US blockade.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/c6j9x4387lzxo?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/c6j9x4387lzxo#1</guid>
+            <pubDate>Sat, 19 Sep 2026 10:27:37 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/86e4/live/a768b9c0-b414-11f1-8366-ad72a16d0f7c.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[At least 21 killed after vehicle loaded with explosives rams Pakistan mosque]]></title>
+            <description><![CDATA[A four-year-old child is among those killed in the attack, during which gunmen also opened fire on a police facility.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/ckn9wenz8wjwo?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/ckn9wenz8wjwo#1</guid>
+            <pubDate>Fri, 18 Sep 2026 20:17:50 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/629b/live/fef4ee20-b356-11f1-bc1f-3f186ca4140c.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Saudi Arabia issues first air raid alerts for Riyadh since Houthis escalated attacks]]></title>
+            <description><![CDATA[Residents later received the all-clear after explosions were reported in the capital. ]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cmed7el18dxpo?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cmed7el18dxpo#1</guid>
+            <pubDate>Sat, 19 Sep 2026 04:20:47 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/bfa8/live/4cd60bc0-b3d8-11f1-87bc-d37d040ffc9c.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Kerry Kennedy: 'It would be a tragedy' if Kennedy Center is demolished]]></title>
+            <description><![CDATA[The BBC’s Caitríona Perry spoke to the late president's niece, as protesters gathered at the venue to condemn demolition threats.]]></description>
+            <link>https://www.bbc.co.uk/news/videos/cv8e3jw1kr4lo?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/videos/cv8e3jw1kr4lo#1</guid>
+            <pubDate>Sat, 19 Sep 2026 00:03:53 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/0977/live/a4b5d6c0-b3bc-11f1-b1d1-571ed4d7ff2c.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Russian hybrid attacks against Europe intensifying, says Macron]]></title>
+            <description><![CDATA[The French president says he has tasked the government with protecting critical infrastructure and defence industry sites.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cm2dw1w9d3yjo?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cm2dw1w9d3yjo#1</guid>
+            <pubDate>Fri, 18 Sep 2026 18:04:38 GMT</pubDate>
+            <media:thumbnail width="240" height="134" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/72d4/live/9686b940-b360-11f1-8f19-bd786ea30d0b.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Ryanair boss Michael O'Leary apologises over 'high-fare rapists' remarks]]></title>
+            <description><![CDATA[O'Leary described his choice of language as "careless" and said "it won't happen again".]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cm1j4kj57k08o?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cm1j4kj57k08o#1</guid>
+            <pubDate>Fri, 18 Sep 2026 17:10:58 GMT</pubDate>
+            <media:thumbnail width="240" height="134" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/4468/live/9a3d9590-9fbc-11ef-8538-e1655f5a8342.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[A four-minute warning isn't enough: Russia's new relentless missile tactics exhaust Kyiv residents]]></title>
+            <description><![CDATA[Increasingly frequent and ferocious attacks on the Ukrainian capital have left many on edge.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cwp93k9gpnv1o?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cwp93k9gpnv1o#2</guid>
+            <pubDate>Fri, 18 Sep 2026 23:03:38 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/29a1/live/446ff8b0-a1fe-11f1-a97e-999c5aae08bf.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[I found love at an Irish matchmaking festival - and I want others to do the same]]></title>
+            <description><![CDATA[Mary Timby flew to Ireland on a whim last year and met her boyfriend at a matchmaking festival.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cw5y4jz6k2p3o?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cw5y4jz6k2p3o#2</guid>
+            <pubDate>Fri, 18 Sep 2026 23:18:02 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/64e8/live/2fe49140-b08a-11f1-b7c1-3dec1512f22d.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Tata Sons: India's corporate crown braces for upheaval amid boardroom revolt]]></title>
+            <description><![CDATA[The Tata boardroom battle has intensified over a re-appointment of its chairman and a diktat to go public. ]]></description>
+            <link>https://www.bbc.co.uk/news/articles/c670lkvdzkn2o?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/c670lkvdzkn2o#2</guid>
+            <pubDate>Fri, 18 Sep 2026 23:07:16 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/8460/live/fe6b4100-b330-11f1-bc1f-3f186ca4140c.png"/>
+        </item>
+        <item>
+            <title><![CDATA[Why US plan to sell F-35 warplanes to Saudi Arabia is controversial]]></title>
+            <description><![CDATA[Saudi Arabia has lobbied the US for years to buy F35s, the world's most advanced fighter jet.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/c3x2zrn01pxko?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/c3x2zrn01pxko#2</guid>
+            <pubDate>Fri, 18 Sep 2026 01:31:43 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/27ea/live/7d7d4cc0-b2e3-11f1-a845-59f886d45f54.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Canadians dream of Europe as Carney floats longshot plan for living and working in EU]]></title>
+            <description><![CDATA[Torontonians are excited by the possibility of moving to the EU, even if it is unlikely anytime soon.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cx980qj57r89o?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cx980qj57r89o#2</guid>
+            <pubDate>Fri, 18 Sep 2026 01:23:10 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/8c43/live/071e0fd0-b2c8-11f1-bc1f-3f186ca4140c.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[This Olympic river has 500 crocodiles in it - but that's not the main concern]]></title>
+            <description><![CDATA[Queensland's Fitzroy River has been selected for the 2032 Games, despite concerns over the course - and its inhabitants. ]]></description>
+            <link>https://www.bbc.co.uk/news/articles/c68xkypqyxw7o?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/c68xkypqyxw7o#2</guid>
+            <pubDate>Thu, 17 Sep 2026 23:29:17 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/3933/live/82fbc620-b32b-11f1-bc1f-3f186ca4140c.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA['Enough is enough': Women protest after string of murders near Johannesburg]]></title>
+            <description><![CDATA[The police have since set up a task team to investigate the murders and have urged women in the Kempton Park area to avoid walking or running alone "particularly in isolated areas".]]></description>
+            <link>https://www.bbc.co.uk/news/videos/cm4gjxq1dx2eo?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/videos/cm4gjxq1dx2eo#3</guid>
+            <pubDate>Sat, 19 Sep 2026 11:50:50 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/623e/live/bb9fcf60-b41d-11f1-bc1f-3f186ca4140c.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Is the Kennedy Center losing 'hundreds of millions of dollars'?]]></title>
+            <description><![CDATA[Records in 2024 show the venue had a surplus of millions of dollars once  contributions and grants had been factored in. ]]></description>
+            <link>https://www.bbc.co.uk/news/videos/cqy4zw4xr717o?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/videos/cqy4zw4xr717o#3</guid>
+            <pubDate>Fri, 18 Sep 2026 18:56:17 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/a1c2/live/d8cd31d0-b383-11f1-a430-4d16ee157c41.png"/>
+        </item>
+        <item>
+            <title><![CDATA[Watch: Trump says ban on some news outlets is 'because they're fake news']]></title>
+            <description><![CDATA[The US president on Friday announced he is "immediately" banning CNN, MS NOW and Politico from the White House.]]></description>
+            <link>https://www.bbc.co.uk/news/videos/cm93e7p1wkndo?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/videos/cm93e7p1wkndo#3</guid>
+            <pubDate>Fri, 18 Sep 2026 20:35:03 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/dea3/live/9f098810-b39f-11f1-ad35-e154e6209840.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Is Canada about to join the EU?]]></title>
+            <description><![CDATA[Ties between Canada and the European Union have been getting closer as trade dispute with the US continue.
+]]></description>
+            <link>https://www.bbc.co.uk/news/videos/c6wyz8kk2nepo?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/videos/c6wyz8kk2nepo#3</guid>
+            <pubDate>Thu, 17 Sep 2026 16:18:35 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/d43a/live/1aefef40-b2b6-11f1-a430-4d16ee157c41.jpg"/>
+        </item>
+    </channel>
+</rss>

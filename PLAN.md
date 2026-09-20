@@ -111,8 +111,9 @@ heatmap's brush selection, and past forecast columns under the history candles.
   show 40+ price levels. Works in any truecolor terminal, including over SSH.
 - **D11 The forecast is an ASCII density heatmap** (2026-09-17, third renderer). First a filled half-block
   heatmap: it brought James's machine down mid-bet. Then an outline of band/extent/median: cheap, but
-  James disliked the shape. Now one plain character per cell from the ramp `·:-=+*#%@` on one absolute
-  log scale of probability per bin (six steps 0.6%→10%, three 10%→100%) in four colour tiers. One cell
+  James disliked the shape. Then one plain character per cell from the ramp `·:-=+*#%@` on one absolute
+  log scale of probability per bin (six steps 0.6%→10%, three 10%→100%) in four colour tiers, which D63 replaced
+  with `░▒▓█` on one orange for the same reason. One cell
   per text row, column levels cached per data version, chart body cached on its full state key.
   Measured at 200×58 on Hourly BTC: full redraw 7 ms, ~14 KB a frame, 0 redraws while idle.
 - **D11f The slip is two blocks and a button** (2026-09-17). Your prediction (editable) on top, then the
@@ -244,6 +245,143 @@ small ticket, which also settles F11.
 
 ## 6d. The Bitcoin terminal (TERMINAL.md, branch `terminal`, started 2026-09-19)
 
+### Revision (2026-09-19, sixth session): the forecast is one orange, and the odds show the whole distribution
+
+James on the full forecast (`f`) against the front page's chart: the front page is the elegant one, and the
+heatmap has too many symbols in too many colours. And the odds window shows four outcomes where it could show
+the shape of the distribution.
+
+- **D63 The heatmap is four shade blocks in one hue.** The ramp `·:-=+*#%@` in four colour tiers (faint, warm,
+  hot, white) is now `░ ▒ ▓ █` — thin to solid — on one orange: `░` from the 0.6% seed floor, `▒` from 1.5%,
+  `▓` from 3.9%, `█` above 10% a bin (`KNEE` 3 of 4 instead of 6 of 9; the log scale either side of the knee is
+  unchanged, so the same probability still draws the same way in every column and at every zoom). Nothing reaches
+  white: a bright cell is the mode, not an alarm. `heatmap.BAND` is tier 0 as hex, and `GP` paints its 80% band
+  with it, so the front page's forecast and the full one are literally the same orange. The median stays cyan and
+  `NOW` stays the orange rule, which is the pairing James liked. `FCST` inherits all of it; the legend, both help
+  pages, the README and Appendix C say the new ramp. Drawing cost is unchanged: still a handful of colour runs a row.
+- **D64 `DIST` fills the pane with outcomes.** The window was the 80% band plus half its width, which on hourly
+  Bitcoin is four rows whatever the pane's height. It is now as fine as the market's own bins and as tall as the
+  pane — twelve outcomes in the front page's window, sixteen full screen — centred on the band and the price now,
+  coarsening to a round multiple of a bin only when the band would not otherwise fit. It stops at the band widened
+  twice over, and at anything anyone has traded, so a market whose bins are coarser than its own distribution does
+  not fill the pane with identical rows of untraded seed. Every row now carries the odds beside the probability
+  (the pane is the odds window, and a 0.1% tail is worth reading at 1,500×), dropped when the pane is too narrow,
+  and a non-zero row always keeps at least a sliver of bar.
+
+### Revision (2026-09-19, fifth session): the front page reads top to bottom, and half of it is bots
+
+James's review of the scrolling page: the ladder key `l` had to go, the sources on every frame looked like
+advertising, gold was drawn unlike Bitcoin, the order of the page did not follow what matters, and the thing that
+makes Glimpse Glimpse — that you can bring a machine to the market — was nowhere near the top.
+
+- **D58 `f` is the forecast, `o` is the odds.** `MKT` is now `ODDS` ("the odds on every outcome, close by close"),
+  reached with `o` from anywhere, and `l` no longer opens anything, so it only ever moves right. `f` still opens the
+  forecast. On the page, `f` and `o` open the full screen for whatever series the focused window shows (`FCST`,
+  `DIST`, `CONS`, `BOT`, and `GP` when its chart runs into a Glimpse market); `o` still belongs to a page that has an
+  `o` of its own (`ORCL`). `registry.ALIASES` keeps `MKT` and `LADDER` working, and `o` on the odds screen is still
+  "the other end of the range". The nav bar, the leader menu (`SPC t f o B p`), the key panel and both help pages say
+  the same thing.
+- **D59 The page is ordered by how much it matters** (16 windows, 8 rows): Bitcoin's next 24 hours beside the odds on
+  its next hour · what the bots expect beside one bot at a time · gold beside the odds on its next close · hashrate
+  and the difficulty epoch · the news beside world prices · dollar liquidity, the Treasury curve and the economic
+  prints · currencies and commodities · fees last, where a trailing number belongs. `MAX_PANES` is 20, so the page
+  filling sixteen of them still leaves room to split a window.
+- **D60 The bots are half the top of the page.** `term/swarm.py` runs the whole zoo on this machine against one
+  series and keeps one pass per asset per hourly bar; `CONS` reads the counts and the consensus, `BOT` reads one
+  model at a time. The horizons are the next hour, 24 hours and 72 hours on an hourly series, and the next close, a
+  week and a month on a daily one; the close nearest each horizon is taken once. The consensus is the mean of every
+  model's distribution, with its median and 80% band beside the market's own; `they agree` is one minus the mean
+  distance from a model to that consensus, and the same distance against the market's prices says how far apart the
+  two are. A pass over 130 models and three closes costs about a second, because the models cache their signals per
+  bar. `BOTS <model id>` opens the zoo on one model, which is what `enter` does on either window. The tests run the
+  real models on a synthetic frame (`tests/conftest.py` replaces `swarm.make_feed` and narrows `swarm.catalog`), so
+  the suite still reaches no network.
+- **D61 A frame says how old its numbers are, never who served them.** Vendor names are out of the pane frames and
+  out of the market tables (`QM`, `WEI`, `FX`, `GLCO`, `RATES`, `ECO`). `SRC` lists every source with its health, each
+  function's `HELP` page says where its numbers come from, exports keep the source column, and the privacy line still
+  names the host a lookup would go to. The frame keeps `live`/`daily`/`stale` and the dimming.
+- **D62 Gold reads like Bitcoin.** `GP` draws the Glimpse forecast for any series whose closes the terminal has, on
+  the window that matches how often that series closes: hourly for Bitcoin (`24H`, `1H`), 45 days back and 31 ahead
+  for gold (`1D`). Charting gold charts PAXG, which is what the Glimpse market settles on, titled `Gold`, so the
+  price line and the band are on one scale. `DIST XAU` sits beside it for the odds on the next close.
+
+Tests: 656 pass offline, including `tests/test_swarm.py`.
+
+
+### Revision (2026-09-19, second session): the terminal as a place to watch the world
+
+James's review of the first build: too hard to navigate, too much Bitcoin plumbing, a header unlike every other screen, and
+an Ark wallet with nothing behind it yet. What changed:
+
+- **D43 No wallet.** `WAL`, `wallet/barkd.py`, `wallet/watch.py`, the `[wallet]` settings, `ADDR`'s `w` (watch an address, which
+  only `WAL` read), and the `segno` and `embit` dependencies are gone. Trading is by Glimpse API key only (`L`), and `PORT` is the
+  account. The barkd research is in git history at `90956d8`.
+- **D44 One header.** The terminal uses `chrome.header`, the brand bar and function bar every other screen has. Under it one
+  line, `tape.strip`, carries the markets that matter (BTC, gold, S&P 500, Nasdaq, DXY, 10Y, oil, EUR/USD, USD/JPY, ETH) and the
+  clocks. Fee, mempool size and block height left the top of the screen; `MEMP` and `CHAIN` still have them.
+- **D45 Two layers of keys.** On the wall, `h j k l` and the arrows move between panes, `1-9` jump to one, `J K` scroll it,
+  `enter` zooms in. Zoomed, the pane's own keys work (`j k`, `enter`, `[ ]`, the digits for its menu) and `esc` comes back.
+  `f` on a forecast pane opens the full heatmap on that series. `ctrl-w` chords are unchanged. The GO bar is now the command
+  line at the bottom, opened with `:` (or `` ` ``), as in vim; the status line shows NORMAL, ZOOM or GO. `?` on the terminal opens
+  its own help page. The key panel lists the zoomed pane's hints and menu.
+- **D46 The default wall.** `LP BTC` is `FCST BTC` (the lead pane), `FCST XAU`, `QM WATCH` and `NEWS`.
+- **D47 `FCST`.** A Glimpse series as a heatmap pane: Coinbase history left of NOW, then the next 48 hourly or 31 daily closes,
+  each cell a glyph by the chance the close lands in that cell (per cell, not per bin as on the full heatmap, so a thinly traded
+  series such as gold still shows where its probability sits). It reads the app's own loaded closes when the app is on that series
+  and fetches its own otherwise. `HM <series>` opens the full heatmap on a series.
+- **D48 `NEWS`.** Seven public RSS feeds (SOURCES.md, News sources), fifteen newest per feed, deduplicated by title, tagged
+  WORLD, ECONOMY, MARKETS, FED, ECB, CRYPTO. Enter opens the link in the browser. Titles and links only.
+
+Tests: 640 pass offline. Checked by running the app against the live Glimpse API and feeds at 130×38 and 200×55.
+
+### Revision (2026-09-19, fourth session): the whole situation on one page
+
+James: the default should highlight Glimpse and then let him monitor global finance, scrolling with vim keys, with data from
+yfinance and other open APIs.
+
+- **D54 Yahoo Finance** (`data/yahoo.py`, SOURCES.md): the endpoints `yfinance` reads, called directly through the terminal's own
+  source layer (rate limits, cache, offline fixtures, `SRC` health) rather than adding the library and its dependencies. One `spark`
+  request quotes up to 20 symbols with 30 daily closes. It is first in `sources` for indices, yields, futures, FX crosses with no
+  exchange feed, and every US share and ETF; a live exchange (Kraken, Coinbase) still comes first where there is one. Default on,
+  `SET sources.yahoo false` falls back to FRED, the Treasury and the ECB, and the test suite runs on that path except where marked
+  `@pytest.mark.yahoo`. Gold is now COMEX `GC=F`, so `FCST`/`DIST` read PAXG for spot instead, which is what the Glimpse market settles on.
+- **D55 The page scrolls.** A layout may set `row_height` on a stacked root: the page is then taller than the screen and
+  `Workspace.page_y` scrolls it. j k walk the windows and the page follows (in `TileLayout.arrange`, where the true size is known),
+  g G go to the ends, the wheel scrolls, and the status line says which screen of how many. `MAX_PANES` is 16.
+- **D56 The default page** (13 windows): the next hour's odds and the 24-hour chart, then the Bitcoin heatmap and the news, then
+  gold and world markets, rates and dollar liquidity, currencies and commodities, world indices, hashrate and the difficulty epoch.
+  `GP … 24H` is a new window: the last 24 hours to NOW, then Glimpse's median and 80% band, with one line saying where the market
+  expects Bitcoin in 24 hours. `GLCO` reads futures when Yahoo is on.
+- **D57 Simpler keys.** `enter` opens a window full screen (no separate maximize step), `esc` comes back; `ctrl-j`/`ctrl-k` are down
+  and up everywhere, including the `:` list; the key panel is three lines; a page's staleness is judged against its own refresh
+  interval, so a half-hourly page no longer says "stale" at ten minutes.
+
+### Revision (2026-09-19, third session): spacemacs
+
+James's second review: h j k l did not move the highlight, the default was crowded, the ladder shared `f` with the forecast,
+the news only led to the browser, and `:` was a blank line. What changed:
+
+- **D49 The highlight bug.** Moving focus changed `Workspace.focused` but a pane whose size did not change never redrew, so the
+  orange frame stayed put. `relayout` now bumps every window. The tests check the drawn frame colour, not just the state.
+- **D50 Windows and buffers.** Every page is a buffer (a mounted `FuncPane`); a window (`Leaf`) shows one and keeps a `back`
+  list. Opening something replaces the focused window's page and keeps the old one open (at most 24 buffers; the oldest hidden
+  ones close). `:` reuses a hidden buffer with the same command. Two modes: on the windows, h j k l, arrows and 1-9 move; `enter`
+  goes inside (green frame, keys to the page); `esc` / `backspace` go back a page, then out. `enter` no longer maximizes:
+  `SPC w m` and `ctrl-w o` do.
+- **D51 SPC, the leader.** On every screen, with a which-key menu: `SPC SPC` open anything, `SPC 1-9`, `SPC TAB` back,
+  `SPC w` windows (`/` `-` split, `d` close, `m` maximize, `=`, h j k l), `SPC b` buffers (`b` list, `n` `p`, `d`, `r`), and the
+  screens `SPC t f l B p`. The ladder is `SPC l`; the function bar shows `SPC` then each screen's key. A split opens an empty
+  window with the list up to fill it.
+- **D52 `:` is a list.** Everything that can be opened: open buffers, the forecasts and odds, the screens, every function
+  (those needing a ticker keep the line open for it), the layouts. Type to filter, ↑ ↓ or ctrl-n ctrl-p to choose, ↑ at the
+  top walks the history.
+- **D53 The default.** `FCST BTC` over `DIST BTC` (new: the next close's odds as a ladder of round price ranges), with
+  `FCST XAU` beside. `FCST`'s summary is one line: the price now and the next close's likely (80%) range. NEWS and QM left the
+  default. `NEWS` enter now opens `READ`, the story as text in the same window (a stdlib HTML reader: paragraphs and subheads
+  outside nav, header, footer and scripts, boilerplate dropped), fetched from the outlet on request only; backspace returns.
+  Checked live on BBC, CNBC, the Fed, the ECB and CoinDesk pages.
+
+
 ### Summary (written 2026-09-19, when the first build session stopped). A fresh session starts here.
 
 **State.** Branch `terminal`, eight local commits on top of `8ca2b18` (Phases 0, 1, 2, 3, 4, 6, 7, then 5: the companies family
@@ -325,8 +463,8 @@ the gold stock constant, which was written from memory and needs confirming (10)
   publishes terms. Bitnodes moved to an unnamed operator with ten requests a day. Electrum and Core RPC are backends the
   user configures. `NODE` is not built.
 - **D42 Dependencies added** (rule 13): `websockets` (BSD-3, already in the lock through the SDK, now direct: the mempool
-  stream), `httpx[socks]` which adds `socksio` (MIT: the one SOCKS5 setting), `segno` (BSD-3: QR codes for `WAL`), `embit`
-  (MIT, pure Python: watch-only address derivation from xpubs and descriptors). numpy, pandas and scipy were already present.
+  stream), `httpx[socks]` which adds `socksio` (MIT: the one SOCKS5 setting), `segno` (BSD-3: QR codes for `WAL`) and `embit`
+  (MIT, pure Python: watch-only address derivation from xpubs and descriptors), both removed again by D43. numpy, pandas and scipy were already present.
 
 ### Verified facts (2026-09-19, live)
 
@@ -445,17 +583,36 @@ the live SEC (D38). It sends nothing to the SEC until `sec_user_agent` is set, a
   price, market cap and mNAV show a dash and the reason, or a labelled Kraken xStocks proxy (MSTR via MSTRx).
 
 **Phase 6: wallet and Glimpse depth** (sections 8 and 10)
-- [x] `WAL`: the Glimpse account · barkd (`wallet/barkd.py`: balance, receive with QR, send with the fee first, the amount typed back, a final
-      confirmation, the daily cap, a wrong-network refusal, never retried, boards, exits, history, VTXO expiry warning; the mnemonic and
-      wallet-delete routes are refused in the client) · watch-only (`wallet/watch.py`: xpub, ypub, zpub, descriptors, single addresses,
-      gap limit 20, embit; refuses private keys; no public lookup without `wallet.watch_public_ok`)
+- [-] `WAL` (Glimpse account, barkd, watch-only): built, then removed on 2026-09-19 (D43). Trading is by API key only; `PORT` is the
+      account. The code is at `90956d8`.
 - [x] `OMON` hands a box to the heatmap (enter a range, `C` the call, `U` the put) and never orders · [x] `GIV`
-- [ ] **barkd send and receive on signet or regtest: NOT exercised.** No `barkd` or `bitcoind` binary is on this machine, and none was
-      installed. Everything is tested against a fake daemon that accepts only routes present in barkd 0.7.1's recorded OpenAPI
-      (tests/test_funcs_wallet.py). Before trusting it with funds: run `barkd` on signet (SOURCES.md has the steps), `SET wallet.barkd
-      http://127.0.0.1:3000`, press `t` in `WAL`, receive from the signet faucet, send a small amount back. No real funds were moved.
-- [ ] barkd notifications on the status line (the long-poll route is in the client, not wired to the status line)
-- [ ] Paying a Glimpse deposit invoice from barkd (waits on TERMINAL.md section 12 question 1)
+
+**Phase 8: the watching terminal** (2026-09-19, D43 to D48)
+- [x] One header on every screen, the market strip under it, no fee or block height up top
+- [x] `h j k l` between panes, `1-9` to jump, `enter` zoom, `esc` back, `:` command line at the bottom, `?` terminal help
+- [x] `FCST BTC` · `FCST XAU` heatmap panes; `HM <series>`; `f` on a forecast pane trades that series
+- [x] `NEWS` from seven RSS feeds; `QM WATCH`; the default wall `FCST BTC · FCST XAU · QM WATCH · NEWS`
+- [ ] Looked at by James
+
+**Phase 9: spacemacs** (2026-09-19, D49 to D53)
+- [x] The highlight moves with h j k l (D49) · [x] windows and buffers with back · [x] SPC leader with which-key · [x] `:` list
+- [x] `DIST` · [x] default `FCST BTC` / `DIST BTC` / `FCST XAU` · [x] `READ`, news in the terminal
+- [ ] Looked at by James
+
+**Phase 10: the whole situation** (2026-09-19, D54 to D57)
+- [x] Yahoo Finance source, instrument map rewired, off switch, fixtures for all 72 symbols (D54)
+- [x] The page scrolls: `row_height`, `page_y`, j k g G, the wheel, "screen n of m" (D55)
+- [x] The default page: odds, 24h chart, heatmap, news, gold, markets, rates, liquidity, FX, commodities, indices, hashrate, difficulty
+- [x] `GP 24H` · [x] `GLCO` on futures · [x] staleness judged against each page's own refresh
+- [ ] Looked at by James
+
+**Phase 11: the front page** (2026-09-19, D58 to D62)
+- [x] `f` the forecast, `o` the odds; `MKT` renamed `ODDS` with aliases; `l` freed; nav bar, leader, key panel and help
+- [x] The page reordered, most significant first, 16 windows; `MAX_PANES` 20
+- [x] `CONS` and `BOT` on `term/swarm.py`; `BOTS <model id>`; the zoo runs on this machine, one pass per hourly bar
+- [x] Vendor names out of the frames and the market tables; `SRC` and `HELP` keep them
+- [x] Gold on the same picture as Bitcoin (`GP XAU 1D` + `DIST XAU`)
+- [ ] Looked at by James
 
 **Phase 7: tools and polish** (section 11)
 - [x] `AL [rule]` (price, fee, mempool, block, difficulty, Glimpse odds; evaluated each second from cached state; bell and status line)

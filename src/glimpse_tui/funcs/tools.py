@@ -152,9 +152,7 @@ SETTINGS = (
     ("bitcoin.esplora", "an Esplora server"),
     ("bitcoin.electrum", "ssl://your-server:50002"),
     ("bitcoin.core_rpc", "http://127.0.0.1:8332, cookie auth by default"),
-    ("wallet.barkd", "your barkd daemon: http://127.0.0.1:3000. Its token lives in the keychain"),
-    ("wallet.send_cap_sats_per_day", "the most the terminal will send from barkd in one UTC day"),
-    ("wallet.watch_public_ok", "true lets watch-only addresses be looked up on a public backend"),
+    ("sources.yahoo", "false stops asking Yahoo Finance: indices, yields and futures fall back to official daily values"),
 )
 
 
@@ -180,7 +178,7 @@ class SetPane(FuncPane):
         out = ui.table([ui.Col("setting", "left"), ui.Col("value", "left", 44), ui.Col("what it does", "left", flex=True, style=FAINT)],
                        rows, w, self.cur)
         out += [Text(""), ui.section("OPTIONAL KEYS", w)]
-        for name in ("fred", "typesafe", "stooq", "barkd"):
+        for name in ("fred", "typesafe", "stooq"):
             have = bool(config.secret(name))
             out.append(ui.t((f"{name:<10}", f"bold {ORANGE}"), ("in the keychain" if have else "not set", GREEN if have else FAINT),
                             ("   the terminal works without it", FAINT) if not have else ""))

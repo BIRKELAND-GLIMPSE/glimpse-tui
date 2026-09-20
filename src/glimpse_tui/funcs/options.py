@@ -277,7 +277,8 @@ class GivPane(FuncPane):
         return ["hours_to_close", "implied_vol"], [[round(a, 2), round(b, 4)] for a, b in self.curve]
 
 
-_GL = ("Reads the closes the terminal has loaded from the public Glimpse API (the series open in MKT, hourly BTC by default), refreshed "
+_GL = ("Reads the closes the terminal has loaded from the public Glimpse API (the series the odds screen is on, hourly BTC by "
+       "default), refreshed "
        "with them every 60 s. With no closes loaded the page says so.")
 register(Function(
     "OMON", "Option monitor", "Glimpse", "an options chain read off each close: digital calls, puts, ranges, IV, Greeks", OmonPane,
