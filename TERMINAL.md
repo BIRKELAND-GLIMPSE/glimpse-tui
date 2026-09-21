@@ -110,21 +110,42 @@ Bloomberg grammar: `<TICKER> [<CLASS>] <FUNCTION> <GO>`, where Enter is GO.
 - Charts in text: candles and lines as today, braille dots for high-resolution lines (two by four dots per cell), sparklines (`▁▂▃▄▅▆▇█`) inside tables, and half-block pixels (`▀` with separate foreground and background colours) for block pictures.
 - Both palettes stay: truecolor, and exact xterm-256 entries.
 
-### 3.5 The front page (`LP BTC`, the default)
+### 3.4a Every position, before the order (D73)
 
-One page, taller than the screen, ordered by how much a thing matters (D59). `j` and `k` walk it window by window and
-it scrolls to follow; `1`-`9` jump; `enter` opens a window full screen. Sixteen windows in eight rows:
+An order across several closes is several orders. `app.legs` prices each close on its own book; the slip lists
+them under `POSITIONS` (cost, payout and ROI a close, `[` `]` walk them, the slip staying 42 columns wide
+whatever the order touches); `P` opens `OrderPreview`, a scrolling table of every column of every position with a `TOTAL` row; and
+the same table is the confirmation `b` asks for, on one market and on many. `order_table` builds it once, so the
+preview and the confirmation cannot drift apart. Nothing is sent that has not been shown priced, line by line.
+
+### 3.5 The first screen: the odds (`o`)
+
+`glimpse-tui` opens on the odds for Bitcoin's next hourly close (D65): one row an outcome, the market's chance of
+it and the odds it pays, with the cursor on the most likely range and the bet slip a `tab` away. It is the
+simplest thing the terminal does and the only screen you can act on without learning anything first. `h` steps
+left to the list of closes beside it, `l` back. Everything else is behind the bar along the top.
+
+`--terminal` opens the front page instead, and `opens_on = "terminal"` in `terminal.toml` makes that the default.
+
+### 3.6 The front page (`t`, `LP BTC`)
+
+The rest of the terminal: one page, taller than the screen, ordered by how much a thing matters (D59, D66).
+`j` and `k` walk it window by window and it scrolls to follow; `1`-`9` jump; `enter` opens a window full screen.
+Sixteen windows in eight rows:
 
 | row | windows |
 |---|---|
 | 1 | `GP BTC 24H` the last 24 hours and the next 24 · `DIST BTC` the odds on the next hour |
-| 2 | `CONS BTC` what every bot on this machine expects · `BOT BTC` one of them at a time |
-| 3 | `GP XAU 1D` gold, the last 45 days and the next 31 · `DIST XAU` the odds on its next close |
-| 4 | `HASH` hashrate and difficulty · `DIFF` this epoch and the retarget |
-| 5 | `NEWS` the headlines, read here · `QM GLOBAL` world prices |
+| 2 | `GP XAU 1D` gold, the last 45 days and the next 31 · `DIST XAU` the odds on its next close |
+| 3 | `HASH` hashrate and difficulty · `DIFF` this epoch and the retarget |
+| 4 | `NEWS` the headlines, read here · `QM GLOBAL` world prices |
+| 5 | `PL BTC` the power law · `PL XAUBTC` gold in bitcoin, and its power law |
 | 6 | `MACRO` dollar liquidity · `RATES` the Treasury curve · `ECO` the latest prints |
-| 7 | `FX` currencies · `GLCO` commodities |
+| 7 | `FX` currencies · `GLCO SATS` commodities, priced in Bitcoin (`$` for dollars) |
 | 8 | `FEES` what a transaction costs, where a trailing number belongs |
+
+The bots are off this page (D66). They have their own launchpad, `LP BOTS` (`CONS BTC`, `BOT BTC`, gold beside
+them), the `B` screen, and `glimpse-tui run <bot>` without a screen at all.
 
 ```
  GLIMPSE  TERMINAL   BTC  81,423 spot                               open-source forecast terminal · Glimpse API                                              READ-ONLY L log in │ 23:24:42 UTC
@@ -154,7 +175,7 @@ it scrolls to follow; `1`-`9` jump; `enter` opens a window full screen. Sixteen 
 │                                                   │                                                            ││                                                                          │
 │ 18 Sep 23:24       19 Sep 11:26                  NOW                  20 Sep 11:28       20 Sep 23:30          ││                                                                          │
 └─────────────────────────────────────────────────────────────────────────────── [ ] window · L log · C candles ─┘└─────────────────────── o or enter to bet on these odds · f the forecast ─┘
-┌3  CONS  Bitcoin · what the bots expect ────────────────────────────────────────────────────────────────── live ┐┌4  BOT  Bitcoin · one bot at a time ──────────────────────────────── live ┐
+┌3  CONS  Bitcoin · what the bots expect  (LP BOTS; no longer on the front page) ────────────────────────────────────────────────────────────────── live ┐┌4  BOT  Bitcoin · one bot at a time ──────────────────────────────── live ┐
 │ Now 81,423   17 of 17 bots priced the next hour   they agree 98%   apart from the market 71%                   ││ Random Walk (bootstrap)  Baseline  ▲ bullish                 bot 1 of 17 │
 │                                                                                                                ││   History's own hourly moves, replayed at today's volatility             │
 │ NEXT HOUR ───────────────────────────────────────────────────────────────────────────────── 00:00 · in 35m 17s ││                                                                          │
@@ -252,6 +273,7 @@ Start here and tune in Phase 0. Streams replace polling wherever a source offers
 
 - `instruments.toml` ships in the package. The user's `~/.config/glimpse/instruments.toml` overrides it.
 - Each instrument has a ticker, name, class, quote currency, decimals, trading session, and an ordered source list such as `pyth:<feed id>`, `ecb:JPY`, `fred:DEXJPUS`.
+- Any ticker the book knows also exists priced in Bitcoin, as `<ticker>BTC` (`XAUBTC`, `SPXBTC`, `NVDABTC`, also spelled `XAU/BTC`). It is synthesised, never configured: its single source is `computed:ratio:<leg>`, the quote board divides the two legs into satoshis after the proxies resolve, and its history is the two daily histories divided on the days both of them closed. Yields and on-chain series have no Bitcoin form; a percentage does not divide. `BTCBTC` does not exist, and a real ticker that happens to end in BTC (`FBTC`, `GBTC`) is itself.
 - Default category lists of up to ten:
   - `GLOBAL`: BTC, gold, S&P 500, Nasdaq 100, USD/JPY, EUR/USD, Brent, US 10-year, the dollar index, silver.
   - `INDICES`: S&P 500, Nasdaq 100, Russell 2000, Euro Stoxx 50, DAX, FTSE 100, Nifty 50, KOSPI, Hang Seng, Nikkei 225.
@@ -342,7 +364,10 @@ Details that matter:
 | `HMAP` | A performance heatmap across the five category lists over a day, a week, a month and the year to date | computed |
 | `RV` | Relative value: BTC against gold, BTC market cap against gold's, BTC in ounces | computed; the gold stock is a sourced constant in config |
 | `DVOL` | BTC implied volatility from Deribit against the volatility implied by Glimpse's closes | Deribit public API, Glimpse |
+| `PL [ticker]` | The power law: a log-log chart of a price against Bitcoin's age, the least-squares line through it, and a channel one and two standard deviations of the log residual either side. `PL BTC` in dollars, `PL XAUBTC` for gold in satoshis. `[` `]` move where the fit starts; `<` `>` move how much of it is drawn (D74), which opens on the last four years with a rule at the price now | Bitview `price_close` for the whole Bitcoin history, each instrument's own daily source otherwise |
 
+- `$` on `QM`, `WEI` and `GLCO` prices the whole table in satoshis instead of dollars (D67): each row becomes the `…BTC` form of its ticker, Bitcoin's own row drops out, and the head carries what a bitcoin costs. The unit survives a saved launchpad as the word `SATS`, which is not a ticker; `BTC` is not used for it, because `QM BTC` is already a one-instrument watchlist.
+- A ratio row has no day range and no sparkline of its own unless the page fetches one: both legs would have to be quoted against each other, and they are not. Where a page cannot carry a change across into satoshis, such as a monthly IMF average, the change reads as a dash.
 - Net liquidity is `WALCL − WTREGEN − RRPONTSYD`. FRED publishes `WALCL` and `WTREGEN` in millions of dollars and `RRPONTSYD` in billions. Convert before subtracting, and cover it with a test.
 - FX and index data from official daily sources arrive a day or more late. The panel says so.
 - A proxy is never presented as the instrument it stands in for.

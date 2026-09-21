@@ -1,8 +1,8 @@
 """The bet slip, on the right like the web app's trade sidebar.
 
-Top to bottom: the market's probability that your prediction comes true, the prediction you can edit, then what it
-costs and returns (cost, payout, profit, odds, ROI, all in the same plain bold text), then the button, pinned to the
-bottom of the slip. Nothing else.
+Top to bottom: the market's probability that your prediction comes true, the prediction you can edit, the positions
+that prediction works out to across several closes, then what it costs and returns (cost, payout, profit, odds, ROI,
+all in the same plain bold text), then the button, pinned to the bottom of the slip. Nothing else.
 """
 from __future__ import annotations
 
@@ -19,7 +19,8 @@ from .theme import BURNT, DIM, FAINT, GREEN, ORANGE, RED, RULE, TEXT
 if TYPE_CHECKING:
     from .app import Terminal
 
-WIDTH = 42
+WIDTH = 42          # the slip, whatever the order touches: the legs list is cut to fit rather than widening it
+LEGS_ROWS = 9       # legs listed before the list scrolls around the one under the cursor
 
 
 class SlipPane(Widget):
@@ -66,6 +67,28 @@ class SlipPane(Widget):
                 on = t.slip_focus and i == t.slip_cur
                 line = f" {'▸' if on else ' '} {label:<6}" + f"‹  {value:^{vw}}  ›".rjust(w - 10)
                 out.append(line.ljust(w) + "\n", style=f"bold {ORANGE} on {BURNT}" if on else f"bold {TEXT}")
+
+        legs = t.legs
+        if len(legs) > 1:
+            rule(f"{len(legs)} POSITIONS")
+            cw = (w - 14) // 3          # the close label takes 12 at the slip's width, which is exactly what the
+            rw, lw = cw + 1, w - 3 * cw - 3     # longest one needs; roi gets the spare column, being the widest number
+
+            out.append(f" {'close':<{lw}}{'cost':>{cw}}{'payout':>{cw}}{'roi':>{rw}}"[:w] + "\n", style=FAINT)
+            start = max(0, min(t.leg_cur - LEGS_ROWS // 2, len(legs) - LEGS_ROWS))
+            for i, leg in enumerate(legs[start:start + LEGS_ROWS], start):
+                lt, on = leg.ticket, i == t.leg_cur      # `lt`, not `tk`: `tk` below is the whole order's ticket
+                mood = GREEN if lt.profit_sats > 0 else RED
+                line = Text(no_wrap=True, overflow="crop")
+                line.append(f" {'▸' if on else ' '}{fmt.close_label(leg.end_time, t.hm_cadence < 86400):<{lw - 1}}",
+                            style=f"bold {ORANGE}" if on else TEXT)
+                line.append(f"{fmt.sats(lt.cost_sats):>{cw}}", style=TEXT)
+                line.append(f"{fmt.sats(lt.payout_sats):>{cw}}", style=ORANGE)
+                line.append(f"{fmt.roi(lt.roi):>{rw}}", style=mood)
+                out.append(line)
+                out.append("\n")
+            if len(legs) > LEGS_ROWS:
+                out.append(f" {start + 1}–{min(start + LEGS_ROWS, len(legs))} of {len(legs)}\n", style=FAINT)
 
         if tk is None:
             out.append(f"\n {t.ticket_hint or 'Move onto a price range to price it.'}\n", style=DIM)

@@ -245,6 +245,98 @@ small ticket, which also settles F11.
 
 ## 6d. The Bitcoin terminal (TERMINAL.md, branch `terminal`, started 2026-09-19)
 
+### Revision (2026-09-20, eighth session): every position before the order, and three navigation bugs
+
+James, on the seventh session's build: the power law is drawn too far out to read the present; `SPC b p` does
+nothing on the front page; `j` and `k` sometimes move two windows instead of one; and, the main one, the bet slip
+has no way to see each individual prediction. "The main priority is that all positions are visible before the
+order is placed."
+
+- **D73 Every position, priced, before anything is sent.** A box across the forecast was always several orders,
+  one a close, each at that close's own price, but only their sum was ever shown. `app.legs` now returns a `Leg`
+  per close (`hm_parts` keeps what `P.combine` used to throw away). The slip grows a `POSITIONS` section listing
+  each close with its cost, payout, profit and ROI (`[` and `]` walk it, and the slip widens from 42 to 58
+  columns to hold the extra ones); `P` opens `OrderPreview`, a scrolling table of every column of every
+  position — chance, contracts, cost, payout, profit, odds, ROI — with a `TOTAL` row; and **the same table is
+  the confirmation `b` asks for**, on one market and on many, so nothing can be bought that has not been seen
+  priced line by line. `order_table` builds it once for both, so the preview and the confirmation cannot drift.
+  The old `Confirm` dialog stays for logging out and for selling.
+- **D74 The power law opens on the present.** The fit is still the whole history; how much of it is *drawn* is
+  now separate (`<` and `>`, and `@4y` in a saved launchpad). The default is the last four years, the y range is
+  framed on the price and the fitted line rather than on a ±2σ channel four times as tall, a yellow rule marks
+  the price now, and the outer channel drops out when zoomed because five shallow braille lines read as hatching.
+  The frame says both halves: "fit on 5,880 closes from 16 Aug 2010 · showing the last 4y of it".
+- **D75 `j` and `k` move exactly one row.** `Workspace.move` added the horizontal and vertical distances between
+  window centres. A cell is about three times wider than it is tall, so from `FEES` the key `k` scored `RATES`
+  (two rows up, nearly above) better than `FX` (one row up, half a page across) and skipped a row. It now ranks
+  the gap along the way you are going first and the distance across it second, which is what "up one" means.
+  Checked at six widths from 80 to 240 columns.
+- **D76 `SPC b p` works where there are buffers to walk.** `cycle_buffer` only offered buffers no window was
+  showing, so on the front page — every buffer in a window — it said "No other buffer is open" to someone with
+  sixteen of them on screen. It now walks the whole ring; `_put` already swapped two windows' pages when the
+  target was on screen, which keeps one rectangle per page.
+
+Tests: 711 pass offline.
+
+### Revision (2026-09-20, seventh session): the odds are the front door, the bots leave the front page, everything can be priced in Bitcoin, and the power law
+
+James: get rid of the bots on the terminal screen and order it Bitcoin forecast, Bitcoin odds, gold forecast, gold
+odds, then hashrate, difficulty, news, global and the rest. The first page should be the odds on Bitcoin's next
+hour, not the terminal, because "terminal is the secret world behind the curtain if people choose to investigate;
+start easy with the odds page first". `?` could not be scrolled. Commodities, indices and equities should be
+priced in Bitcoin ("gold should be XAUBTC or ₿5,440,000"). And a power law: a log-log chart of BTCUSD and XAUBTC
+with the linear regression that produces it, showing the power law historically.
+
+- **D65 The terminal opens on the odds.** `glimpse-tui` now opens the odds screen on Bitcoin's nearest hourly
+  close with the cursor already on the ladder (`Terminal.pane` starts at 1, not 0), so the first thing anyone sees
+  is one row an outcome with its chance and its payout, and `tab` is the bet slip. The front page is behind `t`,
+  `--terminal`/`-t`, or `opens_on = "terminal"` in `terminal.toml`; `--odds` (and the old `--markets`) forces the
+  odds back. The decision is `glimpse_tui.opening_launchpad(argv, cfg)`, which a test drives without a screen.
+- **D66 The bots are off the front page, not out of the terminal.** The front page is now fourteen windows of
+  market and two of power law, in James's order: `GP BTC 24H` + `DIST BTC`, `GP XAU 1D` + `DIST XAU`, `HASH` +
+  `DIFF`, `NEWS` + `QM GLOBAL`, `PL BTC` + `PL XAUBTC`, `MACRO`/`RATES`/`ECO`, `FX` + `GLCO`, `FEES`. `CONS` and
+  `BOT` keep their functions and move to a new shipped launchpad, `LP BOTS` (both on Bitcoin, both on gold, and
+  the Bitcoin chart and odds under them); `B`, `BOTS <id>` and `glimpse-tui run <bot>` are unchanged, and
+  `tests/test_swarm.py` drives `LP BOTS`.
+- **D67 Anything can be priced in Bitcoin.** `Book.get` synthesises `<ticker>BTC` for any instrument it knows
+  (`XAUBTC`, `SPXBTC`, `NVDABTC`, also `XAU/BTC`), with the single source `computed:ratio:<leg>`; the quote board
+  divides the two legs into satoshis *after* the proxy pass, so gold through PAXG still works, and a ratio history
+  is the two daily histories divided on the days both of them closed. Yields and on-chain series are excluded: a
+  percentage does not divide. `$` on `QM`, `WEI` and `GLCO` swaps the whole table into that form, drops Bitcoin's
+  own row and puts the bitcoin price on the head; the unit survives a saved launchpad as the word `SATS`, never
+  `BTC`, because `QM BTC` is already a one-instrument watchlist. The front page's commodities window ships as
+  `GLCO SATS`, so gold reads ₿5,453,863 an ounce without pressing anything; one word in `btc.toml` reverts it. `fmt.in_btc` is satoshis up to a coin and whole
+  bitcoin above it. A ratio row has no day range and no sparkline of its own, and a monthly IMF average shows a
+  dash for the change rather than one computed against the wrong month's bitcoin price.
+- **D68 `PL`, the power law.** `funcs/powerlaw.py` fits `price = 10^a · days^n` by least squares on log10 of both,
+  days counted from the genesis block, and draws it on log-log axes: the price in orange, the fit in cyan, dotted
+  rules at ±1σ and ±2σ of the log residual (the outer pair drops out under fourteen rows, where five lines are mush). Above the chart: the exponent, R², the residual spread as a
+  multiplier, the price now, the fitted value, and the gap in percent and in σ. `[` `]` move where the fit starts
+  and the exponent moves with it (only the starts the loaded history actually reaches back past are offered); `T`
+  adds what the line alone reads 1, 2, 4 and 10 years out. Live: BTC is n≈5.6, R²≈0.96 over 5,880 closes from
+  16 Aug 2010; XAUBTC is n≈−3.6, R²≈0.70 over 2,513 closes from 20 Sep 2016. A fit needs both `MIN_POINTS` (200)
+  and `MIN_DECADES` (0.15 of a decade of age); under that the page says how little history it has instead of
+  printing a slope, which is what a year of PAXG against BTC would otherwise have produced (a confident n=+8.4).
+- **D69 The chart grew a log x axis.** `charts.Plot(xlog=True)` maps x through log, `x_ticks` replaces the date
+  axis with explicit labels (years, on `PL`) and `x_grid` draws vertical rules under the data. A test asserts that
+  `10^a·d^n` comes out straight on log-log axes and bent on a linear one.
+- **D70 Bitcoin's history past an exchange comes off the chain.** `quotes.history` for more than 700 days (Kraken
+  serves 720 daily candles, Coinbase 300) reads Bitview's `price_close` from 2009 instead. Under that nothing
+  changes, so `RV` and the charts are still exchange prices; `PL`'s `HELP` says the oracle is not a ticker.
+  Recorded as `tests/fixtures/sources/bitview/series_price_close_day1_start0.json` (47 KB, whole history).
+- **D71 Yahoo's `range=max` is not always daily.** With a symbol whose past is long (gold futures start in 1975)
+  Yahoo answers a `max`+`1d` request with *monthly* points, which had silently turned XAUBTC into 166 monthly
+  observations. `Yahoo.history` now checks the median gap and asks again over ten years when it is coarser than
+  daily. Both responses are recorded (`chart_gcf_max.json` 268 points at 31-day gaps, `chart_gcf_10y.json` 2,516
+  points at 1-day gaps), which is the evidence for the check.
+- **D72 `?` scrolls.** The help modal holds its body in a `VerticalScroll`: `j` `k`, the arrows, `ctrl-j`/`ctrl-k`,
+  `ctrl-d`/`ctrl-u`, page keys and `g`/`G` move it, a hint line at the bottom says so, and only `esc`, `q` or `?`
+  close it, so a scroll key can never dismiss the page it is scrolling. `About` already worked this way; `Help`
+  dismissed on any key, which is why James could not read past the first screen.
+
+Tests: 698 pass offline, including `tests/test_funcs_powerlaw.py` and the priced-in-Bitcoin cases in
+`tests/test_funcs_markets.py`.
+
 ### Revision (2026-09-19, sixth session): the forecast is one orange, and the odds show the whole distribution
 
 James on the full forecast (`f`) against the front page's chart: the front page is the elegant one, and the

@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 
 MAX_PANES = 20          # the front page uses sixteen: there is always room to split one more
 INK = "#0D0D0D"
-SHIPPED = ("BTC", "CHAIN", "MINER", "MACRO", "TRADER", "TREASURY")
+SHIPPED = ("BTC", "BOTS", "CHAIN", "MINER", "MACRO", "TRADER", "TREASURY")
 
 
 # ── the split tree ──────────────────────────────────────────
@@ -300,24 +300,30 @@ class Workspace(Widget):
             self.focus_leaf(ls[(ls.index(self.focused) + d) % len(ls)] if self.focused in ls else ls[0])
 
     def move(self, direction: str) -> None:
-        """ctrl-w h j k l: the nearest pane whose rectangle lies that way."""
+        """h j k l: the next window that way, one row or one column at a time.
+
+        The gap along the way you are going is ranked before the distance across it, so `j` always lands in the
+        very next row and only then picks the window in it nearest to where you were. Adding the two distances
+        together instead does not work: a cell is about three times wider than it is tall, so a window half the
+        page across can score better than the whole row directly below, and `j` skips a row.
+        """
         if not (self.root and self.focused):
             return
         rs = rects(self.root, 0, 0, max(self.size.width, 1), max(self.page_height(), 1))
         here = next(r for lf, r in rs if lf is self.focused)
         cx, cy = here.x + here.width / 2, here.y + here.height / 2
-        best, best_d = None, 1e9
+        best, best_key = None, None
         for lf, r in rs:
             if lf is self.focused:
                 continue
             ox, oy = r.x + r.width / 2, r.y + r.height / 2
-            ahead = {"h": r.x + r.width <= here.x, "l": r.x >= here.x + here.width,
-                     "k": r.y + r.height <= here.y, "j": r.y >= here.y + here.height}[direction]
-            overlap = (r.y < here.y + here.height and here.y < r.y + r.height) if direction in "hl" else (
-                r.x < here.x + here.width and here.x < r.x + r.width)
-            d = abs(ox - cx) + abs(oy - cy) + (0 if overlap else 1000)
-            if ahead and d < best_d:
-                best, best_d = lf, d
+            gap = {"h": here.x - (r.x + r.width), "l": r.x - (here.x + here.width),
+                   "k": here.y - (r.y + r.height), "j": r.y - (here.y + here.height)}[direction]
+            if gap < 0:                                 # not that way at all
+                continue
+            key = (gap, abs(oy - cy) if direction in "hl" else abs(ox - cx))
+            if best_key is None or key < best_key:
+                best, best_key = lf, key
         self.focus_leaf(best)
 
 

@@ -113,6 +113,16 @@ sanity-checked. None was invented. They live in `src/glimpse_tui/data/onchain.to
 HODL waves use 23 disjoint age bands, `utxos_<band>_old_supply_dominance`, which summed to 100.0000% on the day. One
 bulk call fetches all of them.
 
+**`price_close` from the beginning, for `PL` (2026-09-20).** `GET /api/series/price_close/day1?start=0` returns the
+whole history in one 47 KB response: 5,880 non-null daily closes from 16 Aug 2010 ($0.06) to 20 Sep 2026
+($80,459.32), on the `day1` index, where position *p* is 2009-01-01 plus *p* days. No exchange endpoint comes near
+this — Kraken serves 720 daily candles and Coinbase 300 — so any page that needs more than 700 days of Bitcoin
+(`PL`, and `GP BTC MAX`) reads this instead, and says that it is Bitview's own chain oracle after height 340,000
+and baked exchange prices before that, not an exchange ticker. Under 700 days nothing changed: `RV` and the charts
+are still exchange prices, because the two numbers are not the same and swapping one for the other under a page
+that did not ask would change what it shows. Fitted on it, the power law is n = 5.624, R² = 0.960.
+Fixture: `tests/fixtures/sources/bitview/series_price_close_day1_start0.json`, untrimmed.
+
 ### Blockstream Esplora
 
 - **Access.** `https://blockstream.info/api`, no key, no WebSocket. Median latency 263 ms.
@@ -455,9 +465,16 @@ proxy at best, and UKX has none.
   prefers the second-to-last daily close when the last one is today's. A symbol with no print in half an hour is marked closed. The
   v7 `quote` endpoint now needs a crumb (401) and is not used. Futures are the front month, so gold sits a few dollars above spot;
   Glimpse's own gold market settles on PAXG, and the forecast pages say so.
+- **`range=max` is not always daily (2026-09-20).** With a symbol whose past is long, Yahoo answers `range=max&interval=1d` with
+  *monthly* points and says nothing about it. `GC=F` at `max` returned 268 points at a median gap of 31 days, back to Sep 2000;
+  the same symbol at `range=10y` returned 2,516 points at a median gap of 1 day. This had quietly turned gold priced in Bitcoin
+  into 166 monthly observations. `Yahoo.history` now measures the median gap of a `max` response and asks again over ten years
+  when it is coarser than three days, so a caller that asked for daily closes never gets months labelled as days.
 - **Fixture.** `tests/fixtures/sources/yahoo/spark_all.json` holds all 72 symbols the instrument map names, recorded in four
-  requests and merged by symbol; `chart_gspc_2y.json` is two years of the S&P 500. The offline transport answers any spark request
-  with the recorded rows for the symbols asked for.
+  requests and merged by symbol; `chart_gspc_2y.json` is two years of the S&P 500. `chart_gcf_max.json` and `chart_gcf_10y.json`
+  are the two gold-futures responses above, trimmed to `timestamp` and `close` and listed in `yahoo/_manifest.json`; they are
+  the evidence for the check, and what `PL XAUBTC` is tested on. The offline transport answers any spark request with the
+  recorded rows for the symbols asked for.
 
 ## News sources
 

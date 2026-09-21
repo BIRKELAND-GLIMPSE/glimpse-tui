@@ -1,12 +1,15 @@
-# The front page. Most important first: Bitcoin, then the machines reading it, then gold, the chain, the news,
-# the world, and the trailing numbers last. A page taller than the screen: j and k walk it, 1-9 jump to a window.
+# The front page. Most important first: Bitcoin's forecast and the odds on its next hour, gold's forecast and the
+# odds on its next close, then the chain, the news, the world, and the trailing numbers last. A page taller than
+# the screen: j and k walk it, 1-9 jump to a window.
+# Commodities are priced in Bitcoin here (`GLCO SATS`): gold reads ₿5,453,863 an ounce rather than $4,425.
+# `$` on the window flips it back to dollars; drop the word to make dollars the default again.
 name = "BTC"
-layout = { split = "col", row_height = 21, weights = [1.15, 1.25, 1.0, 0.8, 1.35, 0.95, 0.85, 0.65], panes = [
+layout = { split = "col", row_height = 21, weights = [1.25, 1.1, 0.8, 1.35, 1.15, 0.95, 0.85, 0.65], panes = [
   { split = "row", weights = [3.0, 2.0], panes = ["GP BTC 24H", "DIST BTC"] },
-  { split = "row", weights = [3.0, 2.0], panes = ["CONS BTC", "BOT BTC"] },
   { split = "row", weights = [3.0, 2.0], panes = ["GP XAU 1D", "DIST XAU"] },
   { split = "row", weights = [1.0, 1.0], panes = ["HASH", "DIFF"] },
   { split = "row", weights = [3.0, 2.0], panes = ["NEWS", "QM GLOBAL"] },
+  { split = "row", weights = [1.0, 1.0], panes = ["PL BTC", "PL XAUBTC"] },
   { split = "row", weights = [1.2, 1.2, 1.0], panes = ["MACRO", "RATES", "ECO"] },
-  { split = "row", weights = [1.0, 1.0], panes = ["FX", "GLCO"] },
+  { split = "row", weights = [1.0, 1.0], panes = ["FX", "GLCO SATS"] },
   { split = "row", weights = [1.0], panes = ["FEES"] } ] }

@@ -15,7 +15,7 @@ until = T.until
 
 @pytest.fixture
 def make(monkeypatch):
-    def _make(launchpad="BTC"):
+    def _make(launchpad="BOTS"):        # the bots are their own launchpad now, not two windows of the front page
         monkeypatch.setattr(A, "Glimpse", SeriesApi)
         monkeypatch.setattr(auth, "load_key", lambda: (None, "none"))
         monkeypatch.setattr(A.Terminal, "load_spot", lambda self: None)
@@ -105,7 +105,7 @@ async def test_bot_shows_one_model_against_the_market_and_the_brackets_walk_the_
         assert "what the bots expect" not in pane(app, "CONS").title and "bots expect" in pane(app, "CONS").title
         assert "this bot" in text and "next hour" in text and "in 72 hours" in text and "market" in text
         assert "price at close" in text                          # its whole picture, against what the market charges
-        await pilot.press("4", "]")                              # the page's own keys reach the window it is on
+        await pilot.press("2", "]")                              # the page's own keys reach the window it is on
         await pilot.pause(0.05)
         assert bot.at == 1 and bot.bot() is not first
         assert bot.key("]", "]") and bot.at == 2

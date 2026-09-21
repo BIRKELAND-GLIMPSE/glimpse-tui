@@ -57,11 +57,11 @@ def edge(pane) -> str:
     return str(next(sp.style for sp in text.spans if sp.start == 0))
 
 
-DASHBOARD = ["GP BTC 24H", "DIST BTC", "CONS BTC", "BOT BTC", "GP XAU 1D", "DIST XAU", "HASH", "DIFF", "NEWS", "QM GLOBAL",
-             "MACRO", "RATES", "ECO", "FX", "GLCO", "FEES"]
+DASHBOARD = ["GP BTC 24H", "DIST BTC", "GP XAU 1D", "DIST XAU", "HASH", "DIFF", "NEWS", "QM GLOBAL", "PL BTC", "PL XAUBTC",
+             "MACRO", "RATES", "ECO", "FX", "GLCO SATS", "FEES"]
 
 
-async def test_the_default_is_a_scrolling_page_bitcoin_first_then_the_bots_gold_and_the_world(make, no_network):
+async def test_the_default_page_is_bitcoin_then_gold_then_the_chain_and_the_world_with_no_bots(make, no_network):
     app = make(launchpad="BTC")
     async with app.run_test(size=(190, 50)) as pilot:
         await pilot.pause()                                   # the workspace is mounted on the first frame
@@ -70,15 +70,19 @@ async def test_the_default_is_a_scrolling_page_bitcoin_first_then_the_bots_gold_
         assert app.view == "term" and [lf.command for lf in panes.leaves(ws.root)] == DASHBOARD
         head = app.query_one("#head").render().plain.split("\n")
         assert head[0].startswith(" GLIMPSE  TERMINAL ") and "SPC" in head[1] and "o  ODDS" in head[1] and "LADDER" not in head[1]
-        chart, dist, cons, bot = ws.panes[:4]
-        regions = {p.command(): p.region for p in ws.panes}
+        chart, dist = ws.panes[:2]
+        regions = {lf.command: lf.pane.region for lf in panes.leaves(ws.root) if lf.pane}
+        assert not [c for c in DASHBOARD if c.startswith(("CONS", "BOT"))]               # the bots are off the front page
         assert regions["GP BTC 24H"].x == 0 and regions["DIST BTC"].x > 0 and regions["GP BTC 24H"].y == regions["DIST BTC"].y
-        assert regions["CONS BTC"].y > regions["GP BTC 24H"].y                          # the bots: the second row, half of it
-        assert regions["CONS BTC"].width + regions["BOT BTC"].width == ws.size.width
-        assert regions["NEWS"].y > regions["GP XAU 1D"].y > regions["CONS BTC"].y       # gold, then the chain, then the news
+        assert regions["GP XAU 1D"].y > regions["GP BTC 24H"].y                          # Bitcoin's row, then gold's
+        assert regions["GP XAU 1D"].y == regions["DIST XAU"].y
+        assert regions["GP XAU 1D"].width + regions["DIST XAU"].width == ws.size.width
+        assert regions["HASH"].y > regions["DIST XAU"].y                                 # then the chain
+        assert regions["NEWS"].y > regions["HASH"].y and regions["PL BTC"].y > regions["NEWS"].y
         assert ws.page_height() > ws.size.height and regions["FEES"].y >= ws.size.height    # the page runs on below
         assert "screen 1 of" in app.query_one("#foot").render().plain
-        await until(pilot, lambda: dist.views and chart.lines and ws.panes[8].items, tries=400)
+        news = ws.panes[DASHBOARD.index("NEWS")]
+        await until(pilot, lambda: dist.views and chart.lines and news.items, tries=400)
         assert "Bitcoin · odds on the next hour" in dist.render().plain and "most likely" in dist.render().plain
         text = chart.render().plain
         assert "the last 24 hours and the next 24 hours" in text and "NOW" in text and "median" in text
@@ -112,13 +116,13 @@ async def test_j_k_walk_the_page_the_highlight_follows_and_the_page_scrolls(make
         await pilot.press("g")
         assert ws.pane is first and ws.page_y == 0
         await pilot.press("down", "right")
-        assert ws.pane.command() == "BOT BTC"
+        assert ws.pane.command() == "DIST XAU"
         await pilot.press("enter")                             # open the window full screen: its keys are the page's now
         await pilot.pause(0.05)
         assert ws.inside and ws.zoomed and ws.pane.region.height == ws.size.height
         assert "-- INSIDE --" in app.query_one("#foot").render().plain
         await pilot.press("escape")
-        assert not ws.inside and not ws.zoomed and ws.pane.command() == "BOT BTC"
+        assert not ws.inside and not ws.zoomed and ws.pane.command() == "DIST XAU"
         await pilot.press("2", "f")                            # f on a window with a series: the full forecast
         await until(pilot, lambda: app.view == "heatmap")
         await pilot.press("space", "o")                        # SPC o: the odds
@@ -134,7 +138,7 @@ async def test_news_reads_in_the_terminal_next_story_and_back(make, no_network):
         ws = app.shell.ws
         await until(pilot, lambda: len(ws.panes) == len(DASHBOARD))
         news = ws.panes[DASHBOARD.index("NEWS")]
-        await pilot.press("9", "enter")
+        await pilot.press(str(DASHBOARD.index("NEWS") + 1), "enter")
         await until(pilot, lambda: news.items)
         target = next(i for i, it in enumerate(news.items) if "c63d7lexyym1o" in it.link)
         for _ in range(target):
@@ -264,12 +268,12 @@ async def test_f_is_the_forecast_and_o_is_the_odds_from_any_window_of_the_page(m
         assert app.view == "main"
         await pilot.press("t")
         await until(pilot, lambda: app.view == "term")
-        await pilot.press("5", "f")                            # gold's window: the full forecast, on gold
+        await pilot.press("3", "f")                            # gold's window: the full forecast, on gold
         await until(pilot, lambda: app.view == "heatmap")
         assert app.batch.short == "XAU"
         await pilot.press("t")
         await until(pilot, lambda: app.view == "term")
-        await pilot.press("9", "o")                            # a window with no series of its own: the odds, as they were
+        await pilot.press("7", "o")                            # the news: a window with no series, so the odds stay as they were
         await until(pilot, lambda: app.view == "main")
         assert app.batch.short == "XAU"
         top = app.query_one("#head").render().plain.split("\n")[1]
@@ -356,3 +360,22 @@ def test_the_odds_window_holds_one_outcome_for_every_row_the_pane_has():
         assert all(o > 1.0 for _, _, _, o in rows)                          # every row is priced, tails included
         assert any(a <= v.median < b for a, b, _, _ in rows)                # the middle is always on screen
         assert max(r[2] for r in rows) > 4 * min(r[2] for r in rows)        # and the shape of the thing shows
+
+
+async def test_spc_b_p_walks_the_buffers_even_when_every_one_is_in_a_window(make):
+    """On the front page all sixteen buffers are on screen. A version that only offered the hidden ones told
+    someone with sixteen pages open that no other buffer existed."""
+    app = make(launchpad="BTC")
+    async with app.run_test(size=(160, 44)) as pilot:
+        ws = app.shell.ws
+        await until(pilot, lambda: len(ws.panes) == len(DASHBOARD))
+        first = ws.pane
+        await pilot.press("space", "b", "p")
+        assert ws.pane is not first and "No other buffer" not in app.flash
+        assert ws.pane.command() == DASHBOARD[-1]                    # the one before it in the ring: the last
+        back = ws.pane
+        await pilot.press("space", "b", "n")
+        assert ws.pane is first                                      # and forward again returns
+        assert back in ws.panes and len(ws.panes) == len(DASHBOARD)  # the swap kept every page on the page
+        await pilot.press("space", "b", "n")
+        assert ws.pane.command() == DASHBOARD[1]

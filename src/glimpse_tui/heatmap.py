@@ -148,6 +148,21 @@ def nice_step(cell: float, min_cells: int) -> float:
     return cell * min_cells
 
 
+def ruled_rows(grid: Grid, gtop: int, rows: int) -> dict[int, float]:
+    """The horizontal rules of the price axis: visible cell → the round price it is labelled with. A cell is ruled
+    when its own price span crosses a multiple of the step, not when it starts exactly on one, so a ladder that does
+    not begin on a round price — most of them — still carries an axis, evenly spaced, at every zoom."""
+    cell = grid.bin_size * grid.bpc
+    step = nice_step(cell, 4)
+    out: dict[int, float] = {}
+    for g in range(max(gtop - rows + 1, 0), min(gtop, grid.cells - 1) + 1):
+        lo = grid.y_lo + g * cell
+        mark = math.ceil(lo / step - 1e-9) * step
+        if mark < lo + cell - 1e-9:
+            out[g] = mark
+    return out
+
+
 @dataclass(frozen=True)
 class Grid:
     """Price axis: `n` bins of `bin_size` from `y_lo`, drawn `bpc` bins to a cell."""
@@ -309,9 +324,7 @@ class HeatmapPane(Widget):
             layout.append((c, x))
             x, c = x + cw, (c + 1 if c < 0 else t.hm_gend(c) + 1)     # a zoomed-out column holds several closes
 
-        step = nice_step(cell_price, 4)
-        ruled_g = {g for g in range(max(gtop - rows, 0), min(gtop, grid.cells - 1) + 1)
-                   if abs((grid.y_lo + g * cell_price) / step - round((grid.y_lo + g * cell_price) / step)) < 1e-9}
+        ruled_g = ruled_rows(grid, gtop, rows)
         spans = [(cx, *t.hm_col_time(c)) for c, cx in layout if c >= 0 or -c <= len(hist)]
         v_xs = {cx for cx, ts, span in spans if rules_at(ts, span, cadence, w / t.hm_span)}
         plain = "".join("│" if i in v_xs else " " for i in range(chart_w))
@@ -387,13 +400,13 @@ class HeatmapPane(Widget):
                 out.append(run, style=run_style)
             if at < chart_w:
                 out.append(base[at:chart_w], style=rule)
-            out.append_text(self._price_label(grid, g, g_cur, spot_g, g in ruled_g))
+            out.append_text(self._price_label(grid, g, g_cur, spot_g, ruled_g.get(g)))
             out.append("\n")
         out.append_text(axis_labels(spans, chart_w, cadence < 86400, now_x))
         return out
 
-    def _price_label(self, grid: Grid, g: int, g_cur: int, spot_g: int, ruled: bool) -> Text:
-        """Spot and the cursor's row always get a label; otherwise only ruled rows, at their round price."""
+    def _price_label(self, grid: Grid, g: int, g_cur: int, spot_g: int, ruled: float | None) -> Text:
+        """Spot and the cursor's row always get a label; otherwise only ruled rows, at the round price they cross."""
         def axis(x: float) -> str:          # one format down the whole axis, decimals only when a cell is under a unit
             return f"{x:,.0f}" if grid.bin_size * grid.bpc >= 1 else f"{x:,.2f}"
 
@@ -401,8 +414,8 @@ class HeatmapPane(Widget):
             return Text(f"◂{fmt.price(self.t.spot):>{GUTTER - 2}} ", style=f"bold #000000 on {ORANGE}")
         if g == g_cur:
             return Text(f" {axis(grid.prices_of(g)[0]):>{GUTTER - 2}} ", style=f"bold {TEXT}")
-        if ruled:
-            return Text(f"┤{axis(grid.prices_of(g)[0]):>{GUTTER - 2}} ", style=DIM)
+        if ruled is not None:
+            return Text(f"┤{axis(ruled):>{GUTTER - 2}} ", style=DIM)
         return Text("│" + " " * (GUTTER - 1), style=FAINT)
 
     def _readout(self, grid: Grid, width: int) -> Text:

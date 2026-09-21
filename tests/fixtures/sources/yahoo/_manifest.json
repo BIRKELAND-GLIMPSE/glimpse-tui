@@ -1,0 +1,23 @@
+{
+ "recorded": "2026-09-20",
+ "user_agent": "glimpse-tui/0.1 (+https://github.com/BIRKELAND-GLIMPSE/glimpse-tui)",
+ "note": "Real responses. Values never altered. Trimmed files keep the timestamp and close arrays and drop open/high/low/volume, then are re-serialised as compact JSON.",
+ "files": {
+  "chart_gcf_max.json": {
+   "url": "https://query1.finance.yahoo.com/v8/finance/chart/GC%3DF?range=max&interval=1d",
+   "status": 200,
+   "seconds": 0.0,
+   "trimmed": "open/high/low/volume dropped; timestamp and close untouched",
+   "bytes": 8189,
+   "points": 268
+  },
+  "chart_gcf_10y.json": {
+   "url": "https://query1.finance.yahoo.com/v8/finance/chart/GC%3DF?range=10y&interval=1d",
+   "status": 200,
+   "seconds": 0.0,
+   "trimmed": "open/high/low/volume dropped; timestamp and close untouched",
+   "bytes": 68843,
+   "points": 2516
+  }
+ }
+}

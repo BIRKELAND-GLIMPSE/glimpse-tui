@@ -30,7 +30,7 @@ PASS_THROUGH = {"q", "c", "?", "L", "O", "r", "p", "B", "f", "o"}      # the app
 ARROWS = {"left": "h", "down": "j", "up": "k", "right": "l", "ctrl+j": "j", "ctrl+k": "k"}      # ctrl-j ctrl-k are down and up
 SCROLL = {"ctrl+d", "ctrl+u", "ctrl+f", "ctrl+b", "pagedown", "pageup"}
 # Short on purpose: the key panel under it lists the rest, and a long line is cut on a narrow terminal.
-WELCOME = "j k walk the page · f the forecast · o the odds · ? every key"
+WELCOME = "j k walk the page · o the odds · f the forecast · $ prices in bitcoin · ? every key"
 LEGACY_VIEW = {"ODDS": "main", "HM": "heatmap", "SLIP": "heatmap", "PORT": "portfolio", "BOTS": "bots"}
 SCREENS = {"f": "HM", "o": "ODDS", "B": "BOTS", "p": "PORT"}
 MAX_BUFFERS = 24
@@ -44,11 +44,13 @@ LEADER: dict[str, list[tuple[str, str]]] = {
     "b": [("b", "list buffers"), ("n", "next buffer"), ("p", "previous buffer"), ("d", "close buffer"), ("r", "reload")],
 }
 PAGES = (("GP BTC 24H", "Bitcoin: the last 24 hours and the next 24"), ("DIST BTC", "Bitcoin's odds on the next hour"),
-         ("CONS BTC", "what every bot on this machine expects of Bitcoin"), ("BOT BTC", "one bot at a time, [ ] walks the zoo"),
          ("GP XAU 1D", "gold: the last month and a half and the next month"), ("DIST XAU", "gold's odds on the next close"),
+         ("PL BTC", "the power law: Bitcoin against its own age, log-log"), ("PL XAUBTC", "gold priced in Bitcoin, and its power law"),
+         ("QM GLOBAL SATS", "the world's prices in satoshis"),
          ("FCST BTC", "Bitcoin forecast, next 48 hours"), ("FCST XAU", "gold's forecast as a heatmap"),
          ("FCST BTC 1D", "Bitcoin daily forecast"),
          ("FCST ETH", "Ether forecast"), ("FCST SOL", "Solana forecast"),
+         ("CONS BTC", "what every bot on this machine expects of Bitcoin"), ("BOT BTC", "one bot at a time, [ ] walks the zoo"),
          ("NEWS", "headlines, read here in the terminal"))
 SCREEN_ITEMS = (("HM", "the full forecast: every close, every price, select and bet (SPC f)"),
                 ("ODDS", "the odds on every outcome, close by close, and bet (SPC o)"),
@@ -317,13 +319,23 @@ class Shell:
         return False
 
     def cycle_buffer(self, d: int) -> None:
-        """SPC b n / SPC b p: the next hidden buffer in this window."""
-        ws, shown = self.ws, self._shown()
-        hidden = [p for p in ws.buffers if id(p) not in shown and not isinstance(p, Scratch)]
-        if not hidden or not ws.focused:
+        """SPC b n / SPC b p: the next or previous buffer in this window, the way `next-buffer` works.
+
+        Every open page counts, not only the ones no window is showing. On the front page every buffer is in a
+        window, and a version that skipped those said "no other buffer is open" to someone with sixteen of them
+        on screen. A buffer that is already in another window swaps with this one (`_put` does that), because the
+        layout gives each page one rectangle.
+        """
+        ws = self.ws
+        here = ws.focused
+        if here is None:
+            return
+        ring = [p for p in ws.buffers if not isinstance(p, Scratch)]
+        if len(ring) < 2:
             self.app.say("No other buffer is open. : opens one.")
             return
-        self._put(ws.focused, hidden[0 if d > 0 else -1])
+        at = next((i for i, p in enumerate(ring) if p is here.pane), 0)
+        self._put(here, ring[(at + d) % len(ring)])
         ws.relayout()
 
     def kill_buffer(self) -> None:

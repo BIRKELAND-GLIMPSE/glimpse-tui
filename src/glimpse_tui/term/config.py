@@ -17,7 +17,8 @@ from .. import auth
 DEFAULTS: dict[str, Any] = {
     "tape": ["BTC", "XAU", "SPX", "NDX", "DXY", "US10Y", "BRENT", "EURUSD", "USDJPY", "ETH"],
     "clocks": ["UTC", "America/New_York", "Europe/London", "Asia/Tokyo"],
-    "default_launchpad": "BTC",
+    "opens_on": "odds",             # what a bare `glimpse-tui` shows: "odds" (Bitcoin's next hour) or "terminal" (the front page)
+    "default_launchpad": "BTC",     # which launchpad `t` and `opens_on = "terminal"` open
     "socks5": "",
     "sec_user_agent": "",
     "privacy_ack": False,           # the one-line note about public lookups has been shown

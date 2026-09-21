@@ -491,3 +491,72 @@ async def test_lp_macro_opens_six_market_panes_in_the_app(monkeypatch, no_networ
         assert all(cell_len(ln) == 44 for ln in text.split("\n"))               # the frame and every row fill the pane exactly
         await T.until(pilot, lambda: {"XAG", "NDX"} <= app.shell.hub.watch)     # kept fresh by the hub's quote loop while open
         assert qm.command() == "QM GLOBAL" and qm.enter() == "GP BTC"
+
+
+# ── priced in Bitcoin ($) ───────────────────────────────────
+
+async def test_dollar_key_prices_the_quote_monitor_in_satoshis_and_drops_bitcoins_own_row(no_network):
+    """James wanted commodities, indices and equities in Bitcoin. $ swaps the whole table to the `…BTC` form of
+    each ticker, which the quote board computes by division; Bitcoin's own row goes, and the head says the rate."""
+    pane = await loaded("QM", ("GLOBAL",))
+    assert not pane.in_btc and "BTC" in pane.tickers() and "XAUBTC" not in pane.tickers()
+    dollars = screen(pane, 120, 30)
+    assert pane.key("$", "$") and pane.in_btc
+    await pane.reload()
+    await pane.settle()
+    assert "XAUBTC" in pane.tickers() and "BTC" not in pane.tickers()      # one bitcoin is one bitcoin: no row for it
+    sats = screen(pane, 120, 30)
+    assert "XAUBTC" in sats and "₿" in sats and "IN BITCOIN" in sats and "₿1 = $" in sats
+    assert "· ₿" in pane.title and pane.command().endswith("SATS")
+    assert "XAUBTC" not in dollars
+    assert pane.key("$", "$") and not pane.in_btc and pane.command() == "QM GLOBAL"
+
+
+async def test_a_row_priced_in_bitcoin_is_the_two_quotes_divided(no_network):
+    hub = make_hub()
+    pane = await loaded("QM", ("COMMODITIES", "SATS"), hub)
+    assert pane.in_btc
+    gold, btc = hub.quotes.get("XAU"), hub.quotes.get("BTC")
+    assert gold and btc
+    row = hub.quotes["XAUBTC"]
+    assert row.price == pytest.approx(gold.price / btc.price * 1e8)
+    assert M.price(hub.book.get("XAUBTC"), row.price).startswith("₿")
+
+
+async def test_a_watchlist_called_btc_is_still_a_watchlist_not_a_unit(no_network):
+    """`QM BTC` was a one-instrument list before the unit existed and must stay one: the unit word is SATS."""
+    pane = await loaded("QM", ("BTC",))
+    assert not pane.in_btc and pane.list_name == "CUSTOM" and pane.tickers() == ["BTC"]
+
+
+async def test_world_indices_and_commodities_take_the_same_key(no_network):
+    for code, ticker in (("WEI", "SPXBTC"), ("GLCO", "XAUBTC")):
+        pane = await loaded(code, ("SATS",))
+        assert pane.in_btc and pane.command().endswith("SATS") and pane.hub.book.get(ticker) is not None
+        assert "₿" in screen(pane, 120, 30), code
+        assert pane.key("$", "$") and not pane.in_btc and pane.command() == code
+
+
+async def test_the_unit_column_of_the_commodity_table_follows_the_key(no_network):
+    gold_row = lambda p: next(ln for ln in screen(p, 120, 34).split("\n") if ln.startswith("XAU "))       # noqa: E731
+    dollars = gold_row(await loaded("GLCO"))
+    sats = gold_row(await loaded("GLCO", ("SATS",)))
+    assert "$/oz" in dollars and "₿" not in dollars
+    assert "₿/oz" in sats and "$/oz" not in sats
+
+
+async def test_a_monthly_average_in_satoshis_shows_no_change_it_cannot_measure(no_network):
+    """Copper and the grains are IMF monthly averages. There is no bitcoin price of their month in hand, so the
+    row carries the level in satoshis and a dash where the percent change would be, rather than a made-up one."""
+    pane = await loaded("GLCO", ("SATS",))
+    rows = [ln for ln in screen(pane, 120, 34).split("\n") if ln.startswith(("COPPER", "CORN", "WHEAT", "SUGAR"))]
+    assert rows, "no monthly row on the page"
+    assert all("–" in r for r in rows) and all("₿" in r for r in rows)
+
+
+def test_a_unit_suffix_follows_the_price_into_bitcoin():
+    hub = Hub()
+    pane = M.GlcoPane(hub, None, ("SATS",))
+    assert pane.per("$/oz") == "₿/oz" and pane.per("¢/bu") == "₿/bu" and pane.per("$ billions") == "₿"
+    plain = M.GlcoPane(hub, None, ())
+    assert plain.per("$/oz") == "$/oz"

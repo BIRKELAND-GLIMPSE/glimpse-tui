@@ -13,6 +13,23 @@ def sats(n: float, signed: bool = False) -> str:
     return f"{sign}₿{abs(r):,}"
 
 
+SATS = 100_000_000
+
+
+def in_btc(n: float | None, signed: bool = False) -> str:
+    """A price in Bitcoin. Satoshis up to a whole coin (`₿3,712,400`), bitcoin above it (`₿7.0123`), and
+    fractions of a sat below one, because a euro is about 900 sats and a share of a penny stock is fewer."""
+    if n is None:
+        return "–"
+    sign = MINUS if n < 0 else "+" if signed and n > 0 else ""
+    a = abs(n)
+    if a >= SATS:
+        return f"{sign}₿{a / SATS:,.4f}"
+    if a >= 1000:
+        return f"{sign}₿{a:,.0f}"
+    return f"{sign}₿{a:,.2f}" if a >= 1 else f"{sign}₿{a:,.4f}"
+
+
 def price(x: float) -> str:
     return f"{x:,.0f}" if x >= 100 else f"{x:,.2f}"
 

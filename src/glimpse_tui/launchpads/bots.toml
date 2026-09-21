@@ -1,0 +1,7 @@
+# The machines reading the market. Off the front page since James asked for it, but still one key away: LP BOTS,
+# or `:` and `bots`. What every model on this computer expects of Bitcoin, one model at a time, and gold beside it.
+name = "BOTS"
+layout = { split = "col", row_height = 21, weights = [1.25, 1.0, 0.9], panes = [
+  { split = "row", weights = [3.0, 2.0], panes = ["CONS BTC", "BOT BTC"] },
+  { split = "row", weights = [3.0, 2.0], panes = ["CONS XAU", "BOT XAU"] },
+  { split = "row", weights = [3.0, 2.0], panes = ["GP BTC 24H", "DIST BTC"] } ] }

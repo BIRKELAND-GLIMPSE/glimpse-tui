@@ -41,8 +41,12 @@ SLIP_MIN_WIDTH = 118            # narrower terminals keep the compact ticket und
 WASD = {"w": "up", "a": "left", "s": "down", "d": "right"}
 
 HELP = """\
- The bar along the top names every screen and series with the key that reaches it: t the front page, f the
- forecast, o the odds, B bots, p portfolio, [ and ] the previous and next series (BTC, BTC 1D, ETH, SOL, XAU).
+ THE ODDS (o) is where the terminal opens: every outcome of Bitcoin's next hourly close, with the market's
+ chance of it and the odds it pays. h moves to the list of closes beside it, l back to the odds, v selects a
+ range and b bets on it. Everything else is behind the bar along the top, which names every screen and every
+ series with the key that reaches it: t the front page (the rest of the terminal: charts, the chain, the news,
+ the world), f the forecast, o the odds, B bots, p portfolio, [ and ] the previous and next series (BTC,
+ BTC 1D, ETH, SOL, XAU).
  The panel at the bottom lists what the screen you are on does, one row per kind of action. Above it is a
  vim status line: the mode (NORMAL, VISUAL while a box is selected, SLIP on the bet slip), messages, and
  on the right the keys typed so far, so 5 then j moves five cells and 12| goes to the twelfth close.
@@ -51,12 +55,20 @@ HELP = """\
                close lands in range, or across several closes the chance all of them land, at least one lands,
                and how many to expect. Closes are treated as independent; the market prices each on its own.
 
+ EVERY POSITION  A box across several closes is not one bet: it is one order per close, each at that close's own
+               price. The slip lists them under POSITIONS with the cost, payout and ROI of each ([ and ]
+               walk the list), and P opens the full table — chance, contracts, cost, payout, profit, odds and ROI
+               for every one, with a TOTAL row. The same table is the confirmation b asks for, so nothing is ever
+               bought that you have not seen priced, line by line.
+
  ALL KEYS  h j k l, ← ↓ ↑ → or a s w d move (left down up right), counts (5j)   { } a day   ( ) next / prev midnight
            0 ^ $ first / last close   12| close 12   gg G band top / bottom   ctrl-d ctrl-u half page   ctrl-f ctrl-b page
            ctrl-e ctrl-y scroll   zt zz zb place the row   zh zl zH zL scroll sideways   zi zo zoom price   < > zoom time
            zf the whole forecast   za auto-fit   zm median   v box   V the 80% band   o other corner   gv reselect   esc clear
-           ma 'a mark, jump   '' jump back   enter open the close   tab bet slip   + - S size   b BET   / : price, command   [ ] series
+           ma 'a mark, jump   '' jump back   enter open the close   tab bet slip   P every position   + - S size   b BET
+           / : price, command   [ ] series
            t front page   f forecast   o odds   p portfolio   B bots   L O log in / out   c colours   r refresh   ctrl-l redraw   q ZZ :q quit
+           ? every key, and this page scrolls: j k ↓ ↑ a line, ctrl-d ctrl-u half a page, g G the ends, esc closes
 
  THE HEATMAP   Each character is one price cell of one close, one orange thickening with the market's
                belief:  ░  from 0.6% a bin,  ▒  from 1.5%,  ▓  from 3.9%,  █  above 10%. Blank is untraded.
@@ -93,8 +105,10 @@ HELP = """\
 
 
 TERM_HELP = """\
- The front page (t) is one long page, most important at the top: Bitcoin, the bots, gold, the chain, the news,
- then the world's markets. j and k walk it; everything else on this list works from anywhere.
+ The front page (t) is one long page, most important at the top: Bitcoin's forecast and the odds on its next
+ hour, gold's forecast and the odds on its next close, the chain, the news, the power law, then the world's
+ markets. j and k walk it; everything else on this list works from anywhere. The odds (o) is the screen the
+ terminal opens on; this page is the rest of it.
 
  ON THE PAGE   j and k (or ↓ ↑, or ctrl-j ctrl-k) move down and up, window by window; the page scrolls to follow.
                h and l move across. g and G go to the top and the bottom. 1 to 9 jump to a window.
@@ -109,10 +123,13 @@ TERM_HELP = """\
  SPC MENU      SPC w windows (/ - split, d close, m maximize)   SPC b buffers (b list, n p, d close)
                SPC t this page   SPC f the forecast   SPC o the odds   SPC B bots   SPC p portfolio
 
- THE PAGE      Bitcoin's next 24 hours and the odds on its next hour · what the bots expect of the next hour,
-               day and three days, and one bot at a time ([ ] walks the zoo) · gold, and the odds on its next
-               close · hashrate and the difficulty adjustment · the news and world prices · dollar liquidity
-               and the Treasury curve · currencies, commodities and world indices · fees, last.
+ THE PAGE      Bitcoin's next 24 hours and the odds on its next hour · gold, and the odds on its next close ·
+               hashrate and the difficulty adjustment · the news and world prices · the power law of Bitcoin in
+               dollars and of gold in bitcoin · dollar liquidity, the Treasury curve and the economic prints ·
+               currencies and commodities · fees, last. The bots are still there, on B and on the search list.
+ IN BITCOIN    $ on a market window (QM, WEI, GLCO) prices the whole table in satoshis instead of dollars: gold
+               becomes XAUBTC, the S&P 500 becomes SPXBTC. Any ticker takes the same form anywhere a ticker is
+               typed, so GP XAUBTC charts it and PL XAUBTC fits its power law.
 
  Numbers are live where a free feed exists and daily where only official data does; each window says which on
  its frame, and dims when it is out of date. SRC names every source behind them. Trading needs a key: L."""
@@ -339,7 +356,52 @@ class Confirm(ModalScreen[bool]):
             self.dismiss(False)
 
 
+class OrderPreview(ModalScreen[bool]):
+    """Every market an order touches, before it is sent. `confirm` makes it the buy confirmation (y / n); without
+    it the page is read-only and any key closes it. The table scrolls, because a box across a week of hourly
+    closes is 168 rows and every one of them is a separate order at its own price."""
+
+    def __init__(self, title: str, head: Text, rows: list[Text], confirm: bool, note: Text | None = None) -> None:
+        super().__init__()
+        self._title, self._head, self._rows, self._confirm, self._note = title, head, rows, confirm, note
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="dialog", classes="wide"):
+            yield Static(self._title, id="dialog-title")
+            yield Static(self._head)
+            with VerticalScroll(id="order-body"):
+                yield Static(Text("\n").join(self._rows))
+            if self._note is not None:
+                yield Static(self._note)
+            yield Static("j k ↓ ↑ scroll   " + ("y confirm      n / esc cancel" if self._confirm else "esc closes"),
+                         id="dialog-hint")
+
+    def on_key(self, e: events.Key) -> None:
+        e.stop()
+        scroll = self.query_one("#order-body", VerticalScroll)
+        half = max(scroll.size.height // 2, 1)
+        if e.character == "G" or e.key == "end":
+            scroll.scroll_end(animate=False)
+        elif e.character == "g" or e.key == "home":
+            scroll.scroll_home(animate=False)
+        elif e.key in ("j", "down", "ctrl+j"):
+            scroll.scroll_relative(y=2, animate=False)
+        elif e.key in ("k", "up", "ctrl+k"):
+            scroll.scroll_relative(y=-2, animate=False)
+        elif e.key in ("ctrl+d", "pagedown", "space"):
+            scroll.scroll_relative(y=half if e.key == "ctrl+d" else scroll.size.height, animate=False)
+        elif e.key in ("ctrl+u", "pageup"):
+            scroll.scroll_relative(y=-(half if e.key == "ctrl+u" else scroll.size.height), animate=False)
+        elif self._confirm and e.key in ("y", "Y"):
+            self.dismiss(True)
+        elif e.key in ("n", "N", "escape", "q") or not self._confirm:
+            self.dismiss(False)
+
+
 class Help(ModalScreen[None]):
+    """The key list. Longer than any screen, so it scrolls: j k or the arrows a line, ctrl-d ctrl-u a half page,
+    g and G the ends. esc, q or ? close it; nothing else does, or a scroll key would shut the page it scrolls."""
+
     def __init__(self, body: str = HELP) -> None:
         super().__init__()
         self._body = body
@@ -347,10 +409,32 @@ class Help(ModalScreen[None]):
     def compose(self) -> ComposeResult:
         with Vertical(id="dialog", classes="wide"):
             yield Static("GLIMPSE TERMINAL", id="dialog-title")
-            yield Static(self._body)
+            with VerticalScroll(id="help-body"):
+                yield Static(self._body)
+            yield Static("j k ↓ ↑ scroll   ctrl-d ctrl-u half a page   g G top, bottom   esc closes", id="dialog-hint")
 
     def on_key(self, e: events.Key) -> None:
-        self.dismiss(None)
+        e.stop()                        # the app's own handler must not see a scroll key as a command
+        self.scroll_by(e.key, e.character)
+
+    def scroll_by(self, key: str, ch: str | None) -> None:
+        """One key of scrolling, kept out of the handler so the whole key map reads as one block."""
+        scroll = self.query_one("#help-body", VerticalScroll)
+        half = max(scroll.size.height // 2, 1)
+        if ch == "G" or key == "end":
+            scroll.scroll_end(animate=False)
+        elif ch == "g" or key == "home":
+            scroll.scroll_home(animate=False)
+        elif key in ("j", "down", "ctrl+j", "enter") or ch == "j":
+            scroll.scroll_relative(y=2, animate=False)
+        elif key in ("k", "up", "ctrl+k") or ch == "k":
+            scroll.scroll_relative(y=-2, animate=False)
+        elif key in ("ctrl+d", "pagedown", "space", "ctrl+f") or ch == "d":
+            scroll.scroll_relative(y=half if key in ("ctrl+d",) or ch == "d" else scroll.size.height, animate=False)
+        elif key in ("ctrl+u", "pageup", "ctrl+b") or ch == "u":
+            scroll.scroll_relative(y=-(half if key == "ctrl+u" or ch == "u" else scroll.size.height), animate=False)
+        elif key in ("escape", "q") or ch in ("q", "?"):
+            self.dismiss(None)
 
 
 class About(ModalScreen[None]):
@@ -381,6 +465,66 @@ class About(ModalScreen[None]):
             scroll.scroll_page_up(animate=False)
         else:
             self.dismiss(None)
+
+
+# The order preview: every market the order touches, one row each, with every number it is priced on. The widths
+# are fixed so the header, the rows and the total line up, and columns drop from the right as the pane narrows.
+LEG_COLS = (("close", 13), ("chance", 8), ("contracts", 10), ("cost", 11), ("payout", 11), ("profit", 11),
+            ("odds", 8), ("roi", 8))
+
+
+def order_table(legs: list[Leg], total: P.Ticket | None, width: int, hourly: bool, cur: int = -1) -> list[Text]:
+    """Every leg of an order as a table, with a TOTAL row. Used by the preview (P) and by the buy confirmation,
+    so what you check is what you send."""
+    keep, used = [], 0
+    for name, w in LEG_COLS:
+        if used + w + 1 > width:
+            break
+        keep.append((name, w))
+        used += w + 1
+    head = Text(no_wrap=True, overflow="crop")
+    for i, (name, w) in enumerate(keep):
+        head.append(f"{name:<{w}}" if i == 0 else f"{name:>{w}}", style=FAINT)
+        head.append(" ")
+    out = [head, Text("─" * min(used, width), style=RULE, no_wrap=True)]
+
+    def line(label: str, prob: float | None, tk: P.Ticket, style: str, mark: bool = False) -> Text:
+        cells = {"close": label, "chance": fmt.pct(prob) if prob is not None else "",
+                 "contracts": fmt.contracts(tk.contracts), "cost": fmt.sats(tk.cost_sats),
+                 "payout": fmt.sats(tk.payout_sats), "profit": fmt.sats(tk.profit_sats, signed=True),
+                 "odds": fmt.odds(tk.odds), "roi": fmt.roi(tk.roi)}
+        row = Text(no_wrap=True, overflow="crop")
+        for i, (name, w) in enumerate(keep):
+            v = cells[name]
+            if i == 0 and mark:
+                v = "▸ " + v[: w - 2]
+            colour = (GREEN if tk.profit_sats > 0 else RED) if name in ("profit", "odds", "roi") else style
+            row.append(f"{v:<{w}}" if i == 0 else f"{v:>{w}}", style=f"bold {colour}" if mark else colour)
+            row.append(" ")
+        return row
+
+    for i, leg in enumerate(legs):
+        out.append(line(fmt.close_label(leg.end_time, hourly), leg.prob, leg.ticket, TEXT, mark=i == cur))
+    if total is not None and len(legs) > 1:
+        out.append(Text("─" * min(used, width), style=RULE, no_wrap=True))
+        row = line(f"TOTAL {len(legs)}", total.prob, total, ORANGE)
+        # `combine` keeps one market's contract count, because that is what each order is for. On the total line
+        # that would read as the whole order's size, so it says how many orders carry it instead.
+        if any(name == "contracts" for name, _ in keep):
+            at = sum(w + 1 for name, w in keep[:[n for n, _ in keep].index("contracts")])
+            w = dict(keep)["contracts"]
+            row = Text(no_wrap=True, overflow="crop").append_text(row[:at]).append(
+                f"{fmt.contracts(total.contracts) + ' ×' + str(len(legs)):>{w}} ", style=ORANGE).append_text(row[at + w + 1:])
+        out.append(row)
+    return out
+
+
+@dataclass(frozen=True)
+class Leg:
+    """One close of an order: the market it goes to, what it is priced at, and what that leg alone costs and pays."""
+    end_time: int
+    prob: float
+    ticket: P.Ticket
 
 
 def book_of(view: RowView) -> Book:
@@ -445,6 +589,9 @@ class Terminal(App):
     #dialog {{ width: 72; height: auto; border: round {ORANGE}; background: #111111; padding: 1 2; }}
     #dialog.wide {{ width: 132; }}
     #about-body {{ height: auto; max-height: 80vh; }}
+    #help-body {{ height: auto; max-height: 78vh; }}
+    #order-body {{ height: auto; max-height: 62vh; }}
+    #dialog.widest {{ width: 108; }}
     #dialog-title {{ color: {ORANGE}; text-style: bold; margin-bottom: 1; }}
     #dialog-hint {{ color: {DIM}; margin: 1 0; }}
     Input {{ border: tall #222222; background: #0D0D0D; }}
@@ -453,7 +600,7 @@ class Terminal(App):
 
     def __init__(self, launchpad: str | None = None, go: str = "") -> None:
         super().__init__()
-        self.launchpad = launchpad      # the launchpad to open on; None opens on the markets and ladder, as before
+        self.launchpad = launchpad      # the launchpad to open on; None opens on the odds, which is what the terminal does now
         self.go = go                    # a GO bar command to run at launch: `glimpse-tui MEMP`
         self.shell = Shell(self)        # the GO bar, the panes and the hub (TERMINAL.md); idle until a launchpad shows
         key, self.key_source = auth.load_key()
@@ -467,7 +614,7 @@ class Terminal(App):
         self.b_cur = 0
         self.anchor: int | None = None
         self.contracts = 21.0
-        self.pane = 0                   # 0 markets, 1 ladder
+        self.pane = 1                   # 0 the list of closes, 1 the odds themselves: the terminal opens on the odds
         self.view = "main"              # main | heatmap | portfolio | bots | term (the launchpad)
         self.wallet: Wallet | None = None
         self.summary: Summary | None = None
@@ -515,6 +662,8 @@ class Terminal(App):
         self.truecolor = wants_truecolor(saved=auth.load_state().get("colors", ""))
         charts.truecolor = self.truecolor
         self._hm_ticket: tuple[tuple, P.Ticket | None] | None = None
+        self._legs: tuple[tuple, list[Leg]] | None = None
+        self.leg_cur = 0                # which position the slip's list is centred on; [ ] or J K walk it
         self._hm_hist: tuple[tuple, list[Candle]] | None = None
         self._hm_groups: tuple[tuple, tuple[list[int], list[int], list[int]]] | None = None
 
@@ -557,6 +706,24 @@ class Terminal(App):
             return [sum(v.raw[b0:b1 + 1]) / v.total for v in self.views[c0:c1 + 1]]
         tk = self.ticket if self.view == "main" else None
         return [tk.prob] if tk else []
+
+    @property
+    def legs(self) -> list[Leg]:
+        """Every market this order would touch, nearest close first, each priced on its own.
+
+        A box across the forecast is not one bet: it is one order per close, each at that close's own price. The
+        slip lists them and the preview (P) prices every column of every one, so nothing is bought unseen.
+        """
+        if self.view == "heatmap":
+            sel = self.hm_selection
+            if sel is None:
+                return []
+            key = (self.data_version, sel, self.contracts)
+            if self._legs is None or self._legs[0] != key:
+                self._legs = (key, self.hm_parts(sel, self.contracts))
+            return self._legs[1]
+        tk = self.ticket if self.view == "main" else None
+        return [Leg(self.book.end_time_utc, tk.prob, tk)] if tk and self.book else []
 
     @property
     def ticket_live(self) -> bool:
@@ -664,6 +831,12 @@ class Terminal(App):
             self.slip_cur = (self.slip_cur + 1) % len(fields)
         elif k in ("k", "up"):
             self.slip_cur = (self.slip_cur - 1) % len(fields)
+        elif ch in ("]", "J") or k == "ctrl+j":
+            self.leg_cur = min(self.leg_cur + n, max(len(self.legs) - 1, 0))
+        elif ch in ("[", "K") or k == "ctrl+k":
+            self.leg_cur = max(self.leg_cur - n, 0)
+        elif ch == "P":
+            self.show_preview()
         elif k in ("h", "left") or ch in ("-", "_"):
             self.slip_adjust(fields[self.slip_cur][0], -n)
         elif k in ("l", "right") or ch in ("+", "="):
@@ -825,12 +998,19 @@ class Terminal(App):
         g = self.hm_grid
         return c0, c1, g.bins_of(min(ab, self.hm_bin) // g.bpc)[0], g.bins_of(max(ab, self.hm_bin) // g.bpc)[1]
 
-    def hm_price(self, sel: tuple[int, int, int, int], contracts: float) -> P.Ticket:
+    def hm_parts(self, sel: tuple[int, int, int, int], contracts: float) -> list[Leg]:
+        """One priced ticket per close in the box, nearest first. The slip and the order preview show these; the
+        combined ticket below is only their sum, and a trader cannot check a sum they cannot see the parts of."""
         c0, c1, b0, b1 = sel
-        parts = []
+        out = []
         for v in self.views[c0:c1 + 1]:
             q = list(v.row.shares)
-            parts.append(P.ticket(q, P.alpha_for(len(q)), b0, b1, contracts, prob=sum(v.raw[b0:b1 + 1]) / v.total))
+            prob = sum(v.raw[b0:b1 + 1]) / v.total
+            out.append(Leg(v.row.end_time_utc, prob, P.ticket(q, P.alpha_for(len(q)), b0, b1, contracts, prob=prob)))
+        return out
+
+    def hm_price(self, sel: tuple[int, int, int, int], contracts: float) -> P.Ticket:
+        parts = [leg.ticket for leg in self.hm_parts(sel, contracts)]
         return parts[0] if len(parts) == 1 else P.combine(parts)
 
     @property
@@ -1072,6 +1252,7 @@ class Terminal(App):
         trading = self.view in ("main", "heatmap")
         slip = self.query_one("#slip", SlipPane)
         slip.display = trading and self.size.width >= SLIP_MIN_WIDTH
+        self.leg_cur = max(0, min(self.leg_cur, max(len(self.legs) - 1, 0)))
         if not slip.display:
             self.slip_focus = False
         self.query_one("#ticket").display = trading and not slip.display
@@ -1448,6 +1629,34 @@ class Terminal(App):
             self.shell.run(cmd)                         # anything else is a GO bar command: MEMP, BTC, LP MACRO, TX <txid>
         self.paint()
 
+    def preview_parts(self, width: int = 104) -> tuple[Text, list[Text], Text | None]:
+        """(heading, table rows, note) for the order preview and the buy confirmation."""
+        legs, tk = self.legs, self.ticket
+        head = Text(no_wrap=True)
+        head.append(f"{self.slip_title}\n", style=f"bold {TEXT}")
+        for line in self.slip_when:
+            head.append(f"{line}   ", style=DIM)
+        fields = [f"{label} {value}" for _, label, value in self.slip_fields()]
+        head.append(("\n" if self.slip_when else "") + "   ".join(fields), style=DIM)
+        rows = order_table(legs, tk, width, self.hm_cadence < 86400)
+        note = None
+        if len(legs) > 1 and tk is not None:
+            note = Text(no_wrap=True)
+            note.append(f"\n{len(legs)} separate orders, one a close, each at that close's own price. ", style=DIM)
+            note.append(f"All {len(legs)} land: {fmt.pct(tk.prob)}. ", style=DIM)
+            every, anyone, expect = P.chances(self.sel_probs)
+            note.append(f"At least one: {fmt.pct(anyone)}. Expected: {expect:.1f}.", style=DIM)
+        return head, rows, note
+
+    @work
+    async def show_preview(self) -> None:
+        """P: every market of the order, priced, without buying anything."""
+        if not self.legs:
+            self.say(self.ticket_hint or "Select a range first: v, then move.")
+            return
+        head, rows, note = self.preview_parts()
+        await self.push_screen_wait(OrderPreview("ORDER PREVIEW", head, rows, confirm=False, note=note))
+
     def help(self) -> None:
         self.push_screen(Help(TERM_HELP if self.view == "term" else HELP))
 
@@ -1475,6 +1684,8 @@ class Terminal(App):
             if self.view == "bots":
                 self._scan_key = None
                 self.scan_bots()
+        elif ch == "P" and self.view in ("main", "heatmap"):
+            self.show_preview()                         # every market of the order, priced, without buying
         elif ch == "p":
             self.view = "main" if self.view == "portfolio" else "portfolio"
             self.load_account()
@@ -1716,16 +1927,11 @@ class Terminal(App):
             self.say("This market is closed.")
             return
         lo, hi = self.selection
-        body = Text()
-        body.append(f"{fmt.question(self.asset, b.end_time_utc)}\n", style=DIM)
-        body.append(f"{fmt.span(b.bins[lo][0], b.bins[hi][1])}", style=f"bold {TEXT}")
-        body.append(f"   {fmt.contracts(tk.contracts)} contracts × {tk.bins} bins\n\n")
-        body.append(f"cost    {fmt.sats(tk.cost_sats):>12}   (fee {fmt.sats(tk.fee_sats)} included)\n")
-        body.append(f"payout  {fmt.sats(tk.payout_sats):>12}   if the close lands in range ({fmt.pct(tk.prob)})\n", style=ORANGE)
-        body.append(f"profit  {fmt.sats(tk.profit_sats, signed=True):>12}   {fmt.odds(tk.odds)}  {fmt.roi(tk.roi)}\n",
-                    style=GREEN if tk.profit_sats > 0 else RED)
-        body.append(f"lose    {fmt.sats(tk.cost_sats):>12}   otherwise", style=DIM)
-        if not await self.push_screen_wait(Confirm("BUY", body)):
+        head, rows, note = self.preview_parts()
+        head.append(f"\n{fmt.span(b.bins[lo][0], b.bins[hi][1])} · {tk.bins} bin{'s' if tk.bins > 1 else ''}"
+                    f" · fee {fmt.sats(tk.fee_sats)} included", style=DIM)
+        tail = Text(f"\nLose {fmt.sats(tk.cost_sats)} if the close lands outside the range.", style=DIM, no_wrap=True)
+        if not await self.push_screen_wait(OrderPreview("BUY", head, rows, confirm=True, note=tail)):
             return
         try:
             cost, fee = await self.api.estimate(b, lo, hi, tk.contracts)
@@ -1758,24 +1964,13 @@ class Terminal(App):
         c0, c1, b0, b1 = sel
         views, bins = self.views[c0:c1 + 1], self.views[0].bins
         orders = [Order(v.row.topic_id, tuple(v.row.option_ids[b0:b1 + 1]), tk.contracts) for v in views]
-        short = self.hm_cadence < 86400
-        body = Text()
-        body.append(fmt.question(self.asset, views[0].row.end_time_utc), style=DIM)
-        if len(views) > 1:
-            body.append(f" → {fmt.close_label(views[-1].row.end_time_utc, short)} UTC · {len(views)} closes", style=DIM)
-        body.append(f"\n{fmt.span(bins[b0][0], bins[b1][1])}", style=f"bold {TEXT}")
-        closes = f" × {len(views)} closes" if len(views) > 1 else ""
-        body.append(f"   {fmt.contracts(tk.contracts)} contracts × {tk.bins} bins{closes}\n\n")
-        body.append(f"cost    {fmt.sats(tk.cost_sats):>12}   (fee {fmt.sats(tk.fee_sats)} included)\n")
-        if len(views) > 1:
-            body.append(f"payout  {fmt.sats(tk.payout_sats / len(views)):>12}   per close that lands in range\n", style=ORANGE)
-            body.append(f"max     {fmt.sats(tk.payout_sats):>12}   if all {len(views)} land ({fmt.pct(tk.prob)})   {fmt.odds(tk.odds)}\n",
-                        style=ORANGE)
-        else:
-            body.append(f"payout  {fmt.sats(tk.payout_sats):>12}   if the close lands in range ({fmt.pct(tk.prob)})   {fmt.odds(tk.odds)}\n",
-                        style=ORANGE)
-        body.append(f"lose    {fmt.sats(tk.cost_sats):>12}   if none do", style=DIM)
-        if not await self.push_screen_wait(Confirm("BUY", body)):
+        head, rows, note = self.preview_parts()
+        head.append(f"\n{fmt.span(bins[b0][0], bins[b1][1])} · {tk.bins} bin{'s' if tk.bins > 1 else ''}"
+                    f" · fee {fmt.sats(tk.fee_sats)} included", style=DIM)
+        tail = note or Text()
+        tail.append(f"\nLose {fmt.sats(tk.cost_sats)} if none land.", style=DIM)
+        if not await self.push_screen_wait(OrderPreview(f"BUY · {len(orders)} ORDER{'S' if len(orders) > 1 else ''}",
+                                                        head, rows, confirm=True, note=tail)):
             return
         try:
             ests = []

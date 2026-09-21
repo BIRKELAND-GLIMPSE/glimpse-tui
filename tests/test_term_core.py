@@ -205,10 +205,13 @@ def test_split_tree_rectangles_tile_the_area_exactly():
 def test_the_default_page_is_taller_than_the_screen_and_scrolls_to_the_focused_window():
     root = panes.load_layout("BTC")
     assert root.row_height == 21 and len(root.children) == 8 and panes.from_doc(panes.to_doc(root)).row_height == 21
-    ls = panes.leaves(root)
-    # Bitcoin first, then the bots, then gold: the most significant thing on the page is the first thing on it.
-    assert [lf.command for lf in ls][:6] == ["GP BTC 24H", "DIST BTC", "CONS BTC", "BOT BTC", "GP XAU 1D", "DIST XAU"]
-    assert [lf.command for lf in ls][-3:] == ["FX", "GLCO", "FEES"] and len(ls) == 16 <= panes.MAX_PANES
+    ls = [lf.command for lf in panes.leaves(root)]
+    # Bitcoin's chart and its odds, then gold's, then the chain: the most significant thing is the first thing.
+    assert ls[:6] == ["GP BTC 24H", "DIST BTC", "GP XAU 1D", "DIST XAU", "HASH", "DIFF"]
+    assert ls[-3:] == ["FX", "GLCO SATS", "FEES"] and len(ls) == 16 <= panes.MAX_PANES
+    assert not [c for c in ls if c.startswith(("CONS", "BOT"))]          # the bots have their own screen (B), not a window here
+    assert ["PL BTC", "PL XAUBTC"] == [c for c in ls if c.startswith("PL")]
+    assert "GLCO SATS" in ls                                             # commodities in satoshis; `$` on the window is dollars
 
 def test_launchpads_save_and_load_and_every_shipped_one_parses():
     for name in panes.SHIPPED:
@@ -224,6 +227,7 @@ def test_launchpads_save_and_load_and_every_shipped_one_parses():
 def test_config_round_trips_and_coerces_types():
     cfg = config.load()
     assert cfg["bitcoin"]["mempool"] == "https://mempool.space" and cfg["default_launchpad"] == "BTC"
+    assert cfg["opens_on"] == "odds"                        # a bare `glimpse-tui` opens on the odds, not the front page
     config.set_value(cfg, "bitcoin.mempool", "http://umbrel.local:3006")
     config.set_value(cfg, "gold_stock_tonnes", "250,000")
     config.set_value(cfg, "tape", "BTC MEMP XAU")
@@ -303,3 +307,55 @@ def test_sparkline_and_bars():
 
 def test_asyncio_queue_is_created_outside_a_loop():
     assert isinstance(Hub().stream_commands, asyncio.Queue)
+
+
+def test_a_bare_glimpse_tui_opens_on_the_odds_and_the_front_page_is_behind_a_flag():
+    """James: start easy with the odds page; the terminal is the world behind the curtain, for those who look."""
+    from glimpse_tui import opening_launchpad
+
+    cfg = config.load()
+    assert opening_launchpad([], cfg) is None                       # None means the odds screen
+    assert opening_launchpad(["MEMP"], cfg) is None                 # a GO bar command still opens on the odds under it
+    assert opening_launchpad(["--terminal"], cfg) == "BTC"
+    assert opening_launchpad(["-t"], cfg) == "BTC"
+    front = {**cfg, "opens_on": "terminal", "default_launchpad": "MACRO"}
+    assert opening_launchpad([], front) == "MACRO"                  # the setting decides when no flag does
+    assert opening_launchpad(["--odds"], front) is None             # and a flag beats the setting
+    assert opening_launchpad(["--markets"], front) is None          # the old name for it still works
+
+
+def test_j_and_k_move_exactly_one_row_whatever_the_width():
+    """A cell is about three times wider than it is tall. Ranking the two distances together let a window half
+    the page across beat the whole row below it, so `j` skipped a row; the gap along the way now comes first."""
+    root = panes.load_layout("BTC")
+    rows = [[lf.command for lf in panes.leaves(child)] for child in root.children]
+    for width in (80, 100, 120, 160, 190, 240):
+        ws = _Fake(root, width, 21 * len(rows))
+        seen, at = [], panes.leaves(root)[0]
+        ws.focused = at
+        for _ in range(len(rows) * 2):
+            panes.Workspace.move(ws, "j")
+            seen.append(ws.focused.command)
+        walked = [c for i, c in enumerate(seen) if i == 0 or c != seen[i - 1]]
+        assert [next(r for r in rows if c in r) for c in walked] == rows[1:], width
+        up = []
+        for _ in range(len(rows) * 2):
+            panes.Workspace.move(ws, "k")
+            up.append(ws.focused.command)
+        walked_up = [c for i, c in enumerate(up) if i == 0 or c != up[i - 1]]
+        assert [next(r for r in rows if c in r) for c in walked_up] == rows[-2::-1], width
+
+
+class _Fake:
+    """Enough of a Workspace for `move`: a tree, a size and a focus. Driving the real widget needs a running app."""
+
+    def __init__(self, root, width, height):
+        from textual.geometry import Size
+        self.root, self.size, self.focused = root, Size(width, height), None
+
+    def page_height(self):
+        return max(self.size.height, self.root.row_height * len(self.root.children))
+
+    def focus_leaf(self, leaf):
+        if leaf is not None:
+            self.focused = leaf

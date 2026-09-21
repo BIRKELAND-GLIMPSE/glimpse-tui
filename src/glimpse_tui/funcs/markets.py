@@ -22,7 +22,7 @@ from .. import charts, fmt
 from ..data import btcmath, deribit, fred, fx_ref, quotes, sentiment
 from ..data.core import DAILY, LIVE, MONTHLY, WEEKLY, Provenance, SourceError
 from ..data.treasury import TENORS, Curve
-from ..term import ui
+from ..term import instruments, ui
 from ..term.instruments import Instrument
 from ..term.panes import FuncPane
 from ..term.registry import Function, register
@@ -34,6 +34,11 @@ QUARTERLY = "quarterly"
 YEAR_LINE = "#6a6a6a"                        # the curve a year ago: present, but behind the others
 TROY_OZ_PER_TONNE = 32_150.7466
 GOLD_STOCK_SOURCE = "World Gold Council above-ground stock, end 2024, set in config"
+SATS_NOTE = ("$ prices the whole table in satoshis instead of dollars: each row becomes the `…BTC` form of its ticker "
+             "(XAUBTC, SPXBTC, NVDABTC), computed by dividing the two quotes the board already has, and the head says what a "
+             "bitcoin costs. Bitcoin's own row drops out, a yield keeps its percent because a percentage does not divide, and "
+             "a ratio has no day range of its own. The unit is saved into a launchpad as the word SATS. ")
+UNIT_WORD = "SATS"                           # `QM COMMODITIES SATS`: the same table priced in Bitcoin
 
 # What FRED publishes each series in and how often, as SOURCES.md records them from the series pages. FRED's CSV
 # carries neither, and the quote engine files everything from FRED under `daily`, so the pages correct it here.
@@ -143,6 +148,8 @@ def status(hub: Any, ticker: str, wide: bool = False) -> Text:
 def price(ins: Instrument | None, v: float | None, decimals: int | None = None) -> str:
     if v is None:
         return "–"
+    if ins is not None and ins.quote == instruments.BASE:        # XAUBTC and the rest: satoshis, never dollars
+        return fmt.in_btc(v)
     d = (ins.decimals if ins else 2) if decimals is None else decimals
     return ui.px(v, d) + ("%" if ins and ins.cls == "GOVT" else "")
 
@@ -158,8 +165,12 @@ def pct_of(hub: Any, ticker: str) -> Text:
     return delta_pct(q.pct, 2 if q.pct is not None and abs(q.pct) < 0.0995 else 1)
 
 
-def delta(v: float | None, digits: int = 2) -> Text:
+def delta(v: float | None, digits: int = 2, ins: Instrument | None = None) -> Text:
     """`ui.signed`, except that a change too small to show at this precision reads 0.00, not −0.00."""
+    if ins is not None and ins.quote == instruments.BASE:
+        if v is None or math.isnan(v):
+            return Text("–", style=FAINT)
+        return Text(fmt.in_btc(v, signed=True), style=GREEN if v > 0 else RED if v < 0 else DIM, no_wrap=True)
     return ui.signed(0.0 if v is not None and not math.isnan(v) and round(v, digits) == 0 else v, digits)
 
 
@@ -377,6 +388,7 @@ class MarketPane(FuncPane):
     that finish in the background, and daily histories cached on the pane."""
 
     heading: ClassVar[str] = ""
+    unit_key: ClassVar[bool] = False        # the page offers `$`: the same table priced in Bitcoin
 
     def __init__(self, hub, security=None, args=()) -> None:
         super().__init__(hub, security, args)
@@ -384,6 +396,65 @@ class MarketPane(FuncPane):
         self.watching: set[str] = set()
         self.bg: list[asyncio.Task] = []
         self.hist: dict[str, tuple[list[float], list[float], Provenance]] = {}
+        # `SATS`, not `BTC`: `QM BTC` is already a one-instrument watchlist, and a unit word must not shadow a ticker.
+        self.unit = instruments.BASE if self.unit_key and UNIT_WORD in {a.upper() for a in self.args} else "USD"
+        self.title = self.titled(self.title)
+
+    # priced in Bitcoin ──────────────────────────────────────
+
+    @property
+    def in_btc(self) -> bool:
+        return self.unit == instruments.BASE
+
+    def quoted(self, ticker: str) -> str:
+        """The ticker a row actually reads: `XAU` normally, `XAUBTC` while the page is priced in Bitcoin. A ticker
+        with no Bitcoin form — Bitcoin itself, a yield — stays as it is, and its row keeps saying dollars."""
+        if not self.in_btc:
+            return ticker
+        r = self.hub.book.ratio(ticker.upper() + instruments.BASE)
+        return r.ticker if r is not None else ticker.upper()
+
+    def rows_of(self, tickers: Sequence[str]) -> list[str]:
+        """The tickers to fetch and show, the Bitcoin form where there is one. Bitcoin's own row drops out of a
+        table priced in Bitcoin: one bitcoin is one bitcoin, and the header carries what it costs in dollars."""
+        if not self.in_btc:
+            return list(tickers)
+        return [q for t in tickers if (q := self.quoted(t)) != instruments.BASE]
+
+    def unit_note(self) -> str:
+        """What the frame says while the table is in satoshis."""
+        p = self.hub.btc_price()
+        return f"in satoshis · ₿1 = {ui.usd(p)}" if p else "in satoshis"
+
+    def titled(self, base: str) -> str:
+        """The frame title, marked when the page is not in dollars."""
+        return f"{base} · ₿" if self.in_btc else base
+
+    def toggle_unit(self, ch: str | None) -> bool:
+        if self.unit_key and ch == "$":
+            self.unit = "USD" if self.in_btc else instruments.BASE
+            self.cur = self.top = 0
+            self.title = self.titled(self.title.split(" · ₿")[0])
+            self.loaded_at = 0.0                            # due at once: the shell's next tick fetches the other leg
+            return True
+        return False
+
+    def unit_words(self) -> list[str]:
+        """What `command()` adds so a saved launchpad reopens in the same unit."""
+        return [UNIT_WORD] if self.in_btc else []
+
+    def sats_of(self, usd: float | None) -> float | None:
+        """A dollar value at the bitcoin price now. Only for a row whose own change cannot be carried across —
+        a monthly IMF average has no bitcoin price of its own month, so its row shows no change in satoshis."""
+        p = self.hub.btc_price()
+        return usd / p * instruments.SATS if usd and p else None
+
+    def per(self, unit: str) -> str:
+        """`$/oz` becomes `₿/oz`, `¢/bu` becomes `₿/bu`, `$ billions` becomes `₿`."""
+        if not self.in_btc:
+            return unit
+        _, sep, tail = unit.partition("/")
+        return f"₿/{tail}" if sep else "₿"
 
     def keep_fresh(self, tickers: Sequence[str]) -> None:
         new = {t.upper() for t in tickers} - self.hub.watch
@@ -461,19 +532,19 @@ class MarketPane(FuncPane):
 # ── QM ──────────────────────────────────────────────────────
 
 class QmPane(MarketPane):
-    code, every, selectable, tick = "QM", 60, True, 2.0
+    code, every, selectable, tick, unit_key = "QM", 60, True, 2.0, True
 
     def __init__(self, hub, security=None, args=()) -> None:
         super().__init__(hub, security, args)
         self.list_name = "GLOBAL"
         names = self.lists()
-        want = [a.upper() for a in self.args]
+        want = [a.upper() for a in self.args if a.upper() != UNIT_WORD]
         if want and want[0] in names:
             self.list_name = want[0]
         elif want and (adhoc := [i.ticker for a in want if (i := hub.book.get(a))]):
             self.custom = adhoc
             self.list_name = "CUSTOM"
-        self.title = self.list_name
+        self.title = self.titled(self.list_name)
 
     custom: Sequence[str] = ()
 
@@ -488,17 +559,17 @@ class QmPane(MarketPane):
         return out
 
     def tickers(self) -> list[str]:
-        return self.lists().get(self.list_name, [])
+        return self.rows_of(self.lists().get(self.list_name, []))
 
     def command(self) -> str:
-        return " ".join(["QM", *(self.custom or [self.list_name])])
+        return " ".join(["QM", *(self.custom or [self.list_name]), *self.unit_words()])
 
     def cache_key(self) -> tuple:
-        return (self.list_name, self.quote_key(self.tickers()))
+        return (self.list_name, self.unit, self.quote_key(self.tickers()))
 
     async def load(self) -> None:
         tickers = self.tickers()
-        self.title = self.list_name
+        self.title = self.titled(self.list_name)
         self.keep_fresh(tickers)
         await self.pull(tickers)
         self.bump()
@@ -543,12 +614,14 @@ class QmPane(MarketPane):
                 rows.append(unavailable(hub, t, w, tw + gap - 1))
                 continue
             cell = {"ticker": t, "name": ins.name if ins else "", "last": Text(price(ins, q.price), style=f"bold {TEXT}"),
-                    "chg": delta(q.change, ins.decimals if ins else 2),
+                    "chg": delta(q.change, ins.decimals if ins else 2, ins),
                     "% chg": pct_of(hub, t), "day range": range_cell(q, ins), "30 closes": spark_cell(self.closes(t), spark_w),
                     "delay": status(hub, t), "delay · as of": status(hub, t, True)}
             rows.append([cell.get(hd) for hd in heads])
         at = names.index(self.list_name) + 1 if self.list_name in names else 1
-        out = [ui.section(f"{self.list_name} · QUOTE MONITOR" if w >= 60 else self.list_name, w, f"list {at}/{len(names)}")]
+        aside = self.unit_note() if self.in_btc else f"list {at}/{len(names)}"
+        head = f"{self.list_name} · QUOTE MONITOR" if w >= 60 else self.list_name
+        out = [ui.section(head + (" · IN BITCOIN" if self.in_btc and w >= 78 else ""), w, aside)]
         out += grid(cols, rows, w, self.cur, gap)
         if not tickers:
             out += ui.wrap(f"The list {self.list_name} is empty. Lists live under [lists] in terminal.toml.", w, FAINT)
@@ -565,16 +638,16 @@ class QmPane(MarketPane):
             self.list_name = names[(i + (1 if ch == "]" else -1)) % len(names)]
             self.cur = self.top = 0
             self.loaded_at = 0.0                        # due at once: the shell's next tick loads the new list
-            self.title = self.list_name
+            self.title = self.titled(self.list_name)
             return True
-        return False
+        return self.toggle_unit(ch)
 
     def enter(self) -> str | None:
         tickers = self.tickers()
         return f"GP {tickers[self.cur]}" if tickers and self.cur < len(tickers) else None
 
     def hint(self) -> str:
-        return "[ ] lists · enter chart"
+        return "[ ] lists · $ dollars / bitcoin · enter chart"
 
     def menu(self) -> list[tuple[str, str]]:
         tickers = self.tickers()
@@ -597,27 +670,31 @@ REGIONS = (("AMERICAS", ("SPX", "NDX", "RUT", "DJI")), ("EMEA", ("SX5E", "DAX", 
 
 
 class WeiPane(MarketPane):
-    code, every, tick = "WEI", 120, 5.0
+    code, every, tick, unit_key = "WEI", 120, 5.0, True
     heading = "world equity indices"
 
     def tickers(self) -> list[str]:
         return [t for _, ts in REGIONS for t in ts]
 
+    def command(self) -> str:
+        return " ".join(["WEI", *self.unit_words()])
+
     def cache_key(self) -> tuple:
-        return self.quote_key(self.tickers() + ["SPY", "QQQ"])
+        return (self.unit, self.quote_key(self.tickers() + ["SPY", "QQQ"]))
 
     async def load(self) -> None:
         tickers = self.tickers()
-        self.keep_fresh(tickers)
-        await self.pull(tickers)
+        self.keep_fresh(tickers + [self.quoted(t) for t in tickers])
+        await self.pull(tickers + [self.quoted(t) for t in tickers])
         self.bump()
         for t in tickers:                                   # year to date needs the first close of the year
-            ins = self.hub.book.get(t)
+            shown = self.quoted(t)
+            ins = self.hub.book.get(shown)
             if ins and ins.sources:
-                await self.history(t, 400)
+                await self.history(shown, 400)
             if ins and ins.proxy and (pq := self.hub.quotes.get(ins.proxy)) and pq.via:
                 await self.history(pq.via, 400)
-        if not any(t in self.hub.quotes for t in tickers):
+        if not any(self.quoted(t) in self.hub.quotes for t in tickers):
             raise SourceError("no index source answered")
 
     def ytd_of(self, ticker: str, last: float | None) -> float | None:
@@ -633,8 +710,9 @@ class WeiPane(MarketPane):
         return (ins.proxy, q) if q is not None and ins is not None else None
 
     def sources(self) -> list[Provenance]:
-        tickers = self.tickers()
-        return distinct(self.quote_provs([t for t in tickers if t in self.hub.quotes] + [p[0] for t in tickers if (p := self.proxy_of(t))]))
+        shown = [self.quoted(t) for t in self.tickers()]
+        proxies = [] if self.in_btc else [p[0] for t in self.tickers() if (p := self.proxy_of(t))]
+        return distinct(self.quote_provs([t for t in shown if t in self.hub.quotes] + proxies))
 
     def draw(self, w: int, h: int) -> list[Text]:
         hub = self.hub
@@ -653,25 +731,35 @@ class WeiPane(MarketPane):
         for region, tickers in REGIONS:
             rows.append(ui.section(region, w))
             for t in tickers:
-                ins, q = hub.book.get(t), hub.quotes.get(t)
+                shown = self.quoted(t)
+                ins, q = hub.book.get(shown), hub.quotes.get(shown)
                 own = q is not None and not q.via
                 if own:
                     tight = w < 44                          # 40 columns: whole index points above 10,000, one decimal of change
-                    cell = {"index": t, "name": ins.name if ins else "",
-                            "last": Text(price(ins, q.price, 0 if tight and q.price >= 10_000 else None), style=f"bold {TEXT}"),
-                            "chg": delta(q.change, 2), "% chg": delta_pct(q.pct, 1 if tight else 2),
-                            "YTD": delta_pct(self.ytd_of(t, q.price)),
-                            "30 closes": spark_cell(q.history, 14),
-                            "delay": status(hub, t), "delay · as of": status(hub, t, True)}
+                    cell = {"index": t, "name": hub.book.get(t).name if hub.book.get(t) else "",
+                            "last": Text(price(ins, q.price, 0 if tight and not self.in_btc and q.price >= 10_000 else None),
+                                         style=f"bold {TEXT}"),
+                            "chg": delta(q.change, 2, ins), "% chg": delta_pct(q.pct, 1 if tight else 2),
+                            "YTD": delta_pct(self.ytd_of(shown, q.price)),
+                            "30 closes": spark_cell(self.closes_of(shown, q), 14),
+                            "delay": status(hub, shown), "delay · as of": status(hub, shown, True)}
                     rows.append([cell.get(hd) for hd in heads])
                 proxy = self.proxy_of(t)
+                if self.in_btc:
+                    if not own:
+                        rows.append(unavailable(hub, shown, w, 4 + gap))
+                    continue                                # one unit a table: a proxy in dollars does not belong under a row in sats
                 if proxy and proxy[1].via:
                     rows.append(self._proxy_line(t, proxy[0], proxy[1], own, w))
                 elif not own:
                     rows.append(unavailable(hub, t, w, 4 + gap))
         out = grid(cols, rows, w, None, gap)
+        if self.in_btc:
+            out = [ui.section("WORLD EQUITY INDICES", w, self.unit_note())] + out
         if h - len(out) >= 2 or w >= 100:
-            out += [Text("")] + ui.wrap("An index level is its official daily close. The line beneath it is a tokenised ETF trading now: a "
+            out += [Text("")] + ui.wrap("An index level in satoshis: its official daily close divided by the bitcoin price. $ goes back "
+                                        "to dollars." if self.in_btc else
+                                        "An index level is its official daily close. The line beneath it is a tokenised ETF trading now: a "
                                         "proxy, in its own price, never the index.", w, FAINT)
         return out
 
@@ -692,8 +780,15 @@ class WeiPane(MarketPane):
             out.append(f" · {index} itself has no open source", style=FAINT)
         return out
 
+    def closes_of(self, ticker: str, q) -> Sequence[float]:
+        """The sparkline: the quote's own closes, or the ones `history` fetched for a ratio, which has none."""
+        return q.history or (self.hist[ticker][1][-30:] if ticker in self.hist else ())
+
+    def key(self, k: str, ch: str | None) -> bool:
+        return self.toggle_unit(ch)
+
     def hint(self) -> str:
-        return "daily closes · proxies labelled"
+        return "$ dollars / bitcoin · " + ("in satoshis" if self.in_btc else "daily closes · proxies labelled")
 
     def menu(self) -> list[tuple[str, str]]:
         return [("QM", "QM INDICES"), ("GP", "GP SPX"), ("HMAP", "HMAP"), ("FX", "FX"), ("RATES", "RATES")]
@@ -837,7 +932,7 @@ FUTURES_UNIT = {"GC=F": "$/oz", "SI=F": "$/oz", "HG=F": "$/lb", "CL=F": "$/bbl",
 
 
 class GlcoPane(MarketPane):
-    code, every, tick = "GLCO", 120, 5.0
+    code, every, tick, unit_key = "GLCO", 120, 5.0, True
     heading = "commodities"
 
     def __init__(self, hub, security=None, args=()) -> None:
@@ -848,11 +943,14 @@ class GlcoPane(MarketPane):
         return [i.ticker for i in self.hub.book.list("COMMODITIES")]
 
     def cache_key(self) -> tuple:
-        return self.quote_key(["XAU", "BTC"])
+        return (self.unit, self.quote_key(["XAU", "BTC"]))
+
+    def command(self) -> str:
+        return " ".join(["GLCO", *self.unit_words()])
 
     async def load(self) -> None:
         hub = self.hub
-        want = [*self.tickers(), "BTC"]
+        want = [*self.tickers(), "BTC", *(self.quoted(t) for t in self.tickers())]
         self.keep_fresh(want)
         await self.pull(want)                               # futures through Yahoo when it is on: one request for all of them
         self.bump()
@@ -875,7 +973,7 @@ class GlcoPane(MarketPane):
         q = self.hub.quotes.get(ticker)
         return q if q and q.prov.source == "yahoo" and not q.proxy_for else None
 
-    def unit(self, ticker: str) -> str:
+    def unit_of(self, ticker: str) -> str:
         ins = self.hub.book.get(ticker)
         if self.futures(ticker) and ins and (sym := ins.source("yahoo")):
             return FUTURES_UNIT.get(sym, "")
@@ -892,7 +990,8 @@ class GlcoPane(MarketPane):
         gold, btc = hub.quotes.get("XAU"), hub.quotes.get("BTC")
         self.provs = self.sources()
         wide, gap = w >= 84, 1 if w < 60 else 2
-        spark_w = 24 if w >= 130 else 12 if w >= 72 else 0
+        # No sparkline in satoshis: a ratio quote carries no closes of its own, and an empty column reads as broken.
+        spark_w = 0 if self.in_btc else 24 if w >= 130 else 12 if w >= 72 else 0
         cols = [ui.Col("cmdty", "left", 8, style=f"bold {ORANGE}")]
         cols += [ui.Col("name", "left", 22, style=DIM)] if w >= 132 else []
         cols += [ui.Col("last"), ui.Col("unit", "left", style=FAINT)]
@@ -903,22 +1002,26 @@ class GlcoPane(MarketPane):
         rows: list[list[ui.Cell] | Text] = []
         for t in self.tickers():
             ins, s = hub.book.get(t), self.series.get(t)
-            if fq := self.futures(t):
-                cell = {"cmdty": t, "name": ins.name if ins else "", "last": Text(ui.px(fq.price, 2), style=f"bold {TEXT}"),
-                        "unit": self.unit(t), "% chg": delta_pct(fq.pct, 2), "30 obs": spark_cell(fq.history, spark_w),
-                        "delay": status(hub, t), "delay · as of": status(hub, t, True)}
-            elif t == "XAU" and gold:
-                cell = {"cmdty": t, "name": ins.name if ins else "", "last": Text(ui.px(gold.price, 2), style=f"bold {TEXT}"), "unit": "$/oz",
-                        "% chg": delta_pct(gold.pct, 2), "30 obs": spark_cell(gold.history, spark_w),
-                        "delay": status(hub, t), "delay · as of": status(hub, t, True)}
+            shown, sq = self.quoted(t), self.hub.quotes.get(self.quoted(t))
+            if (fq := self.futures(t)) or (t == "XAU" and gold):
+                q = sq if self.in_btc and sq is not None else (fq or gold)
+                cell = {"cmdty": t, "name": ins.name if ins else "",
+                        "last": Text(price(hub.book.get(shown), q.price) if self.in_btc else ui.px(q.price, 2), style=f"bold {TEXT}"),
+                        "unit": self.per(self.unit_of(t) or "$/oz"), "% chg": delta_pct(q.pct, 2),
+                        "30 obs": spark_cell(q.history, spark_w),
+                        "delay": status(hub, shown), "delay · as of": status(hub, shown, True)}
             elif s and s.last is not None:
                 cad = cadence(s.prov)
                 tag = ui.t((cad, ui.YELLOW if cad == MONTHLY else DIM), (f" {asof(s.prov.as_of, cad, wide and cad == MONTHLY)}", FAINT),
                            (" average" if wide and cad == MONTHLY else "", FAINT))
+                sats = self.sats_of(s.last)
                 cell = {"cmdty": t, "name": ins.name if ins else "",
-                        "last": Text(ui.px(s.last, ins.decimals if ins else 2), style=f"bold {TEXT}"), "unit": self.unit(t),
-                        "% chg": delta_pct(s.last / s.prev - 1 if s.prev else None, 1),
-                        "30 obs": spark_cell(s.values[-30:], spark_w), "source": s.prov.source, "delay": tag, "delay · as of": tag}
+                        "last": Text(fmt.in_btc(sats) if self.in_btc else ui.px(s.last, ins.decimals if ins else 2), style=f"bold {TEXT}"),
+                        "unit": self.per(self.unit_of(t)),
+                        # A monthly average has no bitcoin price of its own month: its change in satoshis is not ours to state.
+                        "% chg": Text("–", style=FAINT) if self.in_btc else delta_pct(s.last / s.prev - 1 if s.prev else None, 1),
+                        "30 obs": Text("") if self.in_btc else spark_cell(s.values[-30:], spark_w),
+                        "source": s.prov.source, "delay": tag, "delay · as of": tag}
             else:
                 rows.append(unavailable(hub, t, w, 7 + gap))
                 continue
@@ -945,7 +1048,10 @@ class GlcoPane(MarketPane):
         return out
 
     def hint(self) -> str:
-        return "futures" if self.futures("XAU") else "gold is PAXG · grains monthly"
+        return "$ dollars / bitcoin · " + ("futures" if self.futures("XAU") else "gold is PAXG · grains monthly")
+
+    def key(self, k: str, ch: str | None) -> bool:
+        return self.toggle_unit(ch)
 
     def menu(self) -> list[tuple[str, str]]:
         return [("QM", "QM COMMODITIES"), ("RV", "RV"), ("GP", "GP XAU"), ("BRENT", "GP BRENT"), ("HMAP", "HMAP")]
@@ -955,9 +1061,9 @@ class GlcoPane(MarketPane):
         for t in self.tickers():
             s, q = self.series.get(t), self.hub.quotes.get(t)
             if s and s.last is not None:
-                rows.append([t, s.last, self.unit(t), s.prov.source, cadence(s.prov), asof(s.prov.as_of, DAILY, True), ""])
+                rows.append([t, s.last, self.unit_of(t), s.prov.source, cadence(s.prov), asof(s.prov.as_of, DAILY, True), ""])
             elif q:
-                rows.append([t, q.price, self.unit(t), q.prov.source, cadence(q.prov), "", show(self.hub, q.via)])
+                rows.append([t, q.price, self.unit_of(t), q.prov.source, cadence(q.prov), "", show(self.hub, q.via)])
             else:
                 rows.append([t, None, "", "", "no open source", "", ""])
         return ["commodity", "last", "unit", "source", "delay", "as_of", "proxy_quoted"], rows
@@ -1790,7 +1896,7 @@ register(Function(
     help="One row an instrument: last, change, percent change, the day's range with the last trade marked on it, thirty daily closes as a "
          "sparkline, the source and the delay. QM GLOBAL, INDICES, STOCKS, COMMODITIES, CRYPTO, FX, DXY_LEGS, RATES, BTC_ETFS and MINERS "
          "are the shipped lists; your own live under [lists] in terminal.toml, and QM BTC ETH XAU makes one on the spot. [ and ] cycle "
-         "the lists, enter charts the row with GP. " + _LABELS +
+         "the lists, enter charts the row with GP. " + SATS_NOTE + _LABELS +
          "Crypto is the median of Coinbase, Kraken and Bitstamp (BTC) or the first exchange that answers. EUR, GBP, CAD, CHF and AUD "
          "are Kraken's spot FX books. USDJPY and USDSEK are the ECB's daily fix. SPX, NDX and NKY are FRED's daily closes (SP500, "
          "NASDAQ100, NIKKEI225), owned by S&P Dow Jones Indices, Nasdaq and Nikkei. Yields are the Treasury's official daily par "
@@ -1801,7 +1907,9 @@ register(Function(
     "WEI", "World equity indices", "Markets", "indices by region: last, change, YTD, with labelled proxies", WeiPane, needs=("quote", "series"),
     help="Americas (SPX, NDX, RUT, DJI), EMEA (SX5E, DAX, UKX) and Asia (NKY, HSI, KOSPI, NIFTY). Levels are official daily closes from "
          "FRED: SP500, NASDAQ100, DJIA and NIKKEI225, each a business day old and copyright of its owner (S&P Dow Jones Indices, Nasdaq, "
-         "Nikkei), shown for personal use. Year to date is measured from the first close of the year in the same series. Beneath an "
+         "Nikkei), shown for personal use. Year to date is measured from the first close of the year in the same series. "
+         + SATS_NOTE + "An index in satoshis is its official close divided by the bitcoin price, and the ETF lines below drop out: "
+         "one unit to a table. Beneath an "
          "index, a line such as `SPY via SPYx · proxy · live` is Kraken's tokenised tracker of the ETF, trading now, in its own price: "
          "it is a proxy and is never shown as the index. RUT, SX5E, DAX, UKX, HSI, KOSPI and NIFTY have no open index level, so they "
          "stay on the page as `no open source`. Reloads every 2 minutes; FRED is cached for 6 hours. " + _LABELS + _DOWN))
@@ -1823,7 +1931,9 @@ register(Function(
          "late, with the date shown. Copper (PCOPPUSDM), soybeans (PSOYBUSDM), corn (PMAIZMTUSDM) and wheat (PWHEAMTUSDM) in dollars "
          "per metric ton, and sugar (PSUGAISAUSDM) in US cents per pound, are IMF monthly averages through FRED, about two months "
          "late: the row says `monthly` and names the month, and its percent change is month on month. Gold in BTC is ounces per BTC "
-         "and BTC per ounce from the composite BTC price and the gold proxy. Reloads every 2 minutes; FRED is cached for 6 hours. "
+         "and BTC per ounce from the composite BTC price and the gold proxy. " + SATS_NOTE + "In satoshis the unit column follows: "
+         "$/oz becomes ₿/oz, ¢/bu becomes ₿/bu. A monthly average has no bitcoin price of its own month, so its change reads as a "
+         "dash rather than one measured against today's. Reloads every 2 minutes; FRED is cached for 6 hours. "
          + _DOWN))
 register(Function(
     "RATES", "Rates", "Markets", "the Treasury curve now against a week, a month and a year ago; 2s10s; policy and real rates", RatesPane,

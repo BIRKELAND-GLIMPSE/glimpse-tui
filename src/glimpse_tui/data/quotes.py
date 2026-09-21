@@ -10,8 +10,9 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING
 
+from ..term import instruments
 from . import fx_ref
-from .core import LIVE, Provenance, SourceError
+from .core import DAILY, DELAYED, LIVE, MONTHLY, WEEKLY, Provenance, SourceError
 from .prices import Tick, composite
 
 if TYPE_CHECKING:
@@ -20,6 +21,11 @@ if TYPE_CHECKING:
 
 EXCHANGES = ("coinbase", "kraken", "bitstamp")
 SLOW_S = 6.0
+DELAY_ORDER = (LIVE, DELAYED, DAILY, WEEKLY, MONTHLY)       # slowest wins when two legs are divided
+# Kraken serves 720 daily candles and Coinbase 300. Only a request for more than an exchange could ever answer
+# goes to the chain instead, so the charts that were exchange prices still are: the chain oracle is a different
+# number, and swapping one for the other under a page that did not ask for it would change what it shows.
+EXCHANGE_DAYS = 700
 
 
 def kraken_key(result_key: str) -> str:
@@ -96,6 +102,9 @@ def expand(hub: Hub, tickers: list[str]) -> list[Instrument]:
         if "computed:dxy" in ins.sources:
             for leg in fx_ref.DXY_WEIGHTS:
                 add(leg, depth + 1)
+        if leg := instruments.leg_of(ins):              # XAUBTC needs XAU and BTC, and nothing of its own
+            add(leg, depth + 1)
+            add(instruments.BASE, depth + 1)
 
     for t in tickers:
         add(t)
@@ -180,6 +189,27 @@ async def refresh(hub: Hub, tickers: list[str]) -> None:
                 q = hub.quotes[via]
                 hub.quotes[ins.ticker] = Quote(ins.ticker, q.price, q.prov, q.prev, q.high, q.low, q.history, proxy_for=ins.ticker,
                                                closed=q.closed, via=via)
+    # Last: a ratio divides two quotes, and one of them may only have arrived through its proxy a moment ago.
+    for ins in want:
+        if (leg := instruments.leg_of(ins)) and (q := ratio_quote(hub, ins, leg)):
+            hub.quotes[ins.ticker] = q
+
+
+def ratio_quote(hub: Hub, ins: Instrument, leg: str) -> Quote | None:
+    """`XAUBTC` from the two quotes already on the board: the numerator in satoshis. The day's range is left
+    empty rather than invented — a range in sats needs both legs' ranges, and neither is quoted against the other."""
+    from ..term.hub import Quote
+    a, b = hub.quotes.get(leg), hub.quotes.get(instruments.BASE)
+    if a is None or b is None or b.price <= 0:
+        return None
+    older = min((a.prov, b.prov), key=lambda p: p.as_of)
+    slower = max((a.prov.delay, b.prov.delay), key=lambda d: DELAY_ORDER.index(d) if d in DELAY_ORDER else 0)
+    prov = Provenance("computed:ratio", min(a.prov.fetched_at, b.prov.fetched_at), older.as_of, slower,
+                      f"{leg} divided by {instruments.BASE}")
+    prev = (a.prev / b.prev * instruments.SATS) if a.prev and b.prev else None
+    # No sparkline here: scaling the numerator's closes by today's bitcoin price would draw the dollar shape.
+    # The pane fetches a properly aligned ratio history through `history` below.
+    return Quote(ins.ticker, a.price / b.price * instruments.SATS, prov, prev=prev, closed=a.closed and b.closed, via=a.via)
 
 
 def yahoo_on(hub: Hub) -> bool:
@@ -205,8 +235,56 @@ def _resolve_proxy(hub: Hub, ins: Instrument, depth: int = 0) -> str | None:
     return _resolve_proxy(hub, nxt, depth + 1)
 
 
+async def chain_history(hub: Hub, days: int) -> tuple[list[float], list[float], Provenance] | None:
+    """Bitcoin further back than an exchange endpoint will serve. Bitview's `price_close` is a daily close for
+    every day since 2009 — its own chain oracle after height 340,000 and baked exchange prices before that, which
+    is the only keyless way to see the whole history. None when Bitview is not configured or does not answer."""
+    bv = hub.sources.get("bitview")
+    if bv is None:
+        return None
+    try:
+        s = await bv.series("price_close", "day1", start=0 if days >= 6000 else -(days + 1))
+    except SourceError:
+        return None
+    pts = [(t, v) for t, v in zip(s.times, s.values, strict=False) if v]
+    if len(pts) < EXCHANGE_DAYS:
+        return None
+    return [p[0] for p in pts], [float(p[1]) for p in pts], s.prov
+
+
+def align(a: tuple[list[float], list[float]], b: tuple[list[float], list[float]]) -> tuple[list[float], list[float], list[float]]:
+    """Two daily histories on the days both of them have, by UTC day. Gold does not trade at the weekend and
+    Bitcoin does, so a ratio is only honest where the two have a close on the same day."""
+    day = lambda t: int(t // 86400)                                             # noqa: E731
+    bs = {day(t): v for t, v in zip(b[0], b[1], strict=False) if v}
+    out: list[tuple[float, float, float]] = []
+    for t, v in zip(a[0], a[1], strict=False):
+        if v and (w := bs.get(day(t))):
+            out.append((t, v, w))
+    return [r[0] for r in out], [r[1] for r in out], [r[2] for r in out]
+
+
+async def ratio_history(hub: Hub, ins: Instrument, leg: str, days: int) -> tuple[list[float], list[float], Provenance]:
+    """`XAUBTC`'s daily closes in satoshis: each leg's own history, divided day by day."""
+    base, btc = hub.book.get(leg), hub.book.get(instruments.BASE)
+    if base is None or btc is None:
+        raise SourceError(f"{ins.ticker}: {leg} is not an instrument this terminal knows")
+    ad, av, ap = await history(hub, base, days)
+    bd, bv, bp = await history(hub, btc, days)
+    ts, num, den = align((list(ad), list(av)), (list(bd), list(bv)))
+    if not ts:
+        raise SourceError(f"{ins.ticker}: {leg} and {instruments.BASE} share no daily close")
+    older = min((ap, bp), key=lambda p: p.as_of)
+    return ts, [n / d * instruments.SATS for n, d in zip(num, den, strict=True)], Provenance(
+        "computed:ratio", min(ap.fetched_at, bp.fetched_at), ts[-1], older.delay, f"{leg} divided by {instruments.BASE}")
+
+
 async def history(hub: Hub, ins: Instrument, days: int = 400) -> tuple[list[float], list[float], Provenance]:
     """Daily closes, oldest first, from the first source that has them. Raises SourceError when none does."""
+    if leg := instruments.leg_of(ins):
+        return await ratio_history(hub, ins, leg, days)
+    if ins.ticker == instruments.BASE and days > EXCHANGE_DAYS and (long := await chain_history(hub, days)):
+        return long
     last: Exception | None = None
     for s in ins.sources:
         kind, _, ident = s.partition(":")

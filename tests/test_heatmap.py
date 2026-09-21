@@ -60,6 +60,24 @@ def test_nice_step_lands_on_round_prices_that_are_whole_cells():
     assert H.nice_step(30, 6) == 300 and H.nice_step(400, 6) == 4000 and H.nice_step(15, 6) == 150
 
 
+def test_the_price_axis_rules_and_labels_whatever_the_zoom_and_the_ladder_offset():
+    """A live ladder rarely starts on a round price. Rows used to be ruled only when their own price was exactly a
+    multiple of the step, so those ladders drew no rules and no labels at all: the y-axis simply vanished."""
+    for y_lo in (60_000.0, 60_153.0, 73_212.5):
+        for bpc in (1, 2, 4, 8, 20):                                # 20 bins a cell: the ladder is shorter than the window
+            grid = H.Grid(y_lo, 100, 500, bpc)
+            rules = H.ruled_rows(grid, 60, 45)
+            rows = sorted(rules)
+            assert len(rows) >= (2 if grid.cells >= 45 else 1), (y_lo, bpc)      # an axis, always
+            gaps = {b - a for a, b in zip(rows, rows[1:])}
+            assert len(gaps) <= 1 and all(g >= 4 for g in gaps)     # evenly spaced graph paper, never crowded
+            step = H.nice_step(grid.bin_size * bpc, 4)
+            for g, price in rules.items():
+                lo, hi = grid.prices_of(g)
+                assert lo <= price < hi                             # the label is a price inside the row it labels
+                assert abs(price / step - round(price / step)) < 1e-9       # and a round one
+
+
 def test_grid():
     g = H.Grid(25_000, 200, 500, 5)
     assert g.cells == 100 and g.bins_of(3) == (15, 19) and g.prices_of(3) == (28_000, 29_000)
@@ -236,7 +254,7 @@ async def test_history_is_navigable_but_not_tradable(make):
         assert "history" in head and "O " in head and "C " in head
         await pilot.press("v", "b")
         await pilot.pause(0.1)
-        assert app.hm_anchor is None and not isinstance(app.screen, A.Confirm) and app.api.orders == []
+        assert app.hm_anchor is None and not isinstance(app.screen, A.OrderPreview) and app.api.orders == []
         await pilot.press(*["h"] * 60)
         assert app.hm_col == -40                                          # stops at the oldest candle
 
@@ -247,7 +265,7 @@ async def test_box_buy_sends_one_order_per_close_after_confirmation(make):
         await opened(app, pilot)
         b = app.hm_bin
         await pilot.press("v", "l", "k", "b")
-        await until(pilot, lambda: isinstance(app.screen, A.Confirm))
+        await until(pilot, lambda: isinstance(app.screen, A.OrderPreview))
         assert app.api.orders == []
         await pilot.press("y")
         await until(pilot, lambda: "Filled" in app.flash)
@@ -262,13 +280,13 @@ async def test_box_buy_refuses_when_price_moved_and_reports_partial_fills(make):
         await opened(app, pilot)
         app.api.drift = 0.05
         await pilot.press("v", "l", "b")
-        await until(pilot, lambda: isinstance(app.screen, A.Confirm))
+        await until(pilot, lambda: isinstance(app.screen, A.OrderPreview))
         await pilot.press("y")
         await until(pilot, lambda: "Price moved" in app.flash)
         assert app.api.orders == []
         app.api.drift, app.api.reject = 0.0, {101}
         await pilot.press("b")
-        await until(pilot, lambda: isinstance(app.screen, A.Confirm))
+        await until(pilot, lambda: isinstance(app.screen, A.OrderPreview))
         await pilot.press("y")
         await until(pilot, lambda: "Filled" in app.flash)
         assert "Filled 1 of 2" in app.flash and "market not tradable" in app.flash
@@ -281,7 +299,7 @@ async def test_a_wide_box_is_one_ticket_sent_as_several_requests(make, monkeypat
         await opened(app, pilot)
         await pilot.press("v", "l", "l", "l", "l", "b")                 # five closes
         assert app.ticket is not None and app.ticket.markets == 5 and app.ticket_hint == ""
-        await until(pilot, lambda: isinstance(app.screen, A.Confirm))
+        await until(pilot, lambda: isinstance(app.screen, A.OrderPreview))
         await pilot.press("y")
         await until(pilot, lambda: "Filled" in app.flash)
         assert app.api.requests == [2, 2, 1] and "Filled 5 closes" in app.flash

@@ -17,14 +17,16 @@ if TYPE_CHECKING:
 
 # (command, zoom the pane, seconds, what to say). `TX` is filled in with a transaction from the newest block.
 STEPS: tuple[tuple[str, bool, float, str], ...] = (
-    ("LP BTC", False, 16, "One long page, most important first: Bitcoin, the bots, gold, the chain, the news, the world."),
+    ("DIST BTC", True, 14, "The terminal opens here: every outcome of Bitcoin's next hour, with what the market gives it."),
+    ("LP BTC", False, 16, "t is the rest of it. One long page, most important first: Bitcoin, gold, the chain, the news, the world."),
     ("GP BTC 24H", True, 14, "The last 24 hours and the next 24: the price to NOW, then Glimpse's median and 80% band."),
-    ("DIST BTC", False, 14, "o is the odds: every outcome of the next hour, with what the market gives it."),
-    ("CONS BTC", True, 16, "Every bot on this machine, read against the market: how many are bullish, and where they agree."),
-    ("BOT BTC", True, 14, "One bot at a time. [ and ] walk the zoo; enter runs one, on paper or for real."),
-    ("NEWS", False, 14, ": opens anything. NEWS: the headlines, and enter reads a story right here. backspace goes back."),
-    ("LP MACRO", False, 16, "SPC is the leader: SPC w for windows, SPC b for buffers, SPC t f o B p for the screens."),
-    ("HM", False, 16, "f is the forecast: the whole heatmap. v draws a box, tab opens the bet slip. SPC t returns. q quits."),
+    ("PL BTC", True, 16, "The power law: Bitcoin against its own age, log-log, with the least-squares line through it."),
+    ("PL XAUBTC", True, 14, "Gold priced in Bitcoin, in satoshis. The same law from the other side: the exponent is negative."),
+    ("QM GLOBAL SATS", False, 12, "$ prices any market table in satoshis. XAUBTC, SPXBTC, NVDABTC: everything, in bitcoin."),
+    ("CONS BTC", True, 14, "LP BOTS: every bot on this machine, read against the market, and where they agree."),
+    ("NEWS", False, 12, ": opens anything. NEWS: the headlines, and enter reads a story right here. backspace goes back."),
+    ("LP MACRO", False, 14, "SPC is the leader: SPC w for windows, SPC b for buffers, SPC t f o B p for the screens."),
+    ("HM", False, 14, "f is the forecast: the whole heatmap. v draws a box, tab opens the bet slip. SPC t returns. q quits."),
 )
 
 

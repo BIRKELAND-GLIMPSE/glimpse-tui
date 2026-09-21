@@ -1,20 +1,28 @@
 # Glimpse Terminal
 
-A keyboard-driven terminal for Glimpse's prediction markets and the world around them. It opens on one long page,
-most important first: Bitcoin's last 24 hours and next 24 beside the odds on its next hour, then what every bot on
-this machine expects of the next hour, day and three days, then gold and the odds on its next close, hashrate and
-the difficulty adjustment, the news and world prices, dollar liquidity and the Treasury curve, currencies and
-commodities. `j` and `k` walk down it, `enter` opens a window full screen, `f` is the forecast and `o` the odds.
+A keyboard-driven terminal for Glimpse's prediction markets and the world around them.
+
+It opens on **the odds**: every outcome of Bitcoin's next hourly close, the market's chance of each and what it
+pays, with the cursor on the most likely range and the bet slip a `tab` away. That is the whole first screen, and
+it is the only one you need to place a bet.
+
+Behind it, on `t`, is **the front page**: one long page, most important first. Bitcoin's last 24 hours and next 24
+beside the odds on its next hour, gold and the odds on its next close, hashrate and the difficulty adjustment, the
+news and world prices, the power law, dollar liquidity and the Treasury curve, currencies and commodities priced
+in Bitcoin. `j` and `k` walk down it, `enter` opens a window full screen, `f` is the forecast and `o` the odds.
+
 Everything runs on data anyone can fetch for free. It needs no key, no account and no configuration to start. Free
 and open source. Works anywhere Python does, including over SSH. It moves like spacemacs: vim keys, windows and
 buffers, and `SPC` for the rest.
 
 ```
-uv run glimpse-tui              # the front page: Bitcoin, the bots, gold, the chain, the news, the world
-uv run glimpse-tui "CONS BTC"   # open on any command: "CONS BTC", "DIST BTC", "FCST XAU", NEWS, "LP MACRO"
+uv run glimpse-tui              # the odds on Bitcoin's next hour
+uv run glimpse-tui --terminal   # open on the front page instead: charts, the chain, the news, the world
+uv run glimpse-tui "PL BTC"     # open on any command: "PL XAUBTC", "DIST BTC", "FCST XAU", NEWS, "LP MACRO"
 uv run glimpse-tui DEMO         # a ninety-second tour
-uv run glimpse-tui --markets    # open on the odds screen, as the terminal did before the front page
 ```
+
+`opens_on = "terminal"` in `~/.config/glimpse/terminal.toml` makes the front page the default for good.
 
 ```
  GLIMPSE  TERMINAL   BTC  81,423 spot                               open-source forecast terminal · Glimpse API                                              READ-ONLY L log in │ 23:24:42 UTC
@@ -44,7 +52,7 @@ uv run glimpse-tui --markets    # open on the odds screen, as the terminal did b
 │                                                   │                                                            ││                                                                          │
 │ 18 Sep 23:24       19 Sep 11:26                  NOW                  20 Sep 11:28       20 Sep 23:30          ││                                                                          │
 └─────────────────────────────────────────────────────────────────────────────── [ ] window · L log · C candles ─┘└─────────────────────── o or enter to bet on these odds · f the forecast ─┘
-┌3  CONS  Bitcoin · what the bots expect ────────────────────────────────────────────────────────────────── live ┐┌4  BOT  Bitcoin · one bot at a time ──────────────────────────────── live ┐
+┌3  CONS  Bitcoin · what the bots expect  (LP BOTS) ────────────────────────────────────────────────────────────────── live ┐┌4  BOT  Bitcoin · one bot at a time ──────────────────────────────── live ┐
 │ Now 81,423   17 of 17 bots priced the next hour   they agree 98%   apart from the market 71%                   ││ Random Walk (bootstrap)  Baseline  ▲ bullish                 bot 1 of 17 │
 │                                                                                                                ││   History's own hourly moves, replayed at today's volatility             │
 │ NEXT HOUR ───────────────────────────────────────────────────────────────────────────────── 00:00 · in 35m 17s ││                                                                          │
@@ -69,10 +77,44 @@ uv run glimpse-tui --markets    # open on the odds screen, as the terminal did b
  FIND     : or SPC SPC search everything   ctrl-j ctrl-k choose   SPC menu   ? every key   q quit
 ```
 
-Half of the top of that page is the machines: Glimpse is a market you can bring a model to, so the terminal opens
-with what the models think. `CONS` runs every bot in the zoo against the live market at three horizons and counts
-the bulls against the bears; `BOT` takes them one at a time, `[` and `]` walking the zoo, and shows what each one
-would buy. Both run here, on your computer, from public candles.
+The two windows above are `CONS` and `BOT`, which live on `LP BOTS` and on the `B` screen rather than the front
+page. Glimpse is a market you can bring a model to: `CONS` runs every bot in the zoo against the live market at
+three horizons and counts the bulls against the bears; `BOT` takes them one at a time, `[` and `]` walking the
+zoo, and shows what each one would buy. Both run here, on your computer, from public candles.
+
+## The power law (`PL`)
+
+Bitcoin's price has tracked a straight line on log-log axes for its whole life: price against days since the
+genesis block, which is what a power law is. `PL BTC` fits `price = 10^a × days^n` by least squares on the log of
+both and draws it, with the price in orange, the fit in cyan, and dotted rules one and two standard deviations of
+the log residual either side. Above the chart: the exponent, R², the residual spread as a multiplier, and how far
+today's price sits from the line in percent and in standard deviations. `[` and `]` move where the fit starts, and
+the exponent moves with it, which is the point of showing it; `T` adds what the line alone reads one, two, four
+and ten years out.
+
+A log x axis squeezes the recent years into the right-hand quarter of the frame, so the chart opens on the last
+four years with a rule at the price now; `<` and `>` change how much is on screen, out to the whole history. The
+fit behind it is always every close it has, and the frame says both: `fit on 5,880 closes from 16 Aug 2010 ·
+showing the last 4y of it`.
+
+`PL XAUBTC` is the same picture for gold priced in Bitcoin, which has a negative exponent: an ounce costs fewer
+satoshis every year. A fit is a description of the past with an error bar. The terminal never trades one.
+
+Bitcoin's whole daily history comes from Bitview's `price_close`, which is its own on-chain oracle and not an
+exchange ticker; an exchange endpoint serves only the last few hundred days.
+
+## Priced in Bitcoin
+
+`$` on `QM`, `WEI` or `GLCO` prices the whole table in satoshis instead of dollars. The commodities window on the
+front page ships that way (`GLCO SATS`), so gold reads ₿5,453,863 an ounce; `$` puts it back into dollars, and
+dropping the word from `btc.toml` makes dollars the default again. Gold becomes `XAUBTC` at about
+₿5,400,000 an ounce, the S&P 500 becomes `SPXBTC`, a share of NVIDIA becomes `NVDABTC`; Bitcoin's own row drops
+out, because one bitcoin is one bitcoin, and the head says what a bitcoin costs in dollars.
+
+Those tickers work everywhere a ticker does, not only behind the key: `GP XAUBTC` charts gold in satoshis, `PL
+SPXBTC` fits its power law, `QM COMMODITIES SATS` opens a watchlist already in that unit. Nothing is fetched for
+them: the quote board divides the two legs it already has, and a ratio history uses only the days both legs
+closed. Yields have no Bitcoin form, because a percentage does not divide.
 
 ## Moving around
 
@@ -98,7 +140,7 @@ bottom always lists what works where you are, and `?` explains everything.
 
 Whatever you open replaces the focused window's page, which stays open as a buffer: backspace brings it back and
 `SPC b b` lists it. `ctrl-w` chords work as in vim. `LP MACRO` loads another layout and `LP SAVE desk` saves yours.
-Shipped layouts: `BTC` (the default), `MACRO`, `TRADER`, `TREASURY`, `CHAIN`, `MINER`. Yours are TOML files in
+Shipped layouts: `BTC` (the front page), `BOTS`, `MACRO`, `TRADER`, `TREASURY`, `CHAIN`, `MINER`. Yours are TOML files in
 `~/.config/glimpse/layouts/`.
 
 ## Commands
@@ -112,6 +154,8 @@ Shipped layouts: `BTC` (the default), `MACRO`, `TRADER`, `TREASURY`, `CHAIN`, `M
 | `GP BTC 24H` · `GP XAU 1D` · `GP SPX` | Bitcoin's next 24 hours · gold's next month · a chart of anything |
 | `HM XAU` · `ODDS BTC` | the full forecast, or the odds, on a series |
 | `QM GLOBAL` · `ECO` · `RATES` · `MACRO` | a watchlist, economic prints, the yield curve, dollar liquidity |
+| `PL BTC` · `PL XAUBTC` | the power law: log-log, with the regression through it |
+| `QM STOCKS SATS` · `GP XAUBTC` | a watchlist or a chart priced in Bitcoin (`$` toggles a table in place) |
 | `HELP` · `HELP DIST` · `F1` | every function · one function's page · help on the focused page |
 
 ## Functions
@@ -120,7 +164,7 @@ Shipped layouts: `BTC` (the default), `MACRO`, `TRADER`, `TREASURY`, `CHAIN`, `M
 |---|---|
 | **Bitcoin** | `BTC` the Bitcoin page · `MEMP` mempool and the next block · `FEES` fees and a calculator · `BLK` blocks · `TX` a transaction · `ADDR` an address · `RBF` live replacements · `MINE` pools · `HASH` hashrate and difficulty · `DIFF` the retarget · `HASHP` hashprice · `HALV` the halving · `SUPL` supply · `LN` Lightning · `ORCL` the price read from the chain alone |
 | **On-chain** | `FLDS` search 60,000 Bitview series · `GP` chart anything · `ONCH` the cycle dashboard · `URPD` realized price distribution · `WAVE` HODL waves · `CYC` valuation bands · `CORR` rolling correlations |
-| **Markets** | `NEWS` world, economy, markets, Fed, ECB and crypto headlines · `READ` a story, in the terminal · `QM` quote monitor · `WEI` world indices · `FX` currencies and the dollar index · `GLCO` commodities · `RATES` the Treasury curve · `MACRO` liquidity · `ECO` economic prints · `HMAP` performance heatmap · `RV` BTC against gold · `DVOL` implied volatility |
+| **Markets** | `NEWS` world, economy, markets, Fed, ECB and crypto headlines · `READ` a story, in the terminal · `QM` quote monitor · `WEI` world indices · `FX` currencies and the dollar index · `GLCO` commodities · `RATES` the Treasury curve · `MACRO` liquidity · `ECO` economic prints · `HMAP` performance heatmap · `RV` BTC against gold · `DVOL` implied volatility · `PL` the power law |
 | **Companies** | `DES` description · `FA` financials · `CF` filings, read inside the pane · `CFS` full-text search · `TRSY` Bitcoin treasuries · `MINR` public miners · `ETF` spot ETFs · `N` news and filings · `TOP` the feed |
 | **Glimpse** | `CONS` what the whole zoo expects · `BOT` one model against the market · `FCST` a forecast as a heatmap · `DIST` the odds on the next close · `ODDS` the odds screen, close by close · `HM` the forecast heatmap · `SLIP` the bet slip · `PORT` portfolio · `BOTS` the model zoo · `OMON` every close as an options chain · `GIV` Glimpse's implied volatility against Deribit |
 | **Tools** | `AL` alerts · `NOTE` notes · `CALC` sats, fees, Kelly · `EXP` export · `SRC` every source's health · `SET` settings · `ASK` plain English · `HELP` · `FIND` · `DEMO` |
@@ -134,7 +178,9 @@ Every default source is public and needs no key. [SOURCES.md](SOURCES.md) record
 sample response, all checked live.
 
 - **Bitcoin:** mempool.space (REST and WebSocket), Bitview (the Bitcoin Research Kit), Blockstream Esplora as a fallback.
-- **Prices:** Coinbase, Kraken and Bitstamp public tickers. BTC is the median of the three.
+- **Prices:** Coinbase, Kraken and Bitstamp public tickers. BTC is the median of the three. Past what an exchange
+  endpoint serves (720 daily candles at best), Bitcoin's daily history comes from Bitview's `price_close`, which
+  reaches back to 2010 and is its own on-chain oracle, not an exchange ticker. `PL` says so on its `HELP` page.
 - **Markets:** Yahoo Finance's public chart API (the endpoints `yfinance` reads) for index levels, the VIX, the dollar
   index, Treasury yields, COMEX and NYMEX futures, FX and US shares. `SET sources.yahoo false` turns it off and every
   pane falls back to the official daily sources below.
@@ -200,12 +246,19 @@ still opens it. `PORT` (`p`) is the account: balance, exposure against its cap, 
 - **Options on every close (`OMON`).** Digital calls, puts and ranges read off each close's distribution, an implied
   volatility from a lognormal fit, and the Greeks. Enter hands the range to the heatmap as a box. `OMON` never places
   an order itself.
+- **Every position, before the order (`P`).** A box across the forecast is not one bet: it is one order per close,
+  each priced at that close's own book. The bet slip lists them under `POSITIONS` — every close with its cost,
+  payout and ROI, `[` and `]` walking the list — and `P` opens the full table: chance, contracts, cost,
+  payout, profit, odds and ROI for every position, with a `TOTAL` row, scrolling if the box is a week long. The
+  same table *is* the confirmation `b` asks for, so no order is ever sent that you have not seen priced line by
+  line.
 - **If the colours look wrong, press `c`.** It switches between 24-bit colour and a palette built only from colours a
   256-colour terminal draws exactly, and remembers your choice.
 
 ### Safety
 
-- Every order asks for confirmation and shows cost, payout and what you lose.
+- Every order asks for confirmation, and the confirmation is the whole table: every market it would touch, each
+  with its own cost, payout, profit, odds and ROI, and what you lose if none land.
 - Before an order is sent, the terminal asks the server for its own estimate and refuses if the price has moved more
   than 0.5%. The API has no slippage limit of its own, so this is the guard.
 - Orders are never retried. If the connection drops mid-order the terminal says the fill is unknown and reloads the

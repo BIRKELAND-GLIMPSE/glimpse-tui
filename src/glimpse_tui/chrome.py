@@ -33,8 +33,9 @@ KEYMAP: dict[str, list[tuple[str, list[tuple[str, str]]]]] = {
                   ("0 $", "first / last close"), ("12|", "close no. 12"), ("gg G", "80% band top / bottom"), ("5j 12l", "counts")]),
         ("SELECT", [("v", "box"), ("V", "the 80% band"), ("o", "other corner"), ("gv", "reselect"), ("esc", "clear"),
                     ("ma 'a", "mark / jump"), ("''", "jump back")]),
-        ("TRADE", [("tab", "bet slip"), ("+ -", "size ×2 ÷2"), ("S", "set size"), ("b", "BET"), ("enter", "open the close"),
-                   ("/", "go to price"), (":", "command")]),
+        # `+ - S` share one label so `P` fits: at 120 columns this row has room for one more key, not two.
+        ("TRADE", [("tab", "bet slip"), ("P", "all positions"), ("+ - S", "size"), ("b", "BET"),
+                   ("enter", "open the close"), ("/", "go to price"), (":", "command")]),
         ("VIEW", [("zf", "whole forecast"), ("zi zo", "zoom price"), ("< >", "zoom time"), ("za", "auto-fit"), ("zm", "median"),
                   ("zt zz zb", "place row"), ("zh zl zH zL", "sideways"), ("ctrl-d ctrl-u", "half page"),
                   ("ctrl-f ctrl-b", "page"), ("ctrl-e ctrl-y", "scroll")]),
@@ -44,8 +45,8 @@ KEYMAP: dict[str, list[tuple[str, list[tuple[str, str]]]]] = {
         ("MOVE", [(VERT, "move"), (SIDE, "closes / odds"), ("gg G", "top / bottom"), ("ctrl-d ctrl-u", "half page"),
                   ("ctrl-f ctrl-b", "page"), ("zz", "most likely range"), ("5j", "counts")]),
         ("SELECT", [("v", "select a range"), ("o", "other end"), ("esc", "clear")]),
-        ("TRADE", [("tab", "bet slip"), ("+ -", "size ×2 ÷2"), ("S", "set size"), ("b enter", "BET"), ("/", "go to price"),
-                   (":", "command")]),
+        ("TRADE", [("tab", "bet slip"), ("P", "all positions"), ("+ - S", "size"), ("b enter", "BET"),
+                   ("/", "go to price"), (":", "command")]),
         ("MORE", MORE),
     ],
     "portfolio": [
@@ -79,11 +80,12 @@ KEYMAP: dict[str, list[tuple[str, list[tuple[str, str]]]]] = {
     ],
     "go": [
         ("LIST", [("type", "to filter"), ("ctrl-j ctrl-k · ↓ ↑", "choose"), ("enter", "open it"), ("esc", "cancel")]),
-        ("TRY", [("CONS BTC", "what the bots expect"), ("DIST BTC", "the next hour's odds"), ("NEWS", "headlines"),
-                 ("GP BTC XAU SPX", "compare"), ("LP MACRO", "a layout")]),
+        ("TRY", [("DIST BTC", "the next hour's odds"), ("PL BTC", "the power law"), ("PL XAUBTC", "gold in bitcoin"),
+                 ("NEWS", "headlines"), ("QM GLOBAL SATS", "the world in sats"), ("LP MACRO", "a layout")]),
     ],
     "slip": [
         ("EDIT", [(VERT, "field"), (SIDE + " · - +", "step it"), ("5l", "counts"), ("enter", "type a value")]),
+        ("POSITIONS", [("[ ]", "walk them"), ("P", "every column of every one")]),
         ("TRADE", [("b", "BET"), ("tab esc", "back to the chart")]),
     ],
 }

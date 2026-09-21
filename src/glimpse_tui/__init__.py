@@ -32,8 +32,20 @@ def main() -> None:
     from .app import Terminal
     from .term import config
 
-    # `glimpse-tui` opens the default launchpad. `glimpse-tui MEMP`, `glimpse-tui MSTR DES` or `glimpse-tui LP MACRO` opens
-    # on that GO bar command. `glimpse-tui --markets` opens on the odds screen, as the terminal did before launchpads.
     words = [a for a in sys.argv[1:] if not a.startswith("-")]
-    launchpad = None if "--markets" in sys.argv[1:] else (config.load().get("default_launchpad") or "BTC")
-    Terminal(launchpad=launchpad, go=" ".join(words)).run()
+    Terminal(launchpad=opening_launchpad(sys.argv[1:], config.load()), go=" ".join(words)).run()
+
+
+def opening_launchpad(argv: list[str], cfg: dict) -> str | None:
+    """Which screen a bare `glimpse-tui` opens on, as a launchpad name or None for the odds.
+
+    The odds on Bitcoin's next hour is the default: the simplest thing the terminal does and the one you can act
+    on. The front page is behind `t`, `--terminal`, or `opens_on = "terminal"` in terminal.toml. `--odds` (and
+    `--markets`, which meant this before) forces the odds back.
+    """
+    where = str(cfg.get("opens_on") or "odds").lower()
+    if any(f in argv for f in ("--terminal", "--front", "-t")):
+        where = "terminal"
+    if any(f in argv for f in ("--odds", "--markets")):
+        where = "odds"
+    return (cfg.get("default_launchpad") or "BTC") if where == "terminal" else None

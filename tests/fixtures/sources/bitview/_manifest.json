@@ -977,6 +977,14 @@
    "bytes": 14229,
    "notes": "The weekly index with the `date` series first: 60 weeks of the 23 age bands. `date` at week1 is each week's Monday (type Date); the last week is the current one. WAVE reads all of history this way (start=0, 165 KB, not recorded) because 23 bands of daily history is refused: `weight_exceeded`, 'Request weight 1190664 exceeds maximum 320000' (8 bytes a value).",
    "recorded_for": "tests/test_funcs_onchain.py, fetched 2026-09-19 about 20:03 UTC"
+  },
+  "series_price_close_day1_start0.json": {
+   "url": "https://bitview.space/api/series/price_close/day1?start=0",
+   "status": 200,
+   "seconds": 0.0,
+   "trimmed": "",
+   "bytes": 47442,
+   "note": "Every daily close since 16 Aug 2010, recorded 2026-09-20 for PL (the power law). Values untouched."
   }
  }
 }

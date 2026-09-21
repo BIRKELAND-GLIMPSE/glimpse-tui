@@ -210,8 +210,11 @@ class Plot:
     """
 
     def __init__(self, width: int, height: int, log: bool = False, times: bool = True, gutter: int | None = None,
-                 grid: bool = True) -> None:
+                 grid: bool = True, xlog: bool = False) -> None:
         self.w, self.h, self.log, self.times, self.grid = max(width, 12), max(height, 3), log, times, grid
+        self.xlog = xlog                    # a log x axis too: both together make a power law a straight line
+        self.x_ticks: list[tuple[float, str]] | None = None      # explicit labels at given x, instead of dates
+        self.x_grid: list[float] = []                            # vertical rules, drawn under everything
         self.gutter = gutter
         self.lines: list[_Line] = []
         self.candles: list[Candle] = []
@@ -269,7 +272,15 @@ class Plot:
             return self.x_range
         xs = [x for ln in self.lines for x in (ln.xs[0], ln.xs[-1]) if len(ln.xs)] + [c.t for c in self.candles]
         xs += [v for b in self.bands for v in (b[0], b[1])] + [v[0] for v in self.vlines]
-        return (min(xs), max(xs)) if xs and max(xs) > min(xs) else (0.0, 1.0)
+        if self.xlog:
+            xs = [x for x in xs if x > 0]
+        return (min(xs), max(xs)) if xs and max(xs) > min(xs) else ((1.0, 10.0) if self.xlog else (0.0, 1.0))
+
+    def _xfrac(self, x: float, x_lo: float, x_hi: float) -> float:
+        """Where `x` sits across the plot, 0 to 1. Log when the x axis is log, so equal ratios take equal room."""
+        if self.xlog and x_lo > 0 and x > 0 and x_hi > x_lo:
+            return (math.log(x) - math.log(x_lo)) / (math.log(x_hi) - math.log(x_lo))
+        return (x - x_lo) / (x_hi - x_lo) if x_hi > x_lo else 0.0
 
     # drawing ────────────────────────────────────────────────
 
@@ -295,7 +306,7 @@ class Plot:
             return (v - lo) / (hi - lo) if hi > lo else 0.5
 
         def col(x: float) -> float:
-            return (x - x_lo) / (x_hi - x_lo) * (pw - 1) if x_hi > x_lo else 0.0
+            return self._xfrac(x, x_lo, x_hi) * (pw - 1)
 
         def row(v: float, ext: tuple[float, float] = y0) -> int:
             return rows - 1 - round(fy(v, ext) * (rows - 1))
@@ -306,6 +317,14 @@ class Plot:
                 r = row(t)
                 if 0 <= r < rows:
                     cells[r] = [("┄" if i % 2 == 0 else " ", GRID) for i in range(pw)]
+            for x in self.x_grid:               # a log-log chart is unreadable without rules both ways
+                c = round(col(x))
+                if 0 <= c < pw:
+                    for r in range(rows):       # dotted down as well as across, so the rules stay behind the data
+                        if cells[r][c][0] == "┄":
+                            cells[r][c] = ("┼", GRID)
+                        elif cells[r][c][0] == " " and r % 2 == 0:
+                            cells[r][c] = ("┊", GRID)
         for x0_, x1_, lo, hi, colour, glyph in self.bands:
             c0, c1 = max(0, round(col(x0_))), min(pw - 1, round(col(x1_)))
             r0, r1 = sorted((row(hi), row(lo)))
@@ -383,17 +402,26 @@ class Plot:
     def _time_axis(self, x_lo: float, x_hi: float, pw: int) -> Text:
         axis = [" "] * pw
         marks: list[tuple[int, str, str]] = []                  # a rule's label (NOW) claims its place first
+        place = lambda x: round(self._xfrac(x, x_lo, x_hi) * (pw - 1))       # noqa: E731
         for x, colour, label in self.vlines:
-            c = round((x - x_lo) / (x_hi - x_lo) * (pw - 1)) if x_hi > x_lo else 0
+            c = place(x)
             if label and 0 <= c < pw and len(label) <= pw:
                 at = min(max(c - len(label) // 2, 0), pw - len(label))
                 axis[at:at + len(label)] = label
                 marks.append((at, label, colour))
-        if self.times and x_hi > x_lo:
+        if self.x_ticks is not None:                            # explicit labels: years on a power law, not dates
+            for x, label in self.x_ticks:
+                c = place(x)
+                at = min(max(c - len(label) // 2, 0), max(pw - len(label), 0))
+                if 0 <= c < pw and all(ch == " " for ch in axis[max(at - 1, 0):at + len(label) + 1]):
+                    axis[at:at + len(label)] = label
+        elif self.times and x_hi > x_lo:
             span, n = x_hi - x_lo, max(pw // 22, 2)
             for i in range(n + 1):
-                label = time_label(x_lo + span * i / n, span)
-                at = min(max(round((pw - 1) * i / n) - (len(label) if i == n else len(label) // 2 if i else 0), 0), max(pw - len(label), 0))
+                x = x_lo + span * i / n
+                label = time_label(x, span)
+                c = place(x) if self.xlog else round((pw - 1) * i / n)
+                at = min(max(c - (len(label) if i == n else len(label) // 2 if i else 0), 0), max(pw - len(label), 0))
                 if all(ch == " " for ch in axis[max(at - 2, 0):at + len(label) + 2]):
                     axis[at:at + len(label)] = label
         out = Text("".join(axis)[:pw], style=FAINT, no_wrap=True)

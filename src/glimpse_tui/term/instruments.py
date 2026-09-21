@@ -11,8 +11,14 @@ import tomllib
 from dataclasses import dataclass, field, replace
 from importlib import resources
 
+from .. import fmt
 from . import config
 from .registry import CLASSES
+
+BASE = "BTC"                    # the ticker everything else can be priced against
+SATS = fmt.SATS                 # satoshis to the coin: the unit a ratio is quoted in
+RATIO = "computed:ratio:"       # a source that is a division, not a fetch: `computed:ratio:XAU` is XAU / BTC
+NOT_PRICED = ("GOVT", "SERIES")  # classes with no price to divide: a yield in percent, an on-chain series
 
 TXID = re.compile(r"^[0-9a-fA-F]{64}$")
 ADDRESS = re.compile(r"^(bc1[ac-hj-np-z02-9]{11,87}|tb1[ac-hj-np-z02-9]{11,87}|[13][1-9A-HJ-NP-Za-km-z]{25,39})$")
@@ -41,6 +47,19 @@ class Instrument:
         return next((s.split(":", 1)[1] for s in self.sources if s.startswith(kind + ":")), None)
 
 
+def in_bitcoin(base: Instrument) -> Instrument:
+    """`XAU` -> `XAUBTC`, quoted in satoshis. A troy ounce of gold is a number of sats, and that number has its
+    own history, its own chart and its own power law; the dollar it was priced in is divided out."""
+    return Instrument(base.ticker + BASE, f"{base.name} priced in Bitcoin", base.cls, quote=BASE, decimals=0,
+                      session=base.session, sources=(RATIO + base.ticker,), aliases=(f"{base.ticker}/{BASE}",),
+                      note=f"{base.ticker} divided by {BASE}, in satoshis. Each leg keeps its own delay; the slower one governs.")
+
+
+def leg_of(ins: Instrument) -> str:
+    """The numerator of a ratio instrument, or "" when it is not one."""
+    return next((s[len(RATIO):] for s in ins.sources if s.startswith(RATIO)), "")
+
+
 @dataclass
 class Book:
     """Every instrument the terminal knows, by ticker and alias, plus the category lists."""
@@ -58,9 +77,25 @@ class Book:
         t = ticker.upper()
         if hit := self.by_ticker.get(t) or self.by_ticker.get(self.alias.get(t, "")):
             return hit
+        if r := self.ratio(t):                          # XAUBTC, SPXBTC, NVDABTC: anything priced in Bitcoin
+            return r
         if co := self.companies.get(t):                 # any SEC filer is a security, with filings if not a price
             return Instrument(t, co[1], "EQUITY", session="us_equity", cik=co[0], note=co[2])
         return None
+
+    def ratio(self, ticker: str) -> Instrument | None:
+        """`XAUBTC` from `XAU`: the same thing priced in Bitcoin. Nothing is fetched for it; both legs are, and
+        the quote board divides one by the other. Only a ticker the book already knows becomes one."""
+        t = ticker.upper().replace("/", "")
+        if not t.endswith(BASE) or len(t) <= len(BASE) or t in self.by_ticker:
+            return None
+        leg = t[: -len(BASE)]
+        base = self.by_ticker.get(leg) or self.by_ticker.get(self.alias.get(leg, ""))
+        if base is None or base.ticker == BASE or not (base.available or base.proxy):
+            return None
+        if base.cls in NOT_PRICED:          # a yield is a percentage and an on-chain series is not a price: neither divides
+            return None
+        return in_bitcoin(base)
 
     def with_cik(self, ins: Instrument) -> Instrument:
         co = self.companies.get(ins.ticker.upper())

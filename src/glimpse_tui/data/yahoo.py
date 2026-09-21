@@ -36,6 +36,12 @@ class Spark:
         return time.time() - self.at > CLOSED_AFTER_S
 
 
+def _median_gap(pts: list[tuple[float, float]]) -> float:
+    """Seconds between points, at the middle of the spread: one long weekend must not decide the verdict."""
+    gaps = sorted(b[0] - a[0] for a, b in zip(pts, pts[1:], strict=False))
+    return gaps[len(gaps) // 2] if gaps else 0.0
+
+
 def _num(v) -> float | None:
     try:
         return float(v) if v is not None else None
@@ -81,16 +87,25 @@ class Yahoo(Source):
             raise SourceError("yahoo: no quotes in the answer")
         return out, self.prov(at, as_of=max(s.at for s in out.values()))
 
-    async def history(self, symbol: str, days: int = 400) -> tuple[list[float], list[float], Provenance]:
-        """Daily closes, oldest first."""
-        rng = "1y" if days <= 250 else "2y" if days <= 500 else "10y" if days <= 2500 else "max"
+    async def _chart(self, symbol: str, rng: str) -> tuple[list[tuple[float, float]], float]:
         doc, at = await self.get(f"/v8/finance/chart/{quote(symbol, safe='')}", {"range": rng, "interval": "1d"}, ttl=3600, persist=True)
         try:
             r = doc["chart"]["result"][0]
             ts, closes = r["timestamp"], r["indicators"]["quote"][0]["close"]
         except (KeyError, IndexError, TypeError):
             raise SourceError(f"yahoo: no history for {symbol}") from None
-        pts = [(float(t), float(c)) for t, c in zip(ts, closes, strict=False) if c is not None][-days:]
+        return [(float(t), float(c)) for t, c in zip(ts, closes, strict=False) if c is not None], at
+
+    async def history(self, symbol: str, days: int = 400) -> tuple[list[float], list[float], Provenance]:
+        """Daily closes, oldest first. `range=max` with a daily interval is not always daily: on a symbol with a
+        long past (gold futures start in 1975) Yahoo quietly answers with monthly points instead. When that
+        happens the request is made again over ten years, which it does serve day by day, so a caller that asked
+        for daily closes never gets months labelled as days."""
+        rng = "1y" if days <= 250 else "2y" if days <= 500 else "10y" if days <= 2500 else "max"
+        pts, at = await self._chart(symbol, rng)
+        if rng == "max" and len(pts) > 2 and _median_gap(pts) > 3 * 86400:
+            pts, at = await self._chart(symbol, "10y")
+        pts = pts[-days:]
         if not pts:
             raise SourceError(f"yahoo: no history for {symbol}")
         return [p[0] for p in pts], [p[1] for p in pts], self.prov(at, as_of=pts[-1][0])
