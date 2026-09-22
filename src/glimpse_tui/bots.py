@@ -290,7 +290,8 @@ class Runner:
 
     @property
     def running(self) -> bool:
-        return self._task is not None and not self._task.done()
+        """False as soon as `stop()` was called, not only once the loop has run the cancellation."""
+        return self._task is not None and not self._task.done() and not self._task.cancelling()
 
     @property
     def open_cost(self) -> float:
