@@ -366,3 +366,87 @@ async def test_the_forecast_pane_walks_every_close_ahead(make):
         assert app.bot_pane == 0 and app.query_one("#botlist").has_class("active")
         await pilot.press("l")
         assert botsview.TABS[app.bot_tab] == "Running"                            # back in the list, l is the category
+
+
+async def test_runner_emits_one_structured_event_per_step_and_none_without_a_listener(tmp_path):
+    api = FakeApi()
+    quiet = runner(api, tmp_path, bot(90), kelly=1.0)
+    quiet.cfg = quiet.cfg.with_budget(2_000)
+    await quiet.cycle()                                               # no on_event: exactly the old behaviour
+    assert quiet.trades == 1
+
+    events = []
+    r = runner(FakeApi(), tmp_path / "b", bot(90), kelly=1.0)
+    r.cfg = r.cfg.with_budget(2_000)
+    r.on_event = events.append
+    await r.cycle()
+    assert [e["type"] for e in events] == ["cycle_start", "forecast", "candidates", "intent_buy", "estimate", "fill"]
+    fill = events[-1]
+    assert fill["bot"] == "sure" and fill["mode"] == "paper" and fill["cycle"] == 1 and fill["topic_id"] == 100
+    assert fill["data"]["paper"] is True and fill["data"]["side"] == "buy"
+    legs = fill["data"]["legs"]
+    assert legs and legs[0]["index"] == 90 and legs[0]["option_id"] == 91 and (legs[0]["lo"], legs[0]["hi"]) == BINS[90]
+    assert sum(x["cost_sats"] for x in legs) == pytest.approx(fill["data"]["paid_sats"])
+    assert sum(x["cost_sats"] for x in legs) == pytest.approx(r.open_cost)      # the event is the ledger
+    est = events[4]["data"]
+    assert est["ok"] and abs(est["local_sats"] - est["server_sats"]) <= est["tolerance_sats"]
+    assert len(events[1]["data"]["probs"]) == 500
+
+    r.bot = bot(10)                                                   # the market overpays for bin 90 now
+    r.api.shares[90] += 400
+    events.clear()
+    await r.cycle()
+    kinds = [e["type"] for e in events]
+    assert kinds[:2] == ["cycle_start", "forecast"] and "intent_sell" in kinds and "fill" in kinds
+    sell = next(e for e in events if e["type"] == "fill")
+    assert sell["data"]["side"] == "sell" and sell["data"]["option_id"] == 91
+    assert 91 not in r.ledger.legs("sure", "paper", 100)
+
+
+async def test_a_subclass_can_bend_the_picture_and_veto_the_legs(tmp_path):
+    class Bent(bots.Runner):
+        async def picture(self, book, ctx):
+            p = await super().picture(book, ctx)
+            return p[1:] + p[:1]                                      # everything one bin down: bin 90 is now bin 89
+
+        def veto(self, book, legs):
+            self.vetoed = list(legs)
+            return []
+
+    api = FakeApi()
+    events = []
+    r = Bent(bot=bot(90), api=api, batch_id="b-h", feed=Feed(), ledger=bots.Ledger(tmp_path / "l.json"), cfg=bots.BotConfig(kelly=1.0))
+    r.cfg = r.cfg.with_budget(2_000)
+    r.on_event = events.append
+    await r.cycle()
+    assert r.vetoed and r.vetoed[0].index == 89
+    assert r.trades == 0 and r.open_cost == 0 and api.bought == []
+    assert [e["type"] for e in events] == ["cycle_start", "forecast", "candidates"]
+
+
+async def test_an_ambiguous_fill_is_a_typed_event_and_stops_the_bot(tmp_path):
+    from glimpse_tui.api import AmbiguousTrade
+
+    class Drops(FakeApi):
+        async def buy_legs(self, topic_id, legs):
+            raise AmbiguousTrade("Connection dropped mid-trade. The order may or may not have filled: check the portfolio before retrying.")
+
+    events = []
+    r = runner(Drops("k"), tmp_path, bot(90), live=True, bankroll_sats=60, kelly=1.0, max_per_cycle_sats=60, max_per_hour_sats=60)
+    r.on_event = events.append
+    stopped = []
+    r.stop = lambda: stopped.append(True)
+    await r.cycle()
+    unknown = [e for e in events if e["type"] == "fill_unknown"]
+    assert len(unknown) == 1 and unknown[0]["data"]["side"] == "buy" and unknown[0]["data"]["legs"]
+    assert stopped and r.open_cost == 0 and "fill" not in [e["type"] for e in events]
+
+
+def test_prune_returns_what_it_removed(tmp_path):
+    led = bots.Ledger(tmp_path / "l.json")
+    book = Book(7, "m", 100, "live", 0, [1, 2], [(1.0, 2.0), (2.0, 3.0)], [40.0, 40.0], P.alpha_for(2))
+    led.add("a", "paper", book, "BTC", 1, 3.0, 12.0)
+    assert led.prune(50) == {}
+    gone = led.prune(100)
+    assert gone == {"a": {"paper": {"7": {"end": 100, "asset": "BTC", "legs": {"2": [3.0, 12.0, 2.0, 3.0]}}}}}
+    assert led.positions("a", "paper") == []

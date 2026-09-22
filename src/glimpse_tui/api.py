@@ -34,6 +34,10 @@ class ApiError(Exception):
     """A message that is safe and useful to show in the status line."""
 
 
+class AmbiguousTrade(ApiError):
+    """The connection dropped mid-order: it may or may not have filled. Check the portfolio before sending more."""
+
+
 def asset_of(title: str) -> str:
     """Ticker named by a series or market title, or '' if it names none we know."""
     t = title.lower()
@@ -210,7 +214,7 @@ def _friendly(e: Exception) -> ApiError:
     if isinstance(e, GlimpseTradingNotEligibleError):
         return ApiError(f"Trading not enabled on this account: {e.reason or e.message}. Finish onboarding on the website.")
     if isinstance(e, GlimpseAmbiguousTradeStateError):
-        return ApiError("Connection dropped mid-trade. The order may or may not have filled: check the portfolio before retrying.")
+        return AmbiguousTrade("Connection dropped mid-trade. The order may or may not have filled: check the portfolio before retrying.")
     if isinstance(e, GlimpseRateLimitError):
         return ApiError("Rate limited by Glimpse. Slowing down.")
     if isinstance(e, GlimpseAPIError):

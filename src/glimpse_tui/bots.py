@@ -12,6 +12,11 @@ never past the price the picture justifies, every order checked against the serv
 position it bought once the market pays more for it than the picture says it is worth. It never touches a position
 it did not open: what it owns is recorded in a ledger on this machine. It stops at its budget and its spend caps.
 Dry run by default; a dry run keeps a paper ledger so it behaves as the live bot would.
+
+A front end that wants more than log lines sets `on_event` on the runner (or on a bot) and receives one dict per
+step of the cycle: `cycle_start`, `closed`, `forecast`, `candidates`, `intent_buy`, `intent_sell`, `estimate`, `fill`,
+`fill_unknown`, `cap_hit`, `error`. A subclass may override `picture` (how the probabilities are produced) and `veto`
+(a last check on the legs `decide` chose) without touching any other rule. Nothing changes when neither is used.
 """
 from __future__ import annotations
 
@@ -28,10 +33,11 @@ from pathlib import Path
 
 from . import fmt
 from . import pricing as P
-from .api import ApiError, Book, Glimpse
+from .api import AmbiguousTrade, ApiError, Book, Glimpse
 from .auth import config_dir
 
 Forecast = Callable[[Book, list[float], float], list[float]]
+OnEvent = Callable[[dict], None]
 
 
 @dataclass
@@ -74,12 +80,19 @@ class Bot:
     model: object | None = None             # a zoo Model
     forecast: Forecast | None = None        # a user file's function
     error: str = ""
+    on_event: OnEvent | None = None         # told about every picture this bot draws, when set
 
     def probs(self, book: Book, ctx) -> list[float]:
+        t0 = time.perf_counter()
         if self.model is not None:
-            return [float(x) for x in self.model.fn(ctx)]
-        closes = [float(x) for x in ctx.bars["close"].to_numpy()[-336:]]
-        return list(self.forecast(book, closes, ctx.hours))
+            out = [float(x) for x in self.model.fn(ctx)]
+        else:
+            closes = [float(x) for x in ctx.bars["close"].to_numpy()[-336:]]
+            out = list(self.forecast(book, closes, ctx.hours))
+        if self.on_event is not None:
+            self.on_event({"type": "forecast", "bot": self.id, "topic_id": book.topic_id, "end": book.end_time_utc, "ts": time.time(),
+                           "data": {"model": self.id, "n": len(out), "ms": round((time.perf_counter() - t0) * 1000)}})
+        return out
 
 
 def bots_dir() -> Path:
@@ -134,12 +147,15 @@ class Ledger:
     def topics(self, bot: str, mode: str) -> dict:
         return self.data.setdefault(bot, {}).setdefault(mode, {})
 
-    def prune(self, now: float) -> None:
-        """A closed market settles on the server; there is nothing left for a bot to manage."""
-        for modes in self.data.values():
-            for topics in modes.values():
+    def prune(self, now: float) -> dict[str, dict[str, dict[str, dict]]]:
+        """A closed market settles on the server; there is nothing left for a bot to manage. Returns what was removed,
+        {bot: {mode: {topic: entry}}}, so a caller can go and find out how those markets resolved."""
+        removed: dict[str, dict[str, dict[str, dict]]] = {}
+        for bot, modes in self.data.items():
+            for mode, topics in modes.items():
                 for tid in [t for t, v in topics.items() if v.get("end", 0) <= now]:
-                    del topics[tid]
+                    removed.setdefault(bot, {}).setdefault(mode, {})[tid] = topics.pop(tid)
+        return removed
 
     def add(self, bot: str, mode: str, book: Book, asset: str, index: int, contracts: float, cost: float) -> None:
         t = self.topics(bot, mode).setdefault(str(book.topic_id), {"end": book.end_time_utc, "asset": asset, "legs": {}})
@@ -261,6 +277,7 @@ class Runner:
     started_at: float = 0.0
     on_trade: Callable[[], None] | None = None
     on_log: Callable[[str], None] | None = None
+    on_event: OnEvent | None = None             # one dict per step of the cycle, for a front end; see the module doc
     _task: asyncio.Task | None = None
 
     @property
@@ -284,6 +301,29 @@ class Runner:
         self.log.append(line)
         if self.on_log:
             self.on_log(line)
+
+    def emit(self, type: str, book: Book | None = None, **data) -> None:
+        """A structured event for `on_event`: {type, bot, mode, cycle, ts, topic_id?, end?, data}. Nothing when unset."""
+        if self.on_event is None:
+            return
+        ev: dict = {"type": type, "bot": self.bot.id, "mode": self.mode, "cycle": self.cycles, "ts": time.time()}
+        if book is not None:
+            ev["topic_id"], ev["end"] = book.topic_id, book.end_time_utc
+        ev["data"] = data
+        self.on_event(ev)
+
+    def leg_info(self, book: Book, leg: Leg) -> dict:
+        lo, hi = book.bins[leg.index]
+        return {"index": leg.index, "option_id": book.option_ids[leg.index], "lo": lo, "hi": hi,
+                "contracts": leg.contracts, "cost_sats": leg.cost_sats}
+
+    async def picture(self, book: Book, ctx) -> list[float]:
+        """The probabilities the runner trades on: the bot's own, unless a subclass bends them."""
+        return await asyncio.to_thread(self.bot.probs, book, ctx)
+
+    def veto(self, book: Book, legs: list[Leg]) -> list[Leg]:
+        """A last look at the legs `decide` chose. Returns them unchanged; a subclass may drop some or all."""
+        return legs
 
     def start(self) -> None:
         if not self.running:
@@ -321,12 +361,15 @@ class Runner:
 
     async def cycle(self) -> None:
         self.cycles += 1
+        self.emit("cycle_start", asof=time.time())
         await self.feed.refresh()
         if not self.feed.ready:
             self.say("no price data yet, waiting")
+            self.emit("error", where="feed", message="no price data yet")
             return
         now = time.time()
-        self.ledger.prune(now)
+        for tid, entry in self.ledger.prune(now).get(self.bot.id, {}).get(self.mode, {}).items():
+            self.emit("closed", topic_id=int(tid), end=entry.get("end"), legs=entry.get("legs", {}))
         rows = await self.api.markets(self.batch_id, limit=max(self.cfg.markets, 24))
         budget = self.cfg.max_per_cycle_sats
         for row in rows[: self.cfg.markets]:
@@ -339,27 +382,35 @@ class Runner:
             tag = fmt.question(self.feed.asset, book.end_time_utc)[:-4]
             try:
                 ctx = self.feed.ctx(book.bins, book.end_time_utc)
-                probs = await asyncio.to_thread(self.bot.probs, book, ctx)
+                probs = await self.picture(book, ctx)
             except Exception as e:
                 self.say(f"{tag}  no picture: {e}")
+                self.emit("error", book, where="picture", message=str(e) or e.__class__.__name__)
                 continue
             if len(probs) != len(book.bins) or abs(sum(probs) - 1) > 1e-6:
                 self.say(f"{self.name}: forecast must return {len(book.bins)} probabilities summing to 1")
+                self.emit("error", book, where="picture", message=f"forecast must return {len(book.bins)} probabilities summing to 1")
                 return
+            shape: dict = {"model": self.bot.id, "probs": [float(p) for p in probs]}
             if self.bot.model is not None:
                 from .zoo.core import describe
 
                 d = describe(ctx, probs)
                 self.stance = f"{d['view']}  median {fmt.price(d['median'])}  80% {fmt.kprice(d['low'])}–{fmt.kprice(d['high'])}"
+                shape.update(median=d["median"], band80=[d["low"], d["high"]], view=d["view"], lean=d["lean"], width=d["width"])
+            self.emit("forecast", book, **shape)
             held = self.ledger.legs(self.bot.id, self.mode, book.topic_id)
             for i, contracts, proceeds in exits(book, probs, held, self.cfg):
                 await self._exit(book, i, contracts, proceeds, tag)
             room = min(budget, self.cfg.max_per_hour_sats - self.spent_last_hour(), self.cfg.bankroll_sats - self.open_cost)
             if room < 1:
                 self.say(f"{tag}  budget or spend cap reached, holding")
+                self.emit("cap_hit", book, cap="room", limit=self.cfg.bankroll_sats, value=self.open_cost, action="hold")
                 continue
             held_cost = self.ledger.open_cost(self.bot.id, self.mode, book.topic_id)
             legs = await asyncio.to_thread(decide, book, probs, self.cfg, room, held_cost)
+            self.emit("candidates", book, legs=[self.leg_info(book, x) for x in legs], held_sats=held_cost, room_sats=room)
+            legs = self.veto(book, legs)
             total = sum(x.cost_sats for x in legs)
             if not legs or total < 1:
                 self.say(f"{tag}  no edge" + (f"  (holding {fmt.sats(held_cost)})" if held_cost else ""))
@@ -369,50 +420,69 @@ class Runner:
 
     async def _exit(self, book: Book, i: int, contracts: float, proceeds: float, tag: str) -> None:
         lo, hi = book.bins[i]
+        leg = {"index": i, "option_id": book.option_ids[i], "lo": lo, "hi": hi, "contracts": contracts, "proceeds_sats": proceeds}
         self.say(f"{tag}  {'SELL' if self.live else 'would sell'} {fmt.span(lo, hi)}  {fmt.contracts(contracts)} for ₿{proceeds:,.0f}")
+        self.emit("intent_sell", book, **leg)
         if self.live:
             try:
                 await self.api.sell(book.topic_id, book.option_ids[i], contracts)
+            except AmbiguousTrade as e:
+                self.say(f"{tag}  {e}")
+                self.emit("fill_unknown", book, side="sell", legs=[leg], reason=str(e))
+                self.stop()                 # unknown fill state: a human should look before more orders go out
+                return
             except ApiError as e:
                 self.say(f"{tag}  {e}")
-                if "may or may not" in str(e):
-                    self.stop()
+                self.emit("error", book, where="broker", message=str(e))
                 return
             if self.on_trade:
                 self.on_trade()
         self.ledger.remove(self.bot.id, self.mode, book.topic_id, book.option_ids[i])
         self.sold_sats += proceeds
         self.trades += 1
+        self.emit("fill", book, side="sell", paper=not self.live, **leg)
 
     async def _enter(self, book: Book, legs: list[Leg], total: float, tag: str) -> float:
         order = [(book.option_ids[x.index], x.contracts) for x in legs]
+        info = [self.leg_info(book, x) for x in legs]
+        self.emit("intent_buy", book, legs=info, total_sats=total)
         raw, fee = await self.api.estimate_legs(book.topic_id, order)
         charge = raw + max(fee, P.MIN_FEE_SATS)
-        if abs(charge - total) > self.cfg.estimate_tolerance * total + 5:
+        tolerance = self.cfg.estimate_tolerance * total + 5
+        ok = abs(charge - total) <= tolerance
+        self.emit("estimate", book, side="buy", local_sats=total, server_sats=charge, ok=ok, tolerance_sats=tolerance)
+        if not ok:
             self.say(f"{tag}  book moved (local {total:,.0f} vs server {charge:,.0f}), skipped")
             return 0.0
         top = max(legs, key=lambda x: x.cost_sats)
         lo, hi = book.bins[top.index]
         self.say(f"{tag}  {'BUY' if self.live else 'would buy'} {len(legs)} bins  ₿{charge:,.0f}  top {fmt.span(lo, hi)}")
-        paid = charge
+        paid, fee_paid, trade_id = charge, max(fee, P.MIN_FEE_SATS), ""
         if self.live:
             try:
                 fill = await self.api.buy_legs(book.topic_id, order)
+            except AmbiguousTrade as e:
+                self.say(f"{tag}  {e}")
+                self.emit("fill_unknown", book, side="buy", legs=info, reason=str(e))
+                self.stop()             # unknown fill state: a human should look before more orders go out
+                return 0.0
             except ApiError as e:
                 self.say(f"{tag}  {e}")
-                if "may or may not" in str(e):
-                    self.stop()             # unknown fill state: a human should look before more orders go out
+                self.emit("error", book, where="broker", message=str(e))
                 return 0.0
             if fill.error:
                 self.say(f"{tag}  rejected: {fill.error}")
+                self.emit("error", book, where="broker", message=f"rejected: {fill.error}")
                 return 0.0
-            paid = fill.cost_sats + fill.fee_sats
+            paid, fee_paid, trade_id = fill.cost_sats + fill.fee_sats, fill.fee_sats, fill.trade_id
             self.say(f"{tag}  filled ₿{paid:,.0f}")
-        for x in legs:
-            self.ledger.add(self.bot.id, self.mode, book, self.feed.asset, x.index, x.contracts, paid * x.cost_sats / total)
+        for x, leg in zip(legs, info, strict=True):
+            leg["cost_sats"] = paid * x.cost_sats / total
+            self.ledger.add(self.bot.id, self.mode, book, self.feed.asset, x.index, x.contracts, leg["cost_sats"])
         self.spent.append((time.time(), paid))
         self.paid_sats += paid
         self.trades += 1
+        self.emit("fill", book, side="buy", trade_id=trade_id, legs=info, paid_sats=paid, fee_sats=fee_paid, paper=not self.live)
         if self.live and self.on_trade:
             self.on_trade()
         return paid
