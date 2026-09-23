@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="320" viewBox="0 0 1200 320" role="img" aria-label="Glimpse Terminal: the market's forecast, in your terminal">
+  <title>Glimpse Terminal</title>
+  <defs>
+    <linearGradient id="fade" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#FF7D08" stop-opacity="0.15"/>
+      <stop offset="1" stop-color="#FF7D08" stop-opacity="1"/>
+    </linearGradient>
+    <pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse">
+      <path d="M24 0H0V24" fill="none" stroke="#1c1c1c" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <style>
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+  </style>
+
+  <rect width="1200" height="320" rx="16" fill="#0D0D0D"/>
+  <rect width="1200" height="320" rx="16" fill="url(#grid)"/>
+  <rect x="0.5" y="0.5" width="1199" height="319" rx="16" fill="none" stroke="#2a2a2a"/>
+
+  <!-- window dots -->
+  <circle cx="30" cy="28" r="6" fill="#ff5f57"/>
+  <circle cx="50" cy="28" r="6" fill="#febc2e"/>
+  <circle cx="70" cy="28" r="6" fill="#28c840"/>
+
+  <!-- wordmark -->
+  <rect x="56" y="92" width="206" height="52" fill="#FF7D08"/>
+  <text x="72" y="130" class="mono" font-size="36" font-weight="700" fill="#0D0D0D" letter-spacing="2">GLIMPSE</text>
+  <text x="282" y="130" class="mono" font-size="36" font-weight="700" fill="#FF7D08" letter-spacing="2">TERMINAL</text>
+
+  <text x="58" y="184" class="mono" font-size="20" fill="#f4f4f4">The market's forecast, in your terminal.</text>
+  <text x="58" y="214" class="mono" font-size="16" fill="#949494">Odds on every range · a forecast to trade · 130 bots</text>
+
+  <text x="58" y="268" class="mono" font-size="18" fill="#0bd98a">$</text>
+  <text x="80" y="268" class="mono" font-size="18" fill="#f4f4f4">uv run glimpse-tui</text>
+  <rect x="288" y="253" width="11" height="20" fill="#FF7D08">
+    <animate attributeName="opacity" values="1;1;0;0" dur="1.1s" repeatCount="indefinite"/>
+  </rect>
+
+  <!-- odds ladder: a price distribution, most likely range highlighted -->
+  <g class="mono" font-size="13">
+    <text x="760" y="64" fill="#FF7D08">BTC at 16:00 UTC</text>
+    <text x="1142" y="64" fill="#949494" text-anchor="end">live</text>
+    <line x1="760" y1="74" x2="1142" y2="74" stroke="#444"/>
+
+    <text x="760" y="98"  fill="#bdbdbd">86,000</text><rect x="830" y="87"  width="30"  height="14" fill="#8a4404"/><text x="1142" y="98"  fill="#949494" text-anchor="end">2.0%</text>
+    <text x="760" y="120" fill="#bdbdbd">85,800</text><rect x="830" y="109" width="55"  height="14" fill="#a85205"/><text x="1142" y="120" fill="#949494" text-anchor="end">3.8%</text>
+    <text x="760" y="142" fill="#bdbdbd">85,600</text><rect x="830" y="131" width="81"  height="14" fill="#c46006"/><text x="1142" y="142" fill="#949494" text-anchor="end">5.6%</text>
+    <text x="760" y="164" fill="#bdbdbd">85,400</text><rect x="830" y="153" width="133" height="14" fill="#e06e07"/><text x="1142" y="164" fill="#949494" text-anchor="end">9.1%</text>
+    <text x="760" y="186" fill="#f4f4f4" font-weight="700">85,200</text><rect x="830" y="175" width="200" height="14" fill="#FF7D08"/><text x="1142" y="186" fill="#FF7D08" text-anchor="end" font-weight="700">13.7%</text>
+    <text x="760" y="208" fill="#bdbdbd">85,000</text><rect x="830" y="197" width="175" height="14" fill="#f07507"/><text x="1142" y="208" fill="#949494" text-anchor="end">12.0%</text>
+    <text x="760" y="230" fill="#bdbdbd">84,800</text><rect x="830" y="219" width="113" height="14" fill="#e06e07"/><text x="1142" y="230" fill="#949494" text-anchor="end">7.8%</text>
+    <text x="760" y="252" fill="#bdbdbd">84,600</text><rect x="830" y="241" width="62"  height="14" fill="#a85205"/><text x="1142" y="252" fill="#949494" text-anchor="end">4.2%</text>
+    <text x="760" y="274" fill="#bdbdbd">84,400</text><rect x="830" y="263" width="27"  height="14" fill="#8a4404"/><text x="1142" y="274" fill="#949494" text-anchor="end">1.8%</text>
+
+    <text x="1040" y="186" fill="#0bd98a">◂ now</text>
+  </g>
+</svg>

@@ -5,6 +5,9 @@ description = "The Glimpse prediction market in your terminal: forecasts, odds, 
 authors = [
     { name = "jamespierog", email = "james.pierog@gmail.com" }
 ]
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.12"
 dependencies = [
     "glimpse-markets>=0.1.0",
