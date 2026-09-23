@@ -314,6 +314,22 @@ def test_about_wraps_every_section_of_a_model_with_its_stance():
     assert "MATHS" not in botsview.about(mine, None, 0.0, 80).plain and "A docstring." in botsview.about(mine, None, 0.0, 80).plain
 
 
+@pytest.mark.parametrize("size", [(170, 46), (100, 40)])
+async def test_the_about_page_wraps_to_the_width_the_dialog_really_has(make, size):
+    """Every line of a section sits beside its label: none spills past the edge and back to column 0."""
+    app = make()
+    async with app.run_test(size=size) as pilot:
+        await until(pilot, lambda: app.views)
+        await pilot.press("B")
+        await until(pilot, lambda: app.bots and not app.bot_scanning)
+        await pilot.press("i")
+        await until(pilot, lambda: isinstance(app.screen, A.About) and app.screen._width)
+        text = app.screen.query_one("#about-text")
+        lines = app.screen._body.plain.splitlines()
+        assert max(len(ln) for ln in lines) <= text.content_region.width
+        assert text.virtual_size.height == len(app.screen._body.plain.split("\n"))   # the widget wrapped no line again
+
+
 def test_the_detail_ladder_draws_the_bots_whole_picture_at_any_width():
     """Tight pictures are drawn bin by bin; wide ones add up neighbouring bins until the shape fits the rows."""
     bins = tuple((60_000.0 + 200 * i, 60_000.0 + 200 * (i + 1)) for i in range(500))

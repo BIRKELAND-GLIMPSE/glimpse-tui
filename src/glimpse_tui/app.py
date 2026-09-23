@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import os
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import lru_cache
@@ -441,16 +442,30 @@ class About(ModalScreen[None]):
     """One model's account of itself: the idea, what it reads, the mathematics, what it trades, the machinery every
     picture shares, and what it says right now. j k scroll; any other key closes it."""
 
-    def __init__(self, body: Text, title: str) -> None:
+    def __init__(self, body: Callable[[int], Text], title: str) -> None:
         super().__init__()
-        self._body, self._title = body, title
+        self._make, self._title = body, title
+        self._body, self._width = body(80), 0
 
     def compose(self) -> ComposeResult:
         with Vertical(id="dialog", classes="wide"):
             yield Static(self._title, id="dialog-title")
             with VerticalScroll(id="about-body"):
-                yield Static(self._body)
+                yield Static(self._body, id="about-text")
             yield Static("j k scroll      any other key closes", id="dialog-hint")
+
+    def on_resize(self, e: events.Resize) -> None:
+        self.call_after_refresh(self._rewrap)
+
+    def on_mount(self) -> None:
+        self.call_after_refresh(self._rewrap)
+
+    def _rewrap(self) -> None:
+        """Wrap the page to the width the text really gets, so no line spills past the label column."""
+        width = self.query_one("#about-text", Static).content_region.width
+        if width > 0 and width != self._width:
+            self._width, self._body = width, self._make(width)
+            self.query_one("#about-text", Static).update(self._body)
 
     def on_key(self, e: events.Key) -> None:
         e.stop()                        # the app's own handler must not see the key that closes this screen
@@ -587,8 +602,8 @@ class Terminal(App):
     BotLogPane {{ height: 12; display: none; }}
     ModalScreen {{ align: center middle; background: #0D0D0D 70%; }}
     #dialog {{ width: 72; height: auto; border: round {ORANGE}; background: #111111; padding: 1 2; }}
-    #dialog.wide {{ width: 132; }}
-    #about-body {{ height: auto; max-height: 80vh; }}
+    #dialog.wide {{ width: 132; max-width: 100%; }}
+    #about-body {{ height: auto; max-height: 80vh; scrollbar-gutter: stable; }}
     #help-body {{ height: auto; max-height: 78vh; }}
     #order-body {{ height: auto; max-height: 62vh; }}
     #dialog.widest {{ width: 108; }}
@@ -2178,7 +2193,8 @@ class Terminal(App):
         if b is None:
             return
         v = self.bot_closes[max(0, min(self.bot_when, len(self.bot_closes) - 1))] if self.bot_closes else None
-        body = botsview.about(b, self.ahead_of(b, v), self.spot, min(self.size.width - 8, 128))
+        scan = self.ahead_of(b, v)
+        body = lambda width: botsview.about(b, scan, self.spot, width)  # noqa: E731
         when = f" · {fmt.question(self.asset, v.row.end_time_utc)}" if v else ""
         self.push_screen(About(body, f"ABOUT · {b.name}{when}"))
 
