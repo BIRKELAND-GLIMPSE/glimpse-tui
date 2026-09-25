@@ -16,9 +16,10 @@ if TYPE_CHECKING:
     from .core import Model
 
 # One module per lab family; each exposes MODELS: list[Model]. Order here is order on screen.
-MODULES = ("baseline", "trend", "reversion", "volatility", "calendar", "regimes", "learning", "distributions", "scenarios", "options")
+MODULES = ("baseline", "trend", "reversion", "volatility", "calendar", "regimes", "learning", "distributions", "scenarios", "options",
+           "opportunist")
 FAMILIES = ("Baseline", "Trend", "Mean reversion", "Volatility", "Calendar & cycles", "Factor & carry", "Regime & jumps",
-            "Pattern & ML", "GARCH", "HAR", "Power Law", "Distributions", "Scenario", "Options views")
+            "Pattern & ML", "GARCH", "HAR", "Power Law", "Distributions", "Scenario", "Options views", "Opportunistic")
 
 
 @lru_cache(maxsize=1)

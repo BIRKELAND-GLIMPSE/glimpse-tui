@@ -4,7 +4,7 @@ press enter twice and it trades from this computer.
 Nothing here is a track record. The list shows what each model believes *now* about the nearest close (which way it
 leans, how wide it is against the baseline). The pane on the right takes one model: what it is, its whole
 distribution over the price ranges of the close you stop on against the market's prices, and under that a time
-series chart: the hourly candles the model read, then its median path and 80% band across every close ahead, with
+series chart: the hourly candles the model read, then its median path and a heatmap of its chances across every close ahead, with
 the market's median for contrast. `i` opens the model's full account of itself: the idea, what it reads, the
 mathematics, what it trades, and the shared machinery. All computed on this machine from public candles.
 """
@@ -19,7 +19,8 @@ from typing import TYPE_CHECKING
 from rich.text import Text
 from textual.widget import Widget
 
-from . import fmt
+from . import charts, fmt
+from . import policy as PL
 from . import pricing as P
 from .api import Candle
 from .heatmap import axis_labels
@@ -40,6 +41,21 @@ HOURS_PER_COL = (1, 2, 3, 4, 6, 8, 12, 24, 36, 48, 72, 96, 120, 168)
 CHART_MIN_ROWS = 5
 LADDER_MIN_ROWS = 7
 LADDER_ROWS = 13
+# The chart's heat: how much of the bot's probability lands in a price row, against the likeliest row of the same
+# close. Darkest where little does, the terminal's orange where most does. Each close is scaled to its own peak, so
+# a far close, spread thin, still shows where it is likeliest instead of fading to one flat brown.
+HEAT = ((0.0, (40, 18, 3)), (0.35, (110, 52, 10)), (0.7, (214, 100, 10)), (1.0, (255, 160, 40)))
+HEAT_FLOOR = 0.02               # rows holding under 2% of their close's likeliest row stay blank
+# The trades view: sats the bot would stake in a price row, against the biggest stake anywhere on the chart. Green,
+# like the ladder's buys; black where it buys nothing.
+BUY_HEAT = ((0.0, (8, 52, 30)), (0.4, (10, 120, 70)), (0.75, (14, 190, 110)), (1.0, (90, 255, 170)))
+# A 256-colour terminal snaps any colour to its nearest palette entry, and the nearest entry to a dark orange is
+# olive. So there each ramp is a short ladder of exact xterm-256 entries in the right hue instead.
+HEAT_256 = ("#5f0000", "#870000", "#af5f00", "#d75f00", "#ff8700", "#ffaf00")
+BUY_HEAT_256 = ("#005f00", "#008700", "#00af00", "#00af5f", "#00d787", "#5fff87")
+MODES = ("forecast", "trades")
+ZOOM = 1.6                      # each - or + widens or narrows the price range the ladder and chart show by this much
+ZOOM_LIMITS = (-3, 5)
 
 
 @dataclass
@@ -54,6 +70,17 @@ class Scan:
     high: float = 0.0
     probs: tuple[float, ...] = ()
     error: str = ""
+    buys: tuple[tuple[int, float, float], ...] | None = None    # (range, contracts, sats) it would buy now; None: not yet worked out
+    budget: float = 0.0          # the budget `buys` was sized against
+
+
+def heat(t: float, trades: bool = False) -> str:
+    """The background colour of a chart cell `t` of the way from least to most."""
+    t = min(max(t, 0.0), 1.0)
+    if charts.truecolor:
+        return charts.hex_of(charts.ramp(BUY_HEAT if trades else HEAT, t))
+    steps = BUY_HEAT_256 if trades else HEAT_256
+    return steps[min(int(t * len(steps)), len(steps) - 1)]
 
 
 def matches(bot: Bot, needle: str) -> bool:
@@ -84,9 +111,10 @@ def visible(t: Terminal) -> list[Bot]:
     return out
 
 
-def window(probs, rows: int, tail: float = 0.002) -> tuple[int, int, int]:
+def window(probs, rows: int, tail: float = 0.002, zoom: int = 0) -> tuple[int, int, int]:
     """Which bins to draw and how many of them go on one line, so `rows` lines hold the picture's central mass.
-    A tight picture is drawn bin by bin; a wide one groups neighbouring bins until it fits."""
+    A tight picture is drawn bin by bin; a wide one groups neighbouring bins until it fits. `zoom` above 0 widens
+    the span ZOOM times per step, below 0 narrows it."""
     n = len(probs)
     cum, lo, hi = 0.0, 0, n - 1
     for i, p in enumerate(probs):
@@ -102,6 +130,9 @@ def window(probs, rows: int, tail: float = 0.002) -> tuple[int, int, int]:
             break
     if hi < lo:
         lo = hi = max(range(n), key=lambda i: probs[i])
+    if zoom:
+        mid, half = (lo + hi) / 2, max((hi - lo + 1) / 2 * ZOOM ** zoom, rows / 2)
+        lo, hi = max(0, math.floor(mid - half)), min(n - 1, math.ceil(mid + half))
     step = max(1, -(-(hi - lo + 1) // rows))
     if step == 1:                                            # room to spare: a little quiet ground either side
         pad = min(rows - (hi - lo + 1), 4) // 2
@@ -123,13 +154,16 @@ def overlay(bot: float, market: float, width: int) -> Text:
     return out
 
 
-def ladder(probs, bins, spot: float, width: int, rows: int = 13, market=None, min_edge: float = 0.10) -> Text:
+def ladder(probs, bins, spot: float, width: int, rows: int = 13, market=None, min_edge: float = 0.10, policy=None,
+           buys=None, zoom: int = 0) -> Text:
     """The bot's picture of the close, highest price on top. With the market's prices (price/100 per range, what a
-    contract costs) each bar carries both, so the gap between them, which is what the bot trades, is the picture."""
+    contract costs) each bar carries both, so the gap between them, which is what the bot trades, is the picture.
+    With `buys`, the order the bot would send now, each row it buys on is tagged with the sats it would stake there;
+    until that is worked out, rows are tagged where the bot's rule (Kelly, or its `policy`) would buy."""
     out = Text(no_wrap=True, overflow="crop")
     if not probs or not bins:
         return out
-    lo, hi, step = window(probs, rows)
+    lo, hi, step = window(probs, rows, zoom=zoom)
     groups = [(i, min(i + step - 1, hi)) for i in range(lo, hi + 1, step)]
     weights = [sum(probs[a:b + 1]) for a, b in groups]
     prices = [sum(market[a:b + 1]) for a, b in groups] if market else []
@@ -138,6 +172,8 @@ def ladder(probs, bins, spot: float, width: int, rows: int = 13, market=None, mi
     out.append(f"  {'price at close':<22}{'bot':>7}{'market' if market else '':>9}   ", style=FAINT)
     out.append(f"{step} ranges per row\n" if step > 1 else "\n", style=FAINT)
     net = P.PAYOUT_SATS * (1 - P.FEE)
+    picked = set(PL.picks(policy, probs, bins, [m * P.PAYOUT_SATS for m in market], spot)) if policy and market else set()
+    stake = {i: (c, sats) for i, c, sats in buys or ()}
     for n in range(len(groups) - 1, -1, -1):                                       # highest price on top
         (a, b), p = groups[n], weights[n]
         g_lo, g_hi = bins[a][0], bins[b][1]
@@ -149,7 +185,15 @@ def ladder(probs, bins, spot: float, width: int, rows: int = 13, market=None, mi
             m = prices[n]
             out.append(f"{fmt.pct(m):>9}   ", style=TEXT)
             out.append_text(overlay(p / top, m / top, barw))
-            if m > 0 and p * net > m * P.PAYOUT_SATS * (1 + P.FEE) * (1 + min_edge):
+            if buys is not None:
+                got = [stake[i] for i in range(a, b + 1) if i in stake]
+                if got:
+                    out.append(f"  buys {fmt.contracts(sum(c for c, _ in got))} · {fmt.sats(sum(x for _, x in got))}",
+                               style=f"bold {GREEN}")
+            elif policy is not None:
+                if picked.intersection(range(a, b + 1)):
+                    out.append(f"  bot +{(p - m) * 100:.0f} pts · on sale, buys", style=f"bold {GREEN}")
+            elif m > 0 and p * net > m * P.PAYOUT_SATS * (1 + P.FEE) * (1 + min_edge):
                 out.append(f"  bot +{(p - m) * 100:.0f} pts · buys", style=f"bold {GREEN}")
         else:
             out.append("   ")
@@ -206,11 +250,65 @@ def pack(bars: list[Candle], t0: int, hpc: int, cols: int) -> list[Candle | None
     return out
 
 
+def stakes(buys, n: int) -> list[float]:
+    """Sats staked on each of `n` ranges by an order of (range, contracts, sats) legs."""
+    out = [0.0] * n
+    for i, _, sats in buys or ():
+        if 0 <= i < n:
+            out[i] += sats
+    return out
+
+
+_BIN_ARRAYS: dict[int, tuple[object, object]] = {}
+
+
+def _bin_array(bins):
+    """`bins` as an (n, 2) array. Every close of a series shares one tuple of bins, so the array is made once per
+    tuple (kept by identity, with the tuple itself held so its id cannot be reused) rather than on every draw."""
+    import numpy as np
+
+    got = _BIN_ARRAYS.get(id(bins))
+    if got is None or got[0] is not bins:
+        if len(_BIN_ARRAYS) > 16:
+            _BIN_ARRAYS.clear()
+        got = _BIN_ARRAYS[id(bins)] = (bins, np.asarray(bins, dtype=float))
+    return got[1]
+
+
+def row_mass(probs, bins, hi: float, step: float, rows: int) -> list[float]:
+    """The share of `probs` in each chart row (0 is the top, `step` tall below `hi`), each bin's probability split
+    across the rows it overlaps by length. What falls off the chart is left out."""
+    # numpy arrives with the zoo; the terminal itself starts without it
+    import numpy as np
+
+    if not len(bins):
+        return [0.0] * rows
+    # Each bin's probability spread evenly over its width is a piecewise-linear cumulative curve through the bin
+    # edges; read at the row edges and differenced, it gives every row its overlap-weighted share at once.
+    b = _bin_array(bins)
+    p = np.maximum(np.asarray(probs, dtype=float), 0.0)
+    ok = b[:, 1] > b[:, 0]
+    if not ok.all():                                           # an empty bin carries nothing
+        b, p = b[ok], p[ok]
+    xs = np.empty(2 * len(b))
+    xs[0::2], xs[1::2] = b[:, 0], b[:, 1]                     # every bin's two edges, so gaps between bins stay flat
+    cum = np.cumsum(p)
+    ys = np.empty_like(xs)
+    ys[0::2], ys[1::2] = cum - p, cum
+    edges = hi - step * np.arange(rows + 1)                    # the top of row 0 first
+    at = np.interp(edges, xs, ys, left=0.0, right=float(cum[-1]) if len(cum) else 0.0)
+    return (at[:-1] - at[1:]).tolist()
+
+
 def chart(bars: list[Candle], closes: list[RowView], scans: dict[int, Scan], cur: int, spot: float, now: float,
-          width: int, rows: int) -> Text:
+          width: int, rows: int, mode: str = "forecast", zoom: int = 0) -> Text:
     """Price up, time across. Left of NOW the hourly candles the model read, merged to the chart's time scale; right
-    of it the bot's median (─) and 80% band (░) at every close ahead, the market's median (·) for contrast, and the
-    close the ladder shows (▒ █). One row per price step, labelled on the right where the step is a round number."""
+    of it, at every close ahead, either the bot's whole distribution as heat (mode "forecast": dark where it expects
+    little, bright orange where it expects most) or the order it would send there now (mode "trades": the sats it
+    would stake in each price row, bright green for the biggest stake on the chart, black where it buys nothing).
+    Over either, its median (─), the market's median (·) for contrast, and the close the ladder shows (░ █). One row
+    per price step, labelled on the right where the step is a round number. `zoom` widens (above 0) or narrows the
+    price range around spot, ZOOM times per step."""
     out = Text(no_wrap=True, overflow="crop")
     chart_w = width - GUTTER - 2
     if not closes or rows < 3 or chart_w < 8:
@@ -236,6 +334,9 @@ def chart(bars: list[Candle], closes: list[RowView], scans: dict[int, Scan], cur
     lo, hi = min(lows), max(highs)
     pad = max((hi - lo) * 0.06, spot * 0.002 if spot > 0 else 1e-9)
     lo, hi = lo - pad, hi + pad
+    if zoom:
+        mid, f = (spot if lo < spot < hi else (lo + hi) / 2), ZOOM ** zoom
+        lo, hi = max(mid - (mid - lo) * f, 1e-9), mid + (hi - mid) * f
     step = (hi - lo) / rows
     row_of = lambda p: min(max(int((hi - p) // step), 0), rows - 1)        # noqa: E731  0 is the top row
     rule_step = round_step(2 * step)
@@ -255,21 +356,42 @@ def chart(bars: list[Candle], closes: list[RowView], scans: dict[int, Scan], cur
             top, bottom = hi - r * step, hi - (r + 1) * step
             body = min(k.o, k.c) < top and max(k.o, k.c) >= bottom
             cells[r][x] = ("█" if body else "│", colour)
-    for col, cs in ahead.items():                                          # band, then the market's median through it, then the bot's
+    trades = mode == "trades"
+    mass: dict[int, list[float]] = {}           # column -> the bot's probability (forecast) or sats staked (trades) per row
+    for col, cs in ahead.items():
+        if trades:
+            got = [row_mass(stakes(s.buys, len(v.bins)), v.bins, hi, step, rows) for _, v, s in cs
+                   if s and not s.error and s.buys is not None]
+            if got:
+                mass[col] = [sum(m) for m in zip(*got, strict=True)]     # every close in the column, added up
+        else:
+            got = [row_mass(s.probs, v.bins, hi, step, rows) for _, v, s in cs
+                   if s and not s.error and len(s.probs) == len(v.bins)]
+            if got:
+                mass[col] = [sum(m) / len(got) for m in zip(*got, strict=True)]
+    top = max((m for ms in mass.values() for m in ms), default=0.0) or 1.0
+    shade: dict[tuple[int, int], str] = {}                                 # (row, x) -> background colour
+    for col, cs in ahead.items():                                          # heat, then the market's median over it, then the bot's
         x = now_x + 1 + col
         here = any(i == cur for i, _, _ in cs)
         done = [s for _, _, s in cs if s and not s.error]
-        if done:
-            for r in range(row_of(max(s.high for s in done)), row_of(min(s.low for s in done)) + 1):
-                cells[r][x] = ("▒" if here else "░", ORANGE)
-        elif here:
+        ms = mass.get(col, ())
+        peak = top if trades else (max(ms, default=0.0) or 1.0)          # stakes share one scale; chances each their own
+        for r, m in enumerate(ms):
+            if (m > 0.005 if trades else m / peak >= HEAT_FLOOR):
+                shade[r, x] = heat(0.12 + 0.88 * m / peak if trades else m / peak, trades)
+                cells[r][x] = ("░", "#fff0d8") if here else (" ", "")
+        if here and col not in mass:
             for r in range(rows):
                 cells[r][x] = ("╎", DIM)
         for _, v, _ in cs:
             if v.median > 0:
                 cells[row_of(v.median)][x] = ("·", f"bold {MARKET}")
         if done:
-            cells[row_of(done[-1].median)][x] = ("█", f"bold {TEXT}") if here else ("─", f"bold {ORANGE}")
+            cells[row_of(done[-1].median)][x] = ("█", f"bold {TEXT}") if here else ("─", f"bold {TEXT}")
+    for (r, x), bg in shade.items():
+        ch, style = cells[r][x]
+        cells[r][x] = (ch, f"{style} on {bg}".strip())
     for r in range(rows):
         cells[r][now_x] = ("│", f"bold {ORANGE}")
 
@@ -302,16 +424,22 @@ def chart(bars: list[Candle], closes: list[RowView], scans: dict[int, Scan], cur
     return out
 
 
-def chart_header(hpc: int, n_closes: int, walking: bool) -> Text:
+def chart_header(hpc: int, n_closes: int, walking: bool, mode: str = "forecast") -> Text:
     out = Text(no_wrap=True, overflow="crop")
-    out.append(f"  {hpc}h per column   ", style=FAINT)
+    trades = mode == "trades"
+    out.append("  m", style=f"bold {ORANGE}")
+    out.append(" TRADES  " if trades else " FORECAST  ", style=f"bold {GREEN if trades else ORANGE}")
+    out.append(f"{hpc}h per column   ", style=FAINT)
     out.append("█", style=GREEN)
     out.append(" history  ", style=FAINT)
-    out.append("░ ─", style=ORANGE)
-    out.append(" bot 80% band, median  ", style=FAINT)
+    for t in (0.15, 0.4, 0.65, 1.0):
+        out.append(" ", style=f"on {heat(t, trades)}")
+    out.append(" sats it would stake now, none = black  " if trades else " bot's chance low → high  ", style=FAINT)
+    out.append("─", style=f"bold {TEXT}")
+    out.append(" median  ", style=FAINT)
     out.append("·", style=f"bold {MARKET}")
     out.append(" market median  ", style=FAINT)
-    out.append("▒ █", style=ORANGE)
+    out.append("░ █", style=f"#fff0d8 on {heat(0.7, trades)}")
     out.append(" this close", style=FAINT)
     if not walking:
         out.append("   tab", style=f"bold {ORANGE}")
@@ -331,7 +459,7 @@ def sections(bot: Bot) -> list[tuple[str, str]]:
         from .zoo.core import TRADING_NOTE, explain
 
         return explain(bot.model) if not bot.error else [("idea", bot.description), ("runner", TRADING_NOTE)]
-    return [("idea", bot.description or bot.blurb)]
+    return [("idea", bot.description or bot.blurb)] + ([("runner", bot.policy.note())] if bot.policy else [])
 
 
 def stance(s: Scan | None, spot: float) -> str:
@@ -484,7 +612,7 @@ class BotLogPane(Widget):
         return out
 
 
-FIXED_LINES = 17                # name, family, two of description, blank, question, expects, blank, the ladder's header,
+FIXED_LINES = 18                # name, family, two of description, blank, question, expects, its order, blank, the ladder's header,
                                 # blank and legend, blank, the chart's header, axis and blank, the two run lines
 CHART_MAX_ROWS = 18
 
@@ -548,15 +676,18 @@ class BotDetailPane(Widget):
                 out.append(f"  No picture for this close: {s.error}\n\n", style=DIM)
             else:
                 out.append(f"  Bot expects {fmt.price(s.median)}", style=f"bold {ORANGE}")
-                out.append(f"   8 in 10 chance between {fmt.price(s.low)} and {fmt.price(s.high)}\n\n", style=DIM)
-                out.append_text(ladder(s.probs, v.bins, t.spot, w, picture, market=v.raw))
+                out.append(f"   8 in 10 chance between {fmt.price(s.low)} and {fmt.price(s.high)}\n", style=DIM)
+                out.append_text(order_line(s, t.bot_budget(b.id), t.bot_zoom))
+                out.append("\n")
+                out.append_text(ladder(s.probs, v.bins, t.spot, w, picture, market=v.raw, policy=b.policy, buys=s.buys,
+                                       zoom=t.bot_zoom))
             out.append("\n")
             if chart_rows:
                 now, bars = time.time(), t.bot_history()
                 hist_h = max(int((int(now // 3600) * 3600 - bars[0].t) // 3600), 0) if bars else 0
-                out.append_text(chart_header(columns(closes, hist_h, now, w - GUTTER - 2)[0], len(closes), walking))
+                out.append_text(chart_header(columns(closes, hist_h, now, w - GUTTER - 2)[0], len(closes), walking, t.bot_mode))
                 out.append("\n")
-                out.append_text(chart(bars, closes, t.bot_pictures(b), cur, t.spot, now, w, chart_rows))
+                out.append_text(chart(bars, closes, t.bot_pictures(b), cur, t.spot, now, w, chart_rows, t.bot_mode, t.bot_zoom))
                 out.append("\n")
             elif not walking:
                 out.append("  tab", style=f"bold {ORANGE}")
@@ -580,6 +711,27 @@ class BotDetailPane(Widget):
                 out.append("L", style=f"bold {ORANGE}")
                 out.append(" log in to trade real sats\n", style=DIM)
         return out
+
+
+def order_line(s: Scan, budget: float, zoom: int = 0) -> Text:
+    """One line: the order this bot would send on this close now, what it expects back, and the keys around it."""
+    out = Text(no_wrap=True, overflow="ellipsis")
+    if s.buys is None:
+        out.append("  working out what it would buy…", style=DIM)
+    elif not s.buys:
+        out.append("  Buys nothing on this close at today's prices", style=DIM)
+    else:
+        paid = sum(x for _, _, x in s.buys)
+        back = sum(s.probs[i] * PL.NET * c for i, c, _ in s.buys if i < len(s.probs))
+        out.append(f"  Would buy now: {len(s.buys)} range{'s' if len(s.buys) != 1 else ''} for {fmt.sats(paid)}", style=f"bold {GREEN}")
+        out.append(f"   expects {fmt.sats(back)} back ({back / paid - 1:+.0%}) on a {fmt.sats(budget)} budget", style=DIM)
+        out.append("   b", style=f"bold {ORANGE}")
+        out.append(" bet it once", style=DIM)
+    out.append("   m", style=f"bold {ORANGE}")
+    out.append(" forecast/trades   ", style=DIM)
+    out.append("- +", style=f"bold {ORANGE}")
+    out.append(" zoom" + (f" {'out' if zoom > 0 else 'in'} {abs(zoom)}" if zoom else ""), style=DIM)
+    return out
 
 
 def rule_title(t: Terminal) -> str:

@@ -21,13 +21,15 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from functools import cached_property
+from functools import cached_property, lru_cache
 
 import numpy as np
 import pandas as pd
 from scipy import stats
 from scipy.optimize import minimize_scalar
 from scipy.special import gammaln
+
+from ..policy import Policy
 
 Z = np.linspace(-14.0, 14.0, 5601)         # standardised move; 0.005 apart
 DZ = float(Z[1] - Z[0])
@@ -72,6 +74,7 @@ class Model:
     maths: str = ""              # the model's own mathematics, with the formulas and parameters the code uses
     trades: str = ""             # what the picture buys against the market, and when it leaves the baseline
     pipeline: str = ""           # key into PIPELINES: the shared machinery this picture goes through
+    policy: Policy | None = None  # an opportunistic trading rule (glimpse_tui.policy); None trades fractional Kelly
 
 
 SCALE_NOTE = (
@@ -158,8 +161,10 @@ TRADING_NOTE = (
     "The runner compares the picture with the market's price per range (a contract on a range costs its price and "
     "pays 98 sats net of the settlement fee if the close lands there). It buys a range when p_bot × 98 exceeds the "
     "price × 1.02 by at least 10% (the edge net of both fees), sizes the stake by a quarter-Kelly fraction of the "
-    "budget, and never buys past the price at which the picture's edge is gone. It sells a range it holds when the "
-    "market pays 5% more than the picture says it is worth. A picture that agrees with the market buys nothing."
+    "budget, and never buys past the price at which the picture's edge is gone; an order whose expected value the "
+    "commission (at least 1 sat) would eat is not sent. It sells a range it holds while the market pays 5% more for the "
+    "next contract, after the exit fee, than the picture says it is worth, and only that many contracts: an overpaid "
+    "range is trimmed back to fair value. A picture that agrees with the market buys nothing."
 )
 
 
@@ -175,7 +180,7 @@ def explain(m: Model) -> list[tuple[str, str]]:
     if m.pipeline in PIPELINES:
         out.append(("machinery", PIPELINES[m.pipeline]))
     out.append(("scale", SCALE_NOTE))
-    out.append(("runner", TRADING_NOTE))
+    out.append(("runner", m.policy.note() if m.policy else TRADING_NOTE))
     if m.reference:
         out.append(("reference", m.reference))
     return out
@@ -330,10 +335,17 @@ def normalise(pdf: np.ndarray) -> np.ndarray:
 
 
 def t_pdf(nu: float) -> np.ndarray:
-    """Unit-variance Student-t on the grid."""
-    nu = max(nu, 2.2)
+    """Unit-variance Student-t on the grid. Read-only and shared: nearly every model starts from the baseline, whose
+    shape depends on ν alone, so each ν is evaluated once rather than once per model per close."""
+    return _t_pdf(max(float(nu), 2.2))
+
+
+@lru_cache(maxsize=1024)
+def _t_pdf(nu: float) -> np.ndarray:
     s = np.sqrt((nu - 2.0) / nu)
-    return normalise(stats.t.pdf(Z / s, nu) / s)
+    out = normalise(stats.t.pdf(Z / s, nu) / s)
+    out.flags.writeable = False
+    return out
 
 
 def base_pdf(ctx: Ctx) -> np.ndarray:

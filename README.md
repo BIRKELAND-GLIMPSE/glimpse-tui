@@ -42,7 +42,7 @@
 | 🎯 **Opens on the odds** | One screen covers placing a bet: every outcome of Bitcoin's next close, priced, with the cursor on the most likely range. |
 | 🔥 **The forecast, as a heatmap** | A week of closes laid side by side becomes one orange cloud of probability. Box a region with `v` and trade it. |
 | 🌍 **A front page for the world** | Bitcoin, gold, hashrate, the news, rates, dollar liquidity, FX and commodities on one long scrolling page. |
-| 🤖 **130 bots run on your laptop** | The Glimpse Forecast Lab's model zoo computes from public candles on your own machine. Watch every bot, run one on paper, or write your own in one function. |
+| 🤖 **138 bots run on your laptop** | The Glimpse Forecast Lab's model zoo computes from public candles on your own machine. Watch every bot, run one on paper, or write your own in one function. |
 | 📈 **The power law** | Bitcoin's log-log regression from the genesis block, with how far today's price sits from the line. |
 | ₿ **Priced in Bitcoin** | Any ticker has a satoshi form: `XAUBTC`, `SPXBTC`, `NVDABTC`. Press `$` to reprice a whole table. |
 | ⌨️ **Moves like spacemacs** | Vim keys, windows and buffers, `SPC` as the leader, and `:` to search everything. |
@@ -227,10 +227,10 @@ RATES           the Treasury curve                HELP DIST      one function's 
 
 ## 🤖 The bot zoo
 
-Glimpse is a market you can bring a model to. The terminal ships with **130 forecasting models** from the Glimpse Forecast Lab. They run **on your own computer**, from public hourly candles, and nothing about them leaves your machine.
+Glimpse is a market you can bring a model to. The terminal ships with **138 bots**: 130 forecasting models from the Glimpse Forecast Lab and 8 opportunistic bargain hunters built on them. They run **on your own computer**, from public hourly candles, and nothing about them leaves your machine.
 
 <p align="center">
-  <img src="docs/img/bots.png" alt="The bots screen: 130 bots grouped by family, each marked bullish, bearish, neutral or sideways with its expected price; on the right, one bot's forecast against the market's, with the ranges it would buy marked in green" width="100%">
+  <img src="docs/img/bots.png" alt="The bots screen: 138 bots grouped by family, each marked bullish, bearish, neutral or sideways with its expected price; on the right, one bot's forecast against the market's, with the ranges it would buy marked in green" width="100%">
   <br>
   <sub><b>Bots (<code>B</code>).</b> Each row says what that bot believes about the next close right now. On the right, the bot's picture is laid over the market's. Green is where the bot thinks a range is underpriced, which is what it would buy.</sub>
 </p>
@@ -248,11 +248,14 @@ Glimpse is a market you can bring a model to. The terminal ships with **130 fore
 | Pattern & ML | 5 | Analogs, Candlestick Patterns, Neural Net Direction, Naive Bayes State |
 | Baseline | 3 | Random Walk (bootstrap, Student-t, bell curve) |
 | Factor & carry | 2 | Low-Volatility Anomaly, Skewness Premium |
+| Opportunistic | 8 | Bargain Hunter (near spot, upside, downside), Discount Sweep, Signal Bargains, Longshot Collector, Crash Insurance, Moon Tickets |
+
+**Opportunistic bots** hunt for bargains instead of backing a view. Each one pools the zoo's volatility and jump models into one carefully calibrated picture. It then buys only ranges the market sells cheap (a few sats or less), only where that picture says they are worth 1.25 to 2 times their price after both fees, and only in its own part of the ladder: near spot for sideways, above for bullish, below for bearish, far out in the tails for longshots. Every stake is a small fixed share of the budget spread over many ranges. That way a positive expected value, repeated over many closes, becomes a return. Some sell a range back down to fair value when the market overpays. The longshot and insurance bots hold every ticket to the close. Your own bot can trade the same way by setting `POLICY = {"max_price": 3, "region": "above"}` in its file.
 
 - **`CONS`** runs the whole zoo against the live market at three horizons (next hour, 24 hours, 72 hours). It counts bulls against bears and draws the one picture they make together beside the market's.
 - **`BOT`** takes the zoo one model at a time. `[` and `]` walk through it.
 - **`BOTS` (`B`)** is the full screen. `i` opens a model's account of itself: the idea, the data, the maths and how it trades.
-- **`enter` runs a bot.** It runs on paper by default. With an API key and the word `LIVE` it trades real sats, sized by quarter-Kelly, never above its budget, and checking the server's estimate before every order.
+- **`enter` runs a bot.** It runs on paper by default. With an API key and the word `LIVE` it trades real sats, never above its budget, and checks the server's estimate before every order. Forecasting bots size by quarter-Kelly and opportunistic bots by their fixed stake. None sends an order that the commission would turn into a loss, and every bot sells an overpaid position only down to what its picture says it is worth.
 
 A full pass over the zoo takes about a second per asset and reruns each time a new hourly bar closes. The whole engine stays under 200 MB of RAM.
 
@@ -411,13 +414,14 @@ src/glimpse_tui/
 ├── heatmap.py      the forecast heatmap renderer
 ├── slip.py         the bet slip and the every-position order table
 ├── bots.py         the bot runner, paper and live ledgers, your own bots
+├── policy.py       the buying and selling rules: expected value net of fees, opportunistic policies, partial exits
 ├── botsview.py     the bots screen
 ├── charts.py       braille and block-glyph plotting
 ├── data/           one module per source (mempool, bitview, yahoo, fred, news, sec, …)
 ├── funcs/          function pages, one module per family (funcs/btc.py is the worked example)
 ├── term/           the terminal shell: windows, buffers, the command line, the hub, the swarm
 ├── launchpads/     shipped layouts as TOML (btc, bots, macro, trader, treasury, chain, miner)
-└── zoo/            130 Forecast Lab models across 13 families
+└── zoo/            130 Forecast Lab models across 13 families, plus 8 opportunistic bots
 ```
 
 ---

@@ -8,8 +8,10 @@ candles) or one function in a file of your own:
 Drop a file defining `forecast` into ~/.config/glimpse/bots/ and it appears in the terminal under MINE.
 
 Each cycle the runner prices the nearest closes, buys the bins its picture says are underpriced (fractional Kelly,
-never past the price the picture justifies, every order checked against the server's estimate first), and sells a
-position it bought once the market pays more for it than the picture says it is worth. It never touches a position
+or the bot's own opportunistic `policy.Policy`; never past the price the picture justifies; never an order whose
+expected value the commission would eat; every order checked against the server's estimate first), and sells down a
+position it bought while the market pays more for it than the picture says it is worth. A file of your own may set
+`POLICY = {"max_price": 3, "region": "above", ...}` to trade opportunistically. It never touches a position
 it did not open: what it owns is recorded in a ledger on this machine. It stops at its budget and its spend caps.
 Dry run by default; a dry run keeps a paper ledger so it behaves as the live bot would.
 """
@@ -18,7 +20,6 @@ from __future__ import annotations
 import asyncio
 import importlib.util
 import json
-import math
 import time
 import tomllib
 from collections import deque
@@ -27,9 +28,11 @@ from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 
 from . import fmt
+from . import policy as PL
 from . import pricing as P
 from .api import ApiError, Book, Glimpse
 from .auth import config_dir
+from .policy import Leg, Policy
 
 Forecast = Callable[[Book, list[float], float], list[float]]
 
@@ -74,6 +77,7 @@ class Bot:
     model: object | None = None             # a zoo Model
     forecast: Forecast | None = None        # a user file's function
     error: str = ""
+    policy: Policy | None = None            # an opportunistic trading rule; None trades fractional Kelly
 
     def probs(self, book: Book, ctx) -> list[float]:
         if self.model is not None:
@@ -99,7 +103,9 @@ def user_bots() -> list[Bot]:
             fn = getattr(mod, "forecast", None)
             if callable(fn):
                 doc = (mod.__doc__ or "").strip()
-                out.append(Bot(f.stem, f.stem, "Mine", (doc.splitlines() or [str(f)])[0][:70], doc or str(f), forecast=fn))
+                raw = getattr(mod, "POLICY", None)
+                pol = raw if isinstance(raw, Policy) else Policy(**raw) if isinstance(raw, dict) else None
+                out.append(Bot(f.stem, f.stem, "Mine", (doc.splitlines() or [str(f)])[0][:70], doc or str(f), forecast=fn, policy=pol))
         except Exception as e:
             out.append(Bot(f.stem, f.stem, "Mine", f"failed to load: {e.__class__.__name__}", f"{f}: {e}", error=str(e) or e.__class__.__name__))
     return out
@@ -109,7 +115,8 @@ def discover() -> list[Bot]:
     """Every bot the terminal can run: the zoo, then your own files. Loads numpy, pandas and scipy on first use."""
     from . import zoo
 
-    return [Bot(m.id, m.name, m.family, m.blurb, m.description, m.kind, m.factors, model=m) for m in zoo.catalog()] + user_bots()
+    return [Bot(m.id, m.name, m.family, m.blurb, m.description, m.kind, m.factors, model=m, policy=m.policy)
+            for m in zoo.catalog()] + user_bots()
 
 
 # ── ledger ──────────────────────────────────────────────────
@@ -147,6 +154,18 @@ class Ledger:
         leg = t["legs"].setdefault(str(book.option_ids[index]), [0.0, 0.0, lo, hi])
         leg[0], leg[1] = round(leg[0] + contracts, 2), leg[1] + cost
 
+    def reduce(self, bot: str, mode: str, topic_id: int, option_id: int, contracts: float) -> None:
+        """Part of a position sold: its cost shrinks in proportion. Selling all of it removes the leg."""
+        t = self.topics(bot, mode).get(str(topic_id))
+        leg = t and t["legs"].get(str(option_id))
+        if not leg:
+            return
+        if contracts >= leg[0] - 0.005:
+            self.remove(bot, mode, topic_id, option_id)
+            return
+        keep = (leg[0] - contracts) / leg[0]
+        leg[0], leg[1] = round(leg[0] - contracts, 2), leg[1] * keep
+
     def remove(self, bot: str, mode: str, topic_id: int, option_id: int) -> None:
         t = self.topics(bot, mode).get(str(topic_id))
         if t:
@@ -169,13 +188,6 @@ class Ledger:
 
 
 # ── decision ────────────────────────────────────────────────
-
-@dataclass
-class Leg:
-    index: int
-    contracts: float
-    cost_sats: float
-
 
 def decide(book: Book, probs: list[float], cfg: BotConfig, budget_sats: float, held_cost: float = 0.0) -> list[Leg]:
     """Buys on bins the market underprices net of both fees, fractional Kelly, truthful-capped. `held_cost` is what
@@ -200,43 +212,32 @@ def decide(book: Book, probs: list[float], cfg: BotConfig, budget_sats: float, h
     if spend < 1:
         return []
     legs: list[Leg] = []
+    quote = PL.Quote(q, book.alpha)
     for i, f, _ in sorted(cands, key=lambda c: -c[2]):
         stake = spend * f / total_f
         target = probs[i] * net / (1 + P.FEE)       # price at which the edge is gone
-        lo, hi = 0.0, 5000.0
-        for _ in range(40):
-            mid = (lo + hi) / 2
-            q2 = q[:]
-            q2[i] += mid
-            over_price = P.prices(q2, book.alpha)[i] > target
-            over_stake = (1 + P.FEE) * (P.cost(q2, book.alpha) - P.cost(q, book.alpha)) > stake
-            lo, hi = (lo, mid) if over_price or over_stake else (mid, hi)
-        d = math.floor(lo * 100) / 100
-        if d <= 0:
-            continue
-        q2 = q[:]
-        q2[i] += d
-        c = (1 + P.FEE) * (P.cost(q2, book.alpha) - P.cost(q, book.alpha))
-        if c < 0.01:
+        d, c = PL.fill_to(quote, book.alpha, i, target, stake)
+        if d <= 0 or c < 0.01:
             continue
         legs.append(Leg(i, d, c))
-        q = q2
-    return legs
+        quote.add(i, d)
+    return legs if PL.worth_sending(legs, probs) else []
+
+
+def plan(bot: Bot, book: Book, probs: list[float], budget_sats: float, spot: float, cfg: BotConfig | None = None) -> list[Leg]:
+    """What `bot` would buy on this close right now with this budget and nothing held: the first cycle a runner would
+    make here, and the order a one-off snapshot bet sends. Kelly bots size against the budget; policy bots by stake.
+    Pass `cfg` (already sized to the budget) when planning many closes, so bots.toml is read once."""
+    cfg = cfg or BotConfig.load().with_budget(budget_sats)
+    if bot.policy is not None:
+        return PL.decide(book, probs, bot.policy, cfg.bankroll_sats, cfg.max_per_cycle_sats, {}, 0.0, spot)
+    return decide(book, probs, cfg, cfg.max_per_cycle_sats, 0.0)
 
 
 def exits(book: Book, probs: list[float], held: dict[int, tuple[float, float]], cfg: BotConfig) -> list[tuple[int, float, float]]:
-    """(bin index, contracts, proceeds) for positions the market now pays more for than the picture says they are worth."""
-    out = []
-    net = P.PAYOUT_SATS * (1 - P.FEE)
-    index = {o: i for i, o in enumerate(book.option_ids)}
-    for option_id, (contracts, _) in held.items():
-        i = index.get(option_id)
-        if i is None or contracts <= 0:
-            continue
-        proceeds = P.sell_proceeds(book.shares, book.alpha, i, min(contracts, book.shares[i]))
-        if proceeds >= 1 and proceeds > probs[i] * contracts * net * (1 + cfg.exit_edge):
-            out.append((i, contracts, proceeds))
-    return out
+    """(bin index, contracts, proceeds): each position sold down while the market pays more for the next contract
+    than the picture says it is worth, by `exit_edge`. Partial: an overpaid range is trimmed back to fair value."""
+    return PL.sell_down(book, probs, held, cfg.exit_edge)
 
 
 # ── runner ──────────────────────────────────────────────────
@@ -351,15 +352,21 @@ class Runner:
 
                 d = describe(ctx, probs)
                 self.stance = f"{d['view']}  median {fmt.price(d['median'])}  80% {fmt.kprice(d['low'])}–{fmt.kprice(d['high'])}"
+            pol = self.bot.policy
             held = self.ledger.legs(self.bot.id, self.mode, book.topic_id)
-            for i, contracts, proceeds in exits(book, probs, held, self.cfg):
-                await self._exit(book, i, contracts, proceeds, tag)
+            if not (pol and pol.hold):
+                for i, contracts, proceeds in exits(book, probs, held, self.cfg):
+                    await self._exit(book, i, contracts, proceeds, tag)
+                held = self.ledger.legs(self.bot.id, self.mode, book.topic_id)
             room = min(budget, self.cfg.max_per_hour_sats - self.spent_last_hour(), self.cfg.bankroll_sats - self.open_cost)
             if room < 1:
                 self.say(f"{tag}  budget or spend cap reached, holding")
                 continue
             held_cost = self.ledger.open_cost(self.bot.id, self.mode, book.topic_id)
-            legs = await asyncio.to_thread(decide, book, probs, self.cfg, room, held_cost)
+            if pol:
+                legs = await asyncio.to_thread(PL.decide, book, probs, pol, self.cfg.bankroll_sats, room, held, held_cost, ctx.spot)
+            else:
+                legs = await asyncio.to_thread(decide, book, probs, self.cfg, room, held_cost)
             total = sum(x.cost_sats for x in legs)
             if not legs or total < 1:
                 self.say(f"{tag}  no edge" + (f"  (holding {fmt.sats(held_cost)})" if held_cost else ""))
@@ -369,7 +376,9 @@ class Runner:
 
     async def _exit(self, book: Book, i: int, contracts: float, proceeds: float, tag: str) -> None:
         lo, hi = book.bins[i]
-        self.say(f"{tag}  {'SELL' if self.live else 'would sell'} {fmt.span(lo, hi)}  {fmt.contracts(contracts)} for ₿{proceeds:,.0f}")
+        held = self.ledger.legs(self.bot.id, self.mode, book.topic_id).get(book.option_ids[i], (contracts, 0.0))[0]
+        part = "" if contracts >= held - 0.005 else f" of {fmt.contracts(held)}"
+        self.say(f"{tag}  {'SELL' if self.live else 'would sell'} {fmt.span(lo, hi)}  {fmt.contracts(contracts)}{part} for ₿{proceeds:,.0f}")
         if self.live:
             try:
                 await self.api.sell(book.topic_id, book.option_ids[i], contracts)
@@ -380,7 +389,7 @@ class Runner:
                 return
             if self.on_trade:
                 self.on_trade()
-        self.ledger.remove(self.bot.id, self.mode, book.topic_id, book.option_ids[i])
+        self.ledger.reduce(self.bot.id, self.mode, book.topic_id, book.option_ids[i], contracts)
         self.sold_sats += proceeds
         self.trades += 1
 
@@ -393,7 +402,9 @@ class Runner:
             return 0.0
         top = max(legs, key=lambda x: x.cost_sats)
         lo, hi = book.bins[top.index]
-        self.say(f"{tag}  {'BUY' if self.live else 'would buy'} {len(legs)} bins  ₿{charge:,.0f}  top {fmt.span(lo, hi)}")
+        paid = [book.prices[x.index] for x in legs]
+        cheap = f"  at {min(paid):.1f}–{max(paid):.1f} sats" if self.bot.policy else ""
+        self.say(f"{tag}  {'BUY' if self.live else 'would buy'} {len(legs)} bins  ₿{charge:,.0f}  top {fmt.span(lo, hi)}{cheap}")
         paid = charge
         if self.live:
             try:

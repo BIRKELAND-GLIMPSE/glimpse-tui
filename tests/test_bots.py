@@ -1,4 +1,5 @@
 """The runner against a fake API and synthetic candles: no network, no key, no orders."""
+import dataclasses
 import json
 import time
 from pathlib import Path
@@ -9,6 +10,7 @@ from zoo_contract import synthetic_bars
 
 from glimpse_tui import app as A
 from glimpse_tui import auth, bots, botsview, fmt
+from glimpse_tui import policy as PL
 from glimpse_tui import pricing as P
 from glimpse_tui.api import Batch, Book, Fill, MarketRow, parse_bin
 from glimpse_tui.zoo import core as C
@@ -133,6 +135,52 @@ async def test_runner_never_sells_what_it_did_not_buy(tmp_path):
     assert api.sold == [] and api.bought == []
 
 
+def spread_bot(policy) -> bots.Bot:
+    """A wide bell around the fixture's spot, trading on an opportunistic policy."""
+    def forecast(book, closes, hours):
+        w = [np.exp(-0.5 * (((lo + hi) / 2 - 76_500) / 4_000) ** 2) + 1e-9 for lo, hi in book.bins]
+        return [x / sum(w) for x in w]
+    return bots.Bot("cheap", "Cheap", "Mine", "bargains", "test", forecast=forecast, policy=policy)
+
+
+async def test_a_policy_bot_buys_only_cheap_ranges_in_its_region_and_a_holder_never_sells(tmp_path):
+    api = FakeApi("k")
+    pol = bots.Policy(max_price=5, min_ratio=1.3, region="above", stake=0.01, market_cap=0.10, hold=True)
+    r = runner(api, tmp_path, spread_bot(pol), live=True, bankroll_sats=20_000, max_per_cycle_sats=5_000, max_per_hour_sats=10_000)
+    before = (await api.book(100)).prices
+    await r.cycle()
+    assert len(api.bought) == 1
+    legs = api.bought[0]
+    assert all(BINS[o - 1][0] >= 76_500 and before[o - 1] <= 5 for o, _ in legs)          # above spot, and cheap
+    held = r.ledger.legs("cheap", "live", 100)
+    assert all(cost <= 200 + 1e-6 for _, cost in held.values())                           # 1% of the budget a range
+    assert r.open_cost <= 2_000 + 1e-6                                                     # 10% in one close
+    o = next(iter(held))
+    api.shares[o - 1] += 5_000                                                             # the market bids one up hard
+    await r.cycle()
+    assert api.sold == []                                                                  # held to the close
+
+
+async def test_a_trader_sells_only_the_overpaid_part_of_a_position(tmp_path):
+    api = FakeApi("k")
+    pol = bots.Policy(max_price=5, min_ratio=1.3, region="above", stake=0.01, market_cap=0.10)
+    r = runner(api, tmp_path, spread_bot(pol), live=True, bankroll_sats=20_000, max_per_cycle_sats=5_000, max_per_hour_sats=10_000)
+    await r.cycle()
+    held = r.ledger.legs("cheap", "live", 100)
+    o = max(held, key=lambda k: held[k][0])
+    probs = r.bot.forecast(await api.book(100), [], 2.0)
+    for _ in range(2_000):                                                                 # bid up just enough to overpay part of it
+        api.shares[o - 1] += 1
+        got = PL.sell_down(await api.book(100), probs, {o: held[o]}, r.cfg.exit_edge)
+        if got:
+            break
+    assert got and got[0][1] < held[o][0]
+    await r.cycle()
+    sold = [x for x in api.sold if x[1] == o]
+    assert sold and 0 < sold[0][2] < held[o][0]                                            # part of it
+    assert r.ledger.legs("cheap", "live", 100)[o][0] == pytest.approx(held[o][0] - sold[0][2], abs=0.01)
+
+
 def test_budget_sets_the_caps():
     c = bots.BotConfig().with_budget(400)
     assert (c.bankroll_sats, c.max_per_cycle_sats, c.max_per_hour_sats) == (400, 100, 200)
@@ -148,6 +196,10 @@ def test_every_zoo_model_is_a_bot_and_user_files_join_them(tmp_path, monkeypatch
     found = {b.id: b for b in bots.discover()}
     assert len(found) > 100 and found["flat"].blurb == "Every bin the same." and found["broken"].error
     assert {"ema_crossover", "dist_merton_jumps", "opt_iron_condor", "view_bull", "rsi_reversion"} <= set(found)
+    assert found["opp_longshot"].policy.hold and found["ema_crossover"].policy is None
+    (d / "cheap.py").write_text('"""Cheap."""\nPOLICY = {"max_price": 2, "region": "below"}\n' + flat.split("\n", 1)[1])
+    mine = {b.id: b for b in bots.user_bots()}["cheap"]
+    assert mine.policy == bots.Policy(max_price=2, region="below") and "opportunistic" in dict(botsview.sections(mine))["runner"]
 
 
 # ── the screen ──────────────────────────────────────────────
@@ -255,14 +307,17 @@ def _series(hours: int, drawn: int, now: float):
         bars.append(A.Candle(t0 - (300 - i) * 3600, p, max(p, c) * 1.002, min(p, c) * 0.998, c))
         p = c
     closes, scans = [], {}
+    edges = np.arange(p - 30_000, p + 30_000, 200.0)
+    bins = tuple((float(a), float(a + 200)) for a in edges)
     for i in range(hours):
         end = t0 + (i + 1) * 3600 + 1800
         sig = p * 0.006 * np.sqrt(i + 1)
         row = MarketRow(100 + i, "x", end, "live", 0, 0, (), (), ())
-        closes.append(A.RowView(row, p * (1 + 0.00005 * i), (p - 1.28 * sig, p + 1.28 * sig)))
+        closes.append(A.RowView(row, p * (1 + 0.00005 * i), (p - 1.28 * sig, p + 1.28 * sig), bins=bins))
         if i < drawn:
             m = p * (1 + 0.0004 * i)
-            scans[100 + i] = botsview.Scan("bullish", 0.3, 1.0, 0.1, m, m - 1.28 * sig, m + 1.28 * sig)
+            w = np.exp(-0.5 * ((edges + 100 - m) / sig) ** 2)
+            scans[100 + i] = botsview.Scan("bullish", 0.3, 1.0, 0.1, m, m - 1.28 * sig, m + 1.28 * sig, tuple(w / w.sum()))
     return bars, closes, scans, p
 
 
@@ -280,8 +335,10 @@ def test_the_time_series_chart_runs_history_into_the_bots_path():
     lines = text.plain.splitlines()
     assert len(lines) == 11 and all(len(ln) == 118 for ln in lines[:-1])      # rows plus the axis, every row full width
     body = "".join(lines[:-1])
-    assert "█" in body and "░" in body and "─" in body and "·" in body          # candles, band, median, market
-    assert "▒" in body and lines[-1].count("NOW") == 1                          # the chosen close, one NOW
+    assert "█" in body and "░" in body and "─" in body and "·" in body          # candles, the chosen close, median, market
+    assert lines[-1].count("NOW") == 1
+    shades = {str(sp.style) for sp in text.spans if " on #" in str(sp.style)}
+    assert len(shades) >= 4                                                    # the heat runs through several shades, not one
     assert f"◂{fmt.price(spot):>7}" in body                                    # spot labelled on its row
     assert sum("┤" in ln for ln in lines[:-1]) >= 2                            # round-number rules
     now_x = lines[-1].index("NOW")                                             # the axis carries the same two-space indent
@@ -296,8 +353,8 @@ def test_the_time_series_chart_runs_history_into_the_bots_path():
 
 def test_the_detail_pane_shares_its_rows_between_ladder_and_chart():
     ladder, chart = botsview.layout(36)
-    assert ladder == 10 and chart == 9 and ladder + chart + botsview.FIXED_LINES == 36
-    assert botsview.layout(26) == (10, 0)                                         # too short for both: the ladder alone
+    assert ladder == 10 and chart == 8 and ladder + chart + botsview.FIXED_LINES == 36
+    assert botsview.layout(27) == (10, 0)                                         # too short for both: the ladder alone
     assert botsview.layout(60)[1] == botsview.CHART_MAX_ROWS
 
 
@@ -368,7 +425,7 @@ async def test_the_forecast_pane_walks_every_close_ahead(make):
         detail = app.query_one("#botdetail").render().plain
         here = app.ahead_of(app._selected_bot(), app.bot_closes[3])
         assert fmt.question("BTC", app.bot_closes[3].row.end_time_utc) in detail and f"Bot expects {fmt.price(here.median)}" in detail
-        assert "▒" in detail and "░" in detail and "█" in detail                # the chart marks this close inside the bot's band
+        assert "░" in detail and "█" in detail                                  # the chart marks this close inside the bot's heat
         assert "walk the" not in detail                                           # the tab hint goes while walking
         await pilot.press("l")                                                    # h l jump a day: past the last close
         assert app.bot_when == 11 and app.bot_day == 24
@@ -382,3 +439,57 @@ async def test_the_forecast_pane_walks_every_close_ahead(make):
         assert app.bot_pane == 0 and app.query_one("#botlist").has_class("active")
         await pilot.press("l")
         assert botsview.TABS[app.bot_tab] == "Running"                            # back in the list, l is the category
+
+
+def test_the_trades_view_shades_what_the_bot_would_stake_and_zoom_widens_the_prices():
+    now = time.time()
+    bars, closes, scans, spot = _series(24, 24, now)
+    for k, s in scans.items():                                                    # buys on the median's range, more as the close nears
+        i = max(range(len(s.probs)), key=lambda j: s.probs[j])
+        scans[k] = dataclasses.replace(s, buys=((i, 10.0, 200.0 - (k - 100) * 8),)) if k % 3 else dataclasses.replace(s, buys=())
+    trades = botsview.chart(bars, closes, scans, 0, spot, now, 118, 12, "trades")
+    forecast = botsview.chart(bars, closes, scans, 0, spot, now, 118, 12)
+    greens = {str(sp.style) for sp in trades.spans if " on #" in str(sp.style)}
+    assert len(greens) >= 3 and greens != {str(sp.style) for sp in forecast.spans if " on #" in str(sp.style)}
+    shaded = lambda t: sum(" on #" in str(sp.style) for sp in t.spans)          # noqa: E731
+    assert shaded(trades) < shaded(forecast)                                       # black where it buys nothing
+    labels = lambda t: [float(ln.split("┤")[1].replace(",", "")) for ln in t.plain.splitlines() if "┤" in ln]  # noqa: E731
+    wide = botsview.chart(bars, closes, scans, 0, spot, now, 118, 12, zoom=2)
+    assert max(labels(wide)) - min(labels(wide)) > 1.8 * (max(labels(forecast)) - min(labels(forecast)))
+    assert botsview.window([0.0] * 200 + [0.2] * 5 + [0.0] * 295, 10, zoom=3)[1] - botsview.window(
+        [0.0] * 200 + [0.2] * 5 + [0.0] * 295, 10)[1] > 5                           # the ladder zooms out too
+
+
+def test_a_256_colour_terminal_gets_exact_palette_heat_never_olive(monkeypatch):
+    monkeypatch.setattr(botsview.charts, "truecolor", False)
+    got = {botsview.heat(t / 20) for t in range(21)} | {botsview.heat(t / 20, trades=True) for t in range(21)}
+    assert got <= set(botsview.HEAT_256) | set(botsview.BUY_HEAT_256) and "#5f5f00" not in got
+
+
+async def test_m_flips_to_trades_and_b_bets_the_bots_order_once(make, tmp_path):
+    app = make(key="glp_live_test", closes=3)
+    async with app.run_test(size=(170, 46)) as pilot:
+        app.ledger = bots.Ledger(tmp_path / "ledger.json")
+        await until(pilot, lambda: app.views)
+        await pilot.press("B")
+        await until(pilot, lambda: app.bots and not app.bot_scanning and len(app.bot_scan) == len(app.bots))
+        await pilot.press("slash", *"discount sweep", "enter")
+        b = app._selected_bot()
+        assert b.id == "opp_discount_sweep"
+        await until(pilot, lambda: all(app.ahead_of(b, v) and app.ahead_of(b, v).buys is not None for v in app.bot_closes))
+        detail = app.query_one("#botdetail").render().plain
+        assert "Would buy now" in detail and "FORECAST" in detail
+        await pilot.press("m")
+        assert app.bot_mode == "trades" and "TRADES" in app.query_one("#botdetail").render().plain
+        await pilot.press("minus", "minus")
+        assert app.bot_zoom == 2
+        await pilot.press("0")
+        assert app.bot_zoom == 0
+        plan = app.ahead_of(b, app.bot_closes[0]).buys
+        await pilot.press("b")
+        await until(pilot, lambda: isinstance(app.screen, A.OrderPreview))
+        await pilot.press("y")
+        await until(pilot, lambda: app.api.bought)
+        assert len(app.api.bought) == 1 and {o - 1 for o, _ in app.api.bought[0]} == {i for i, _, _ in plan}
+        await until(pilot, lambda: app.ledger.open_cost(b.id, "live") > 0)
+        assert not app.runners                                                      # a snapshot, not a running bot

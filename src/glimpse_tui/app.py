@@ -5,7 +5,7 @@ import asyncio
 import os
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from functools import lru_cache
 
@@ -20,6 +20,7 @@ from textual.widgets import Input, Static
 
 from . import api as api_mod
 from . import auth, bots, botsview, charts, chrome, fmt
+from . import policy as PL
 from . import pricing as P
 from .api import ApiError, Batch, Book, Candle, Glimpse, MarketRow, Order, Position, Summary, Wallet, parse_bin
 from .botsview import SORTS, TABS, BotDetailPane, BotListPane, BotLogPane, Scan
@@ -82,7 +83,11 @@ HELP = """\
                it puts the middle of its picture. tab moves to the forecast on the right, where h l j k walk every
                close ahead — hour by hour, or day by day on a daily series — and each one draws that bot's whole
                distribution for that close. Under the ladder a chart runs the candles the model read into its
-               median path and 80% band across every close ahead, with the market's median for contrast.
+               median path and a heatmap of its chances (bright where likelier) across every close ahead,
+               with the market's median for contrast. m flips the chart to trades: the exact order the bot would
+               send on every close right now, brighter green for more sats, black where it buys nothing. - and +
+               zoom the ladder and chart out and in, 0 resets. b bets the order for the close on the ladder once:
+               priced fresh, shown in full, sent only on y, and it does not start the bot.
                i opens the model's own account of itself: the idea, the data it reads, the mathematics that
                turns the reading into a distribution, what it buys against the market, and the machinery every
                picture shares. esc goes back to the list. Nothing here is a track record.
@@ -565,7 +570,8 @@ def scan_one(bot: bots.Bot, book: Book, ctx, market: list[float]) -> Scan:
     except Exception as e:
         return Scan(error=str(e) or e.__class__.__name__)
     gap = 0.5 * sum(abs(a - b) for a, b in zip(probs, market, strict=True))
-    return Scan(d["view"], d["lean"], d["width"], gap, d["median"], d["low"], d["high"], tuple(probs))
+    view = bot.policy.stance if bot.policy and bot.policy.stance else d["view"]   # a policy bot leans where it buys
+    return Scan(view, d["lean"], d["width"], gap, d["median"], d["low"], d["high"], tuple(probs))
 
 
 # ── app ─────────────────────────────────────────────────────
@@ -657,6 +663,10 @@ class Terminal(App):
         self._scan_key: tuple | None = None
         self.bot_pane = 0                               # 0 the list, 1 the forecast on the right
         self.bot_when = 0                               # which close ahead the forecast pane is showing
+        self._budgets: dict | None = None               # bot id -> saved budget, loaded on first use
+        self._budget_default = 0.0
+        self.bot_mode = "forecast"                      # m: the chart shows the bot's forecast, or the trades it would make now
+        self.bot_zoom = 0                               # - and +: how far the ladder and chart are zoomed out (above 0) or in
         self.bot_ahead: dict[tuple[str, int], Scan] = {}   # (bot id, topic id) -> that bot's picture of that close
         self._ahead_for: tuple | None = None            # the bot and data the walk ahead was started for
         self.feeds: dict[str, object] = {}              # asset -> zoo.data.Feed
@@ -1776,6 +1786,15 @@ class Terminal(App):
                     self.bot_tab, self.bot_cur = (self.bot_tab + (1 if fwd else -1)) % len(TABS), 0
             elif ch in ("[", "]"):
                 self.switch_batch(1 if ch == "]" else -1)
+            elif ch == "m":
+                self.bot_mode = botsview.MODES[(botsview.MODES.index(self.bot_mode) + 1) % len(botsview.MODES)]
+                self.say("Trades: the order the bot would send on every close right now." if self.bot_mode == "trades"
+                         else "Forecast: the bot's chances at every close.", 3)
+            elif ch in ("-", "_", "+", "=", "0"):
+                z = 0 if ch == "0" else self.bot_zoom + (1 if ch in ("-", "_") else -1) * n
+                self.bot_zoom = max(botsview.ZOOM_LIMITS[0], min(z, botsview.ZOOM_LIMITS[1]))
+            elif ch == "b":
+                self.bet_once()
         elif k in ("h", "left"):
             self.pane = 0
         elif k in ("l", "right"):
@@ -2057,8 +2076,11 @@ class Terminal(App):
         return self.feeds[asset]
 
     def bot_budget(self, bot_id: str) -> float:
-        saved = auth.load_state().get("bot_budgets", {})
-        return float(saved.get(bot_id) or bots.BotConfig.load().bankroll_sats)
+        """The budget saved for this bot, or bots.toml's. Read from disk once: every paint asks."""
+        if self._budgets is None:
+            self._budgets = dict(auth.load_state().get("bot_budgets", {}))
+            self._budget_default = bots.BotConfig.load().bankroll_sats
+        return float(self._budgets.get(bot_id) or self._budget_default)
 
     def _selected_bot(self) -> bots.Bot | None:
         shown = botsview.visible(self)
@@ -2151,8 +2173,10 @@ class Terminal(App):
 
     def ensure_ahead(self) -> None:
         """Keep the selected bot's walk ahead current: one background pass per bot, per data refresh."""
+        if self.bot_scanning or (self.bots and not self.bot_scan):
+            return                  # the scan clears every picture when it finishes: walking now would be done twice
         b = self._selected_bot()
-        want = (b.id, len(self.views), self._scan_key) if b else None
+        want = (b.id, len(self.views), self._scan_key, self.bot_budget(b.id)) if b else None
         if want != self._ahead_for:
             self._ahead_for = want
             if b is not None:
@@ -2171,22 +2195,122 @@ class Terminal(App):
             if not feed.ready:
                 self._ahead_for = None
                 return
-            asset = feed.asset
+            asset, budget = feed.asset, self.bot_budget(bot.id)
+            stale = lambda: asset != self.asset or self._selected_bot() is not bot   # noqa: E731  another picture now
+            # First every close's picture, nearest first, so the forecast chart fills without waiting on any order.
             for i, v in enumerate(closes):
-                if asset != self.asset or self._selected_bot() is not bot:
-                    return                          # the series or the bot changed: this pass is for another picture
+                if stale():
+                    return
                 if (bot.id, v.row.topic_id) not in self.bot_ahead:
                     book = book_of(v)
                     self.bot_ahead[bot.id, v.row.topic_id] = await asyncio.to_thread(
                         scan_one, bot, book, feed.ctx(book.bins, book.end_time_utc), P.signal(book.probs))
                     if self.view == "bots" and (i < 3 or i % 6 == 5):
                         self.paint()
+            # Then the order it would send on each, the close on the ladder first (it moves as you walk), then outwards
+            # from the nearest: what the trades view and the "would buy now" line read.
+            cfg, spot = bots.BotConfig.load().with_budget(budget), self.spot or feed.spot
+            todo = {v.row.topic_id: v for v in closes}
+            done = 0
+            while todo:
+                if stale():
+                    return
+                here = self.bot_closes[max(0, min(self.bot_when, len(self.bot_closes) - 1))].row.topic_id if self.bot_closes else None
+                tid = here if here in todo else next(iter(todo))
+                v = todo.pop(tid)
+                key = bot.id, tid
+                s = self.bot_ahead.get(key)
+                if s is None or s.error or (s.buys is not None and s.budget == budget):
+                    continue
+                legs = await asyncio.to_thread(bots.plan, bot, book_of(v), list(s.probs), budget, spot, cfg)
+                self.bot_ahead[key] = s = replace(s, buys=tuple((x.index, x.contracts, x.cost_sats) for x in legs), budget=budget)
+                if bot.id in self.bot_scan and self.bot_scan[bot.id].probs is s.probs:
+                    self.bot_scan[bot.id] = s
+                done += 1
+                if self.view == "bots" and (tid == here or done % 12 == 0 or not todo):
+                    self.paint()
         except Exception as e:
             self._ahead_for = None
             self.say(f"Could not read the closes ahead: {e}")
         finally:
             if self.view == "bots":
                 self.paint()
+
+    @work(exclusive=True, group="bet")
+    async def bet_once(self) -> None:
+        """b: the order the selected bot would send on the close the ladder shows, priced fresh and sent once. The
+        position goes into the bot's own ledger, so if the bot is run later it knows what it holds."""
+        b = self._selected_bot()
+        closes = self.bot_closes
+        if b is None or b.error or not closes:
+            return
+        v = closes[max(0, min(self.bot_when, len(closes) - 1))]
+        feed, budget = self.feed(), self.bot_budget(b.id)
+        try:
+            await feed.refresh(max_age=60)
+            if not feed.ready:
+                self.say("No price data yet for the bot to read.")
+                return
+            book = await self.api.book(v.row.topic_id)             # today's prices, not the ones the list was drawn from
+            if not book.is_live or not book.bins:
+                self.say("This market is closed.")
+                return
+            probs = await asyncio.to_thread(b.probs, book, feed.ctx(book.bins, book.end_time_utc))
+            legs = await asyncio.to_thread(bots.plan, b, book, list(probs), budget, self.spot or feed.spot)
+        except Exception as e:                                      # a model or the network: either way, say so
+            self.say(f"Could not work out the bet: {e}")
+            return
+        q = fmt.question(self.asset, v.row.end_time_utc)
+        if not legs:
+            self.say(f"{b.name} buys nothing on {q} at today's prices.", 5)
+            return
+        paid = sum(x.cost_sats for x in legs)
+        back = sum(probs[x.index] * PL.NET * x.contracts for x in legs)
+        head = Text(no_wrap=True)
+        head.append(f"{b.name} · {q}\n", style=f"bold {TEXT}")
+        head.append(f"{len(legs)} range{'s' if len(legs) != 1 else ''} · {fmt.sats(paid)} with fees · the bot expects "
+                    f"{fmt.sats(back)} back ({back / paid - 1:+.0%}) · budget {fmt.sats(budget)}\n\n", style=DIM)
+        head.append(f"{'range':<20}{'bot':>8}{'price':>9}{'contracts':>12}{'sats':>10}{'if it lands':>13}", style=FAINT)
+        rows = []
+        for x in sorted(legs, key=lambda x: -book.bins[x.index][0]):
+            lo, hi = book.bins[x.index]
+            r = Text(no_wrap=True)
+            r.append(f"{fmt.span(lo, hi):<20}", style=TEXT)
+            r.append(f"{fmt.pct(probs[x.index]):>8}{book.prices[x.index]:>8.1f}s{fmt.contracts(x.contracts):>12}", style=DIM)
+            r.append(f"{fmt.sats(x.cost_sats):>10}{fmt.sats(x.contracts * PL.NET):>13}", style=GREEN)
+            rows.append(r)
+        live = self.api.authenticated
+        tail = Text(no_wrap=True)
+        tail.append(f"\nOne order, sent once: the bot does not keep running. Most of it is lost if the close lands elsewhere; "
+                    f"at most {fmt.sats(paid)}." if live else
+                    "\nRead-only: no API key loaded, so nothing is sent. Press L to log in and bet for real.", style=DIM)
+        if not await self.push_screen_wait(OrderPreview("BET ONCE · " + ("REAL SATS" if live else "PREVIEW"), head, rows,
+                                                        confirm=live, note=tail)) or not live:
+            return
+        try:
+            order = [(book.option_ids[x.index], x.contracts) for x in legs]
+            raw, fee = await self.api.estimate_legs(book.topic_id, order)
+            charge = raw + max(fee, P.MIN_FEE_SATS)
+            if abs(charge - paid) > ESTIMATE_TOLERANCE * paid + 5:
+                self.say(f"Price moved: now {fmt.sats(charge)}, was {fmt.sats(paid)}. Not sent. Press b again.")
+                return
+            fill = await self.api.buy_legs(book.topic_id, order)
+        except ApiError as e:
+            self.say(str(e), 12)
+            self.load_account()
+            return
+        if fill.error:
+            self.say(f"Rejected: {fill.error}", 12)
+            return
+        got = fill.cost_sats + fill.fee_sats
+        for x in legs:
+            self.ledger.add(b.id, "live", book, self.asset, x.index, x.contracts, got * x.cost_sats / paid)
+        self.ledger.save()
+        self.say(f"Filled. {b.name} bet {fmt.sats(got)} on {len(legs)} range{'s' if len(legs) != 1 else ''} of {q}.", 10)
+        self.bot_ahead.pop((b.id, v.row.topic_id), None)
+        self._ahead_for = None
+        self.load_markets()
+        self.load_account()
 
     def about_bot(self) -> None:
         b = self._selected_bot()
@@ -2261,6 +2385,7 @@ class Terminal(App):
     def _save_budget(self, bot_id: str, sats: float) -> None:
         state = auth.load_state()
         auth.save_state({**state, "bot_budgets": {**state.get("bot_budgets", {}), bot_id: sats}})
+        self._budgets = None                            # read afresh on the next ask
 
     @work
     async def edit_bot_budget(self) -> None:

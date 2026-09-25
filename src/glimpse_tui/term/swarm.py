@@ -22,9 +22,11 @@ STANCE = {"bullish": BULL, "bearish": BEAR, "neutral": FLAT, "sideways": FLAT, "
 
 
 def catalog():
-    """Every bot this machine can run. The tests narrow it to a handful, so a pass stays quick."""
+    """Every forecasting bot this machine can run. The tests narrow it to a handful, so a pass stays quick. Bots
+    trading on an opportunistic policy are left out: their stance is where they buy, not what they forecast, and
+    the zoo's pooled pictures would count their members twice."""
     from .. import bots as B
-    return B.discover()
+    return [b for b in B.discover() if b.policy is None]
 
 
 def make_feed(asset: str):
