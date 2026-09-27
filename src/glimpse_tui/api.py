@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 
 import httpx
 from glimpse_markets import AsyncClient, EnterMultiTopicLegGroup, TradeLeg
+from glimpse_markets.models import ExitLegReq, ExitMultiTopicLegGroup
 from glimpse_markets.exceptions import (
     GlimpseAmbiguousTradeStateError,
     GlimpseAPIError,
@@ -91,6 +92,14 @@ class Book:
     prices: list[float] = field(default_factory=list)
     probs: list[float] = field(default_factory=list)
     fetched_at: float = 0.0
+
+    @classmethod
+    def from_row(cls, row: MarketRow) -> Book:
+        """A list row priced as a book: the v2 and batch listings carry every range's shares, so no quote call is needed."""
+        b = cls(row.topic_id, row.title, row.end_time_utc, row.quote_mode, row.volume_msat, list(row.option_ids),
+                [parse_bin(n) for n in row.names], list(row.shares), pricing.alpha_for(max(len(row.shares), 2)), fetched_at=time.time())
+        b.reprice()
+        return b
 
     def reprice(self) -> None:
         self.prices = pricing.prices(self.shares, self.alpha)
@@ -199,6 +208,20 @@ def _shared(t: tuple) -> tuple:
     return _SHARED.setdefault(t, t)
 
 
+def contiguous(rows: list[MarketRow], factor: float = 10.0) -> list[MarketRow]:
+    """The closes up to the first gap more than `factor` times the series' usual spacing. The site lists a series as
+    one unbroken run (hourly for a week, daily for months); the batch endpoint also returns a block of hourly closes
+    some fifty days past the rest, which the site does not list and the bots should not trade."""
+    if len(rows) < 3:
+        return rows
+    gaps = sorted(b.end_time_utc - a.end_time_utc for a, b in zip(rows, rows[1:]))
+    usual = max(gaps[len(gaps) // 2], 1)
+    for i, (a, b) in enumerate(zip(rows, rows[1:])):
+        if b.end_time_utc - a.end_time_utc > factor * usual:
+            return rows[: i + 1]
+    return rows
+
+
 def parse_bin(name: str) -> tuple[float, float]:
     lo, _, hi = name.replace(",", "").partition("-")
     return float(lo), float(hi)
@@ -230,16 +253,27 @@ class Glimpse:
         # polling and pre-trade estimates never queue behind, or eat into, the 60/min keyed allowance.
         self._pub = AsyncClient(rate_limiter=AsyncRateLimiter(240, 60), **kw)
         self.authenticated = bool(api_key)
+        self.closed = False
 
     async def close(self) -> None:
+        self.closed = True
         for c in (self._c, self._pub):
             await c.aclose() if hasattr(c, "aclose") else await c.close()
 
     async def _call(self, fn, *a, retry: bool = True, **kw):
-        """Reads retry on 429/5xx/transport errors. Trades never retry: there is no idempotency key."""
+        """Reads retry on 429/5xx/transport errors. Trades never retry: there is no idempotency key. A call made after
+        `close` is cancelled quietly rather than crashing the app: a loader a timer started as the app shut down, or one
+        paging through the market list when logging in or out swapped this client for another. Checked before every
+        attempt, and httpx's own "client has been closed" is treated the same way."""
         for attempt in range(3 if retry else 1):
+            if self.closed:
+                raise asyncio.CancelledError("client closed")
             try:
                 return await fn(*a, **kw)
+            except RuntimeError as e:
+                if self.closed or "client has been closed" in str(e):
+                    raise asyncio.CancelledError("client closed") from None
+                raise
             except GlimpseRateLimitError as e:
                 if attempt == 2 or not retry:
                     raise _friendly(e) from None
@@ -291,6 +325,30 @@ class Glimpse:
             offset = d.get("next_offset") or offset + PAGE
         now = time.time()
         return sorted((r for r in rows if r.end_time_utc > now), key=lambda r: r.end_time_utc)
+
+    async def all_markets(self, batch_id: str) -> list[MarketRow]:
+        """Every close of a series, with shares, in one request (the paged v2 list takes one per 48 closes, and on a slow
+        day each page takes seconds). The one-shot endpoint also returns strays the site does not list, hourly closes
+        months past the rest; `contiguous` drops them without a second request. Falls back to the paged list."""
+        try:
+            r = await self._call(self._pub.batch_active_markets, batch_id)
+        except ApiError:
+            return await self.markets(batch_id, limit=1000)
+        now, rows = time.time(), []
+        for m in r.markets or []:
+            outs = m.outcomes or []
+            end = int(m.end_time_utc or 0)
+            if end <= now or not outs or m.is_resolved or m.is_active is False:
+                continue
+            rows.append(MarketRow(
+                topic_id=m.topic_id, title=m.title or "", end_time_utc=end,
+                quote_mode=str(getattr(m.quote_mode, "value", m.quote_mode) or "live"),
+                volume_msat=int(m.total_volume_millisats or 0), volume_24h_msat=int(m.volume_24h_millisats or 0),
+                shares=tuple(float(o.shares or 0) for o in outs),
+                names=_shared(tuple(o.name or "" for o in outs)),
+                option_ids=_shared(tuple(int(o.option_id) for o in outs)),
+            ))
+        return contiguous(sorted(rows, key=lambda r: r.end_time_utc))
 
     async def book(self, topic_id: int) -> Book:
         q = await self._call(self._pub.market_quotes, topic_id)
@@ -390,3 +448,38 @@ class Glimpse:
         if isinstance(r, dict) and (r.get("error") or r.get("success") is False):
             raise ApiError(f"Exit rejected: {r.get('error') or r.get('message') or 'unknown reason'}")
 
+    async def buy_many(self, groups: list[tuple[int, list[tuple[int, float]]]]) -> list[Fill]:
+        """(topic, [(option id, contracts)]) for many markets in one request: a bot's whole sweep of a series.
+        The server fills each market on its own, so check each Fill.error. Never retried."""
+        r = await self._call(
+            self._c.enter_multi_topic_multi_leg,
+            [EnterMultiTopicLegGroup(topic_id=t, legs=[TradeLeg(option_id=o, contracts=c) for o, c in legs]) for t, legs in groups],
+            retry=False,
+        )
+        by_topic = {x.topic_id: x for x in r.results or []}
+        out = []
+        for t, _ in groups:
+            x = by_topic.get(t)
+            if x is None or x.error:
+                out.append(Fill(t, "", 0.0, 0.0, error=getattr(x, "error", None) or "no result returned"))
+            else:
+                out.append(Fill(t, str(x.trade_id), (x.total_cost_millisats or 0) / 1000, (x.commission_millisats or 0) / 1000))
+        return out
+
+    async def sell_many(self, groups: list[tuple[int, list[tuple[int, float]]]]) -> list[Fill]:
+        """Sell (option id, contracts) in many markets in one request. `cost_sats` of each Fill is the proceeds.
+        Never retried; check each Fill.error."""
+        r = await self._call(
+            self._c.exit_multi_topic_multi_leg,
+            [ExitMultiTopicLegGroup(topic_id=t, legs=[ExitLegReq(option_id=o, contracts=c) for o, c in legs]) for t, legs in groups],
+            retry=False,
+        )
+        by_topic = {x.topic_id: x for x in r.results or []}
+        out = []
+        for t, _ in groups:
+            x = by_topic.get(t)
+            if x is None or x.error:
+                out.append(Fill(t, "", 0.0, 0.0, error=getattr(x, "error", None) or "no result returned"))
+            else:
+                out.append(Fill(t, str(x.trade_id), (x.total_proceeds_millisats or 0) / 1000, (x.commission_millisats or 0) / 1000))
+        return out

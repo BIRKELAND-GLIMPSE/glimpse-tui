@@ -154,10 +154,26 @@ def overlay(bot: float, market: float, width: int) -> Text:
     return out
 
 
-def ladder(probs, bins, spot: float, width: int, rows: int = 13, market=None, min_edge: float = 0.10, policy=None,
+_SHOWN: dict[int, tuple[tuple, list[float]]] = {}
+
+
+def shown_of(view) -> list[float]:
+    """The market as glimpse.markets draws it (each range's price with the common floor removed: the book's softmax),
+    which is what a matching bot moves onto its forecast. Kept per close until its shares change."""
+    import numpy as np
+
+    key, shares = view.row.topic_id, view.row.shares
+    hit = _SHOWN.get(key)
+    if hit is None or hit[0] is not shares:
+        q = np.asarray(shares, dtype=float)
+        _SHOWN[key] = hit = (shares, PL.shown(q, P.display_alpha(len(q))).tolist())
+    return hit[1]
+
+
+def ladder(probs, bins, spot: float, width: int, rows: int = 13, market=None, min_edge: float = 0.04, policy=None,
            buys=None, zoom: int = 0) -> Text:
-    """The bot's picture of the close, highest price on top. With the market's prices (price/100 per range, what a
-    contract costs) each bar carries both, so the gap between them, which is what the bot trades, is the picture.
+    """The bot's picture of the close, highest price on top. With the market's chances (as the site draws them, see
+    `shown_of`) each bar carries both, so the gap between them, which is what the bot trades, is the picture.
     With `buys`, the order the bot would send now, each row it buys on is tagged with the sats it would stake there;
     until that is worked out, rows are tagged where the bot's rule (Kelly, or its `policy`) would buy."""
     out = Text(no_wrap=True, overflow="crop")
@@ -582,6 +598,78 @@ def log_title(t: Terminal, r) -> str:
             f" · {r.cycles} cycle{'' if r.cycles == 1 else 's'}")
 
 
+def valuation(r) -> tuple[list[tuple], float, float, float]:
+    """(rows, cost, market value, picture value) of everything the runner holds. Each row is (close, asset, low, high,
+    contracts, cost, price, value, p, fair); price and p are None for a close the runner has not priced yet. Value marks
+    the position at what selling it back into the book would fetch now, after the exit fee; fair values it at the
+    bot's own chance, after the settlement fee."""
+    rows, cost, value, fair = [], 0.0, 0.0, 0.0
+    for end, asset, topic, option, lo, hi, n, c in r.ledger.holdings(r.bot.id, r.mode):
+        price, p, sale = r.marks.get((topic, option), (None, None, None))
+        v = sale if sale is not None else c
+        f = p * PL.NET * n if p is not None else c
+        rows.append((end, asset, lo, hi, n, c, price, v, p, f))
+        cost, value, fair = cost + c, value + v, fair + f
+    return rows, cost, value, fair
+
+
+def portfolio_line(r) -> Text:
+    """One line: how much the bot holds, where, and what it is worth by the market and by its own picture."""
+    rows, cost, value, fair = valuation(r)
+    out = Text(no_wrap=True, overflow="ellipsis")
+    closes = len({(x[0], x[1]) for x in rows})
+    out.append(f"  PORTFOLIO  {len(rows)} positions in {closes} closes  cost {fmt.sats(cost)}  market {fmt.sats(value)} ",
+               style=f"bold {TEXT}")
+    out.append(fmt.sats(value - cost, signed=True), style=GREEN if value >= cost else RED)
+    out.append(f"  picture {fmt.sats(fair)} ", style=TEXT)
+    out.append(fmt.sats(fair - cost, signed=True), style=GREEN if fair >= cost else RED)
+    out.append(f"  ·  scanning {r.scanned} closes, {r.mispriced} mispriced", style=DIM)
+    return out
+
+
+PORTFOLIO_COLS = (("close", 20), ("range", 17), ("contracts", 10), ("cost", 10), ("price", 7), ("market", 10),
+                  ("p&l", 9), ("picture", 8), ("fair", 10), ("edge", 9))
+
+
+def portfolio(r, asset: str, width: int) -> Text:
+    """Every position the bot holds, marked to the market and to its picture, with the session's flow on top."""
+    rows, cost, value, fair = valuation(r)
+    out = Text(no_wrap=True, overflow="ellipsis")
+    out.append(f"{'LIVE · real sats' if r.live else 'PAPER'} · budget {fmt.sats(r.cfg.bankroll_sats)} · "
+               f"{fmt.sats(max(r.cfg.bankroll_sats - cost, 0))} free\n", style=RED if r.live else GREEN)
+    out.append(f"this session: bought {fmt.sats(r.paid_sats)} · sold {fmt.sats(r.sold_sats)} · {r.trades} trades · "
+               f"{r.cycles} cycles · last cycle priced {r.scanned} closes, {r.mispriced} mispriced\n\n", style=DIM)
+    out.append(f"{'held':<20}{len(rows)} positions in {len({(x[0], x[1]) for x in rows})} closes\n", style=TEXT)
+    for label, v in (("cost", cost), ("at market", value), ("by its picture", fair)):
+        out.append(f"{label:<20}{fmt.sats(v):>12}")
+        if label != "cost":
+            out.append(f"  {fmt.sats(v - cost, signed=True)}", style=GREEN if v >= cost else RED)
+        out.append("\n")
+    out.append("\nmarket is what each position would fetch sold back into the book now, after the 2% exit fee; picture values "
+               "it at the bot's chance × 98 sats; edge is picture over market. price is the range's price now, in sats.\n\n",
+               style=FAINT)
+    keep, used = [], 0
+    for name, w in PORTFOLIO_COLS:
+        if used + w > width and keep:
+            break
+        keep.append((name, w))
+        used += w
+    out.append("".join(f"{n.upper():<{w}}" if n in ("close", "range") else f"{n.upper():>{w}}" for n, w in keep) + "\n", style=DIM)
+    for end, a, lo, hi, n, c, price, v, p, f in rows:
+        cells = {"close": fmt.question(a or asset, end)[:-4], "range": fmt.span(lo, hi), "contracts": fmt.contracts(n),
+                 "cost": fmt.sats(c), "price": "—" if price is None else f"{price:.1f}", "market": fmt.sats(v),
+                 "p&l": fmt.sats(v - c, signed=True), "picture": "—" if p is None else fmt.pct(p), "fair": fmt.sats(f),
+                 "edge": "—" if price is None or v <= 0 else fmt.roi(f / v - 1)}
+        for name, w in keep:
+            txt = cells[name]
+            style = (GREEN if v >= c else RED) if name == "p&l" else (GREEN if f >= v else RED) if name == "edge" else TEXT
+            out.append(f"{txt:<{w}}" if name in ("close", "range") else f"{txt:>{w}}", style=style)
+        out.append("\n")
+    if not rows:
+        out.append("nothing held yet\n", style=DIM)
+    return out
+
+
 class BotLogPane(Widget):
     """What the running bot is doing, under its forecast: what it holds, then its log."""
     can_focus = False
@@ -598,14 +686,15 @@ class BotLogPane(Widget):
         if b is None or r is None:
             return out
         h = max(self.size.height - 2, 3)
-        pos = r.ledger.positions(b.id, r.mode)
-        for end, asset, p_lo, p_hi, contracts, cost in pos[:4]:
+        out.append_text(portfolio_line(r))
+        out.append("   P full portfolio\n", style=FAINT)
+        pos = r.ledger.holdings(b.id, r.mode)
+        for end, asset, _, _, p_lo, p_hi, contracts, cost in pos[:3]:
             out.append(f"  {fmt.question(asset or t.asset, end):<24}{fmt.span(p_lo, p_hi):<18}"
                        f"{fmt.contracts(contracts):>8} × cost {fmt.sats(cost)}\n", style=DIM)
-        if len(pos) > 4:
-            out.append(f"  … and {len(pos) - 4} more positions\n", style=FAINT)
-        if pos:
-            out.append("\n")
+        if len(pos) > 3:
+            out.append(f"  … and {len(pos) - 3} more positions\n", style=FAINT)
+        out.append("\n")
         for line in list(r.log)[-max(h - out.plain.count("\n"), 1):]:
             hot = any(x in line for x in ("BUY", "SELL", "filled"))
             out.append(f"  {line}\n", style=TEXT if hot else RED if "failed" in line or "rejected" in line else DIM)
@@ -679,7 +768,7 @@ class BotDetailPane(Widget):
                 out.append(f"   8 in 10 chance between {fmt.price(s.low)} and {fmt.price(s.high)}\n", style=DIM)
                 out.append_text(order_line(s, t.bot_budget(b.id), t.bot_zoom))
                 out.append("\n")
-                out.append_text(ladder(s.probs, v.bins, t.spot, w, picture, market=v.raw, policy=b.policy, buys=s.buys,
+                out.append_text(ladder(s.probs, v.bins, t.spot, w, picture, market=shown_of(v), policy=b.policy, buys=s.buys,
                                        zoom=t.bot_zoom))
             out.append("\n")
             if chart_rows:
@@ -698,7 +787,7 @@ class BotDetailPane(Widget):
             out.append(" x ", style=f"bold #000000 on {ORANGE}")
             out.append(f"  stop this bot   {'LIVE · real sats' if r.live else 'on paper'} · budget {fmt.sats(r.cfg.bankroll_sats)}",
                        style=f"bold {TEXT}")
-            out.append("   X stops every bot\n", style=DIM)
+            out.append("   P portfolio   X stops every bot\n", style=DIM)
         else:
             out.append(" enter ", style=f"bold #000000 on {ORANGE}")
             out.append(f"  run this bot · budget {fmt.sats(t.bot_budget(b.id))}", style=f"bold {TEXT}")

@@ -262,3 +262,130 @@ def sell_down(book, probs, held: dict[int, tuple[float, float]], exit_edge: floa
         if proceeds >= 1 and proceeds > probs[i] * NET * x:
             out.append((i, x, proceeds))
     return out
+
+
+# ── matching the market to a picture ────────────────────────
+#
+# What glimpse.markets draws for a close is each range's LS-LMSR price with the common floor taken off (it subtracts
+# the 25th-percentile price and scales every column to its peak), which leaves the book's softmax: exp(q_i / b) / Σ,
+# with b = alpha · Σq. So "the market shows the bot's forecast" means that softmax equals the picture. Setting a
+# range's shares to level + b · ln p makes it so for every range lifted; ranges the picture wants lower than the book
+# already has them cannot be sold down (the bot does not own them) and fall as everything else rises.
+
+def _cost(q, alpha: float) -> float:
+    import numpy as np
+
+    b = alpha * float(q.sum())
+    z = q / b
+    mx = float(z.max())
+    return P.PAYOUT_SATS * b * (mx + math.log(float(np.exp(z - mx).sum())))
+
+
+def shown(q, alpha: float):
+    """The distribution the site draws from shares `q`: the softmax of q / (alpha · Σq), numpy."""
+    import numpy as np
+
+    z = q / (alpha * float(q.sum()))
+    ex = np.exp(z - float(z.max()))
+    return ex / float(ex.sum())
+
+
+def gap(book, probs) -> float:
+    """How far what the site shows for this close is from the picture: total variation, 0 (the same) to 1."""
+    import numpy as np
+
+    p = np.asarray(probs, dtype=float)
+    return 0.5 * float(np.abs(shown(np.asarray(book.shares, dtype=float), P.display_alpha(len(book.shares))) - p / p.sum()).sum())
+
+
+def _shaped(q0, lp, alpha: float, level: float):
+    """Shares raised to level + b · ln p wherever that is more than the book has (never lowered: nothing is sold),
+    with b = alpha · Σq of the result, found by fixed point."""
+    import numpy as np
+
+    b = alpha * float(q0.sum())
+    for _ in range(40):
+        q = np.maximum(q0, level + b * lp)
+        nb = alpha * float(q.sum())
+        if abs(nb - b) < 1e-7 * b:
+            break
+        b = nb
+    return q
+
+
+def match(book, probs, budget: float, tol: float = 0.002) -> tuple[list[Leg], float]:
+    """(legs, gap after): the buys that bring what the site shows for this close closest to the picture for at most
+    `budget` sats, fee-inclusive. One number is searched, the level the picture's shape is lifted to: higher lifts
+    drown the ranges the bot cannot sell, and cost more. The cheapest level within `tol` of the best gap the budget
+    reaches wins. EV is not the test: the point is that the market ends up showing the bot's forecast."""
+    import numpy as np
+
+    q0 = np.asarray(book.shares, dtype=float)
+    p = np.asarray(probs, dtype=float)
+    p = np.maximum(p / p.sum(), 1e-15)
+    lp = np.log(p) - float(np.log(p).max())            # 0 at the mode, negative elsewhere
+    a, da, c0 = book.alpha, P.display_alpha(len(q0)), _cost(q0, book.alpha)
+    cap = budget / (1 + P.FEE)
+
+    def gap_of(q) -> float:
+        return 0.5 * float(np.abs(shown(q, da) - p).sum())
+
+    b0 = da * float(q0.sum())
+    levels = float(q0.max()) + b0 * np.concatenate([np.linspace(-8, 0, 17), np.geomspace(0.05, 400, 60)])
+    found = []
+    for level in levels:
+        q = _shaped(q0, lp, da, float(level))
+        c = _cost(q, a) - c0
+        if c > cap:
+            if found:
+                break                                   # cost only rises with the level from here
+            continue
+        found.append((gap_of(q), c, q))
+    if not found:                                       # even the lowest lift costs more than the budget: take part of it
+        q = _shaped(q0, lp, da, float(levels[0]))
+        lo, hi = 0.0, 1.0
+        for _ in range(30):
+            mid = (lo + hi) / 2
+            lo, hi = (mid, hi) if _cost(q0 + mid * (q - q0), a) - c0 <= cap else (lo, mid)
+        found.append((gap_of(q0 + lo * (q - q0)), 0.0, q0 + lo * (q - q0)))
+    best = min(g for g, _, _ in found)
+    _, _, q = min((x for x in found if x[0] <= best + tol), key=lambda x: x[1])
+    d = np.floor((q - q0) * 100) / 100                  # contracts to 2 places, never more than planned
+    quote, legs = Quote(list(q0), a), []
+    for i in np.flatnonzero(d >= 0.01):
+        before = quote.base
+        quote.add(int(i), float(d[i]))
+        legs.append(Leg(int(i), float(d[i]), (quote.base - before) * (1 + P.FEE)))
+    return legs, gap_of(q0 + np.maximum(d, 0))
+
+
+def match_sells(book, probs, held: dict[int, tuple[float, float]], slack: float = 0.25, floor: float = 0.002
+                ) -> list[tuple[int, float, float]]:
+    """(bin index, contracts, proceeds): a held range the site shows well above the picture (by `slack` of its chance
+    and `floor` in absolute terms) is sold back down to the picture, or as far as the bot's holding goes. The matching
+    counterpart of `sell_down`: it never undoes the buys that put the forecast on the board."""
+    import numpy as np
+
+    q = np.asarray(book.shares, dtype=float)
+    p = np.asarray(probs, dtype=float)
+    p = p / p.sum()
+    da = P.display_alpha(len(q))
+    s = shown(q, da)
+    at = {o: i for i, o in enumerate(book.option_ids)}
+    out = []
+    for o, (n, _) in held.items():
+        i = at.get(o)
+        if i is None or n < 0.01 or s[i] <= p[i] * (1 + slack) + floor:
+            continue
+        lo, hi = 0.0, min(n, float(q[i]) - 0.01)
+        for _ in range(30):
+            mid = (lo + hi) / 2
+            q2 = q.copy()
+            q2[i] -= mid
+            lo, hi = (mid, hi) if shown(q2, da)[i] > p[i] else (lo, mid)
+        d = math.floor(lo * 100) / 100
+        if d >= 0.01:
+            q2 = q.copy()
+            q2[i] -= d
+            out.append((i, d, (_cost(q, book.alpha) - _cost(q2, book.alpha)) * (1 - P.FEE)))
+    return out

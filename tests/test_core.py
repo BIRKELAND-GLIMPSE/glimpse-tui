@@ -103,3 +103,25 @@ def test_formatting():
     assert fmt.countdown(3600 * 27 + 60, now=0) == "1d 3h" and fmt.countdown(95, now=0) == "1m 35s"
     assert fmt.countdown(0, now=5) == "closed"
     assert fmt.bar(0.5, 10) == "█████" and fmt.bar(0, 10) == ""
+
+
+async def test_a_closed_client_cancels_quietly_instead_of_crashing_the_app():
+    """Quitting, logging in and logging out close the client while loaders may still be paging through it."""
+    import asyncio
+
+    from glimpse_tui.api import Glimpse
+
+    g = Glimpse()
+
+    async def closed_under_us():
+        raise RuntimeError("Cannot send a request, as the client has been closed.")
+
+    with pytest.raises(asyncio.CancelledError):
+        await g._call(closed_under_us)
+    await g.close()
+
+    async def never():
+        raise AssertionError("no request after close")
+
+    with pytest.raises(asyncio.CancelledError):
+        await g._call(never)

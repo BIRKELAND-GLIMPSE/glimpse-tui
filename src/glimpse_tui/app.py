@@ -91,8 +91,10 @@ HELP = """\
                i opens the model's own account of itself: the idea, the data it reads, the mathematics that
                turns the reading into a distribution, what it buys against the market, and the machinery every
                picture shares. esc goes back to the list. Nothing here is a track record.
-               enter deploys the bot on this computer with a budget in sats; it buys what its picture says is cheap,
-               sells what the market overpays for, and only ever touches positions it opened itself.
+               enter deploys the bot on this computer with a budget in sats. Every cycle (a second or two) it reads
+               every open close of the series, and wherever the market's odds differ from its forecast it buys until
+               the market shows its forecast, eight closes an order, selling back ranges the market now over-weights.
+               It only ever touches positions it opened itself. P shows its whole portfolio.
                With your API key loaded (L) it asks whether to trade real sats: type LIVE. Otherwise it practises on paper.
                Bots stop when the terminal closes; to keep one running
                without the screen:  glimpse-tui run <bot> --series BTC --budget 20000
@@ -485,6 +487,19 @@ class About(ModalScreen[None]):
             scroll.scroll_page_up(animate=False)
         else:
             self.dismiss(None)
+
+
+class LiveAbout(About):
+    """An About page that redraws itself every second: a running bot's portfolio."""
+
+    def on_mount(self) -> None:
+        super().on_mount()
+        self.set_interval(1, self._redraw)
+
+    def _redraw(self) -> None:
+        width = self.query_one("#about-text", Static).content_region.width or 80
+        self._width, self._body = width, self._make(width)
+        self.query_one("#about-text", Static).update(self._body)
 
 
 # The order preview: every market the order touches, one row each, with every number it is priced on. The widths
@@ -1795,6 +1810,8 @@ class Terminal(App):
                 self.bot_zoom = max(botsview.ZOOM_LIMITS[0], min(z, botsview.ZOOM_LIMITS[1]))
             elif ch == "b":
                 self.bet_once()
+            elif ch == "P":
+                self.bot_portfolio()
         elif k in ("h", "left"):
             self.pane = 0
         elif k in ("l", "right"):
@@ -2322,6 +2339,15 @@ class Terminal(App):
         when = f" · {fmt.question(self.asset, v.row.end_time_utc)}" if v else ""
         self.push_screen(About(body, f"ABOUT · {b.name}{when}"))
 
+    def bot_portfolio(self) -> None:
+        b = self._selected_bot()
+        r = self.runners.get(b.id) if b else None
+        if r is None:
+            self.say("Run the bot first (enter): its portfolio is what it has bought.", 3)
+            return
+        self.push_screen(LiveAbout(lambda width: botsview.portfolio(r, self.asset, width),
+                                   f"PORTFOLIO · {r.name} · {r.series}"))
+
     @work
     async def bot_search(self) -> None:
         v = await self.push_screen_wait(Prompt("/", "Search bots by name, family or idea: trend, reversion, tails, options, garch…",
@@ -2340,9 +2366,9 @@ class Terminal(App):
             r.stop()
             self.paint()
             return
-        every = bots.BotConfig.load().interval_s // 60
+        every = bots.BotConfig.load().interval_s
         v = await self.push_screen_wait(Prompt(
-            f"RUN · {b.name}", f"{b.blurb}\n\nRuns on this computer while the terminal is open, checking {self.asset} every {every} minutes.\n"
+            f"RUN · {b.name}", f"{b.blurb}\n\nRuns on this computer while the terminal is open, reading every open {self.asset} close every {every:g} s and buying wherever the market's odds differ from its forecast, until they match.\n"
             "Budget in sats: the most it may have at risk. Small is fine. Enter accepts the figure shown.",
             placeholder=f"{self.bot_budget(b.id):,.0f}"))
         if v is None:
@@ -2364,10 +2390,15 @@ class Terminal(App):
         self._save_budget(b.id, budget)
         self.runners[b.id] = r = bots.Runner(
             bot=b, api=self.api, batch_id=self.batch.batch_id, feed=self.feed(), live=live, ledger=self.ledger,
-            cfg=bots.BotConfig.load().with_budget(budget), series=self.batch.short, on_trade=self.load_account)
+            cfg=bots.BotConfig.load().with_budget(budget), series=self.batch.short, on_trade=self._after_bot_trade)
         r.start()
         self.say(f"{b.name} is running on {self.asset} with {fmt.sats(budget)}: " + ("LIVE, real sats." if live else
                  "on paper." + ("" if self.api.authenticated else " Press L to log in with your API key for real trading.")), 10)
+
+    def _after_bot_trade(self) -> None:
+        """A bot's fill moved the book: show it now rather than on the next 5 s reload."""
+        self.load_account()
+        self.load_book()
 
     def _parse_budget(self, v: str, default: float) -> float | None:
         v = v.strip().lower().replace(",", "").replace("₿", "").removesuffix("sats").removesuffix("s").strip()
@@ -2412,5 +2443,6 @@ class Terminal(App):
     async def on_unmount(self) -> None:
         for r in self.runners.values():
             r.stop()
+        self.workers.cancel_all()                       # loaders started by timers must not outlive the client
         await self.shell.stop()
         await self.api.close()

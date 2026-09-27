@@ -12,10 +12,21 @@ from dataclasses import dataclass
 FEE = 0.02              # commission: added on top of buy cost, taken from sell proceeds and redemption
 PAYOUT_SATS = 100.0     # gross sats per winning contract
 MIN_FEE_SATS = 1.0      # the enter route charges at least one sat of commission; it has no minimum ticket
-V = 2.0                 # LS-LMSR sensitivity; alpha = V / (n ln n)
+V = 2.0                 # LS-LMSR sensitivity; alpha = V / (N_ALPHA ln N_ALPHA)
+N_ALPHA = 500           # the server sizes alpha for 500 outcomes on every market, SOL's 650-range ladders included
 
 
 def alpha_for(n: int) -> float:
+    """The server's alpha. It does not follow the ladder's length: a 650-range SOL market is priced with the same
+    alpha as a 500-range one (checked against /estimate on 2026-09-26; n = 650 overpriced SOL orders by up to 60%).
+    `n` is kept so callers still say which market they price."""
+    return V / (N_ALPHA * math.log(N_ALPHA))
+
+
+def display_alpha(n: int) -> float:
+    """The alpha glimpse.markets draws a ladder with: V / (n ln n) on the ladder's own length (mapQuotesToMarket.ts).
+    Equal to alpha_for on a 500-range ladder; on SOL's 650 ranges the site draws with a smaller alpha than the server
+    charges with. A bot that wants the site to show its forecast shapes the book with this one."""
     return V / (n * math.log(n))
 
 

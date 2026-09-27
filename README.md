@@ -255,7 +255,7 @@ Glimpse is a market you can bring a model to. The terminal ships with **138 bots
 - **`CONS`** runs the whole zoo against the live market at three horizons (next hour, 24 hours, 72 hours). It counts bulls against bears and draws the one picture they make together beside the market's.
 - **`BOT`** takes the zoo one model at a time. `[` and `]` walk through it.
 - **`BOTS` (`B`)** is the full screen. `i` opens a model's account of itself: the idea, the data, the maths and how it trades.
-- **`enter` runs a bot.** It runs on paper by default. With an API key and the word `LIVE` it trades real sats, never above its budget, and checks the server's estimate before every order. Forecasting bots size by quarter-Kelly and opportunistic bots by their fixed stake. None sends an order that the commission would turn into a loss, and every bot sells an overpaid position only down to what its picture says it is worth.
+- **`enter` runs a bot.** It runs on paper by default. With an API key and the word `LIVE` it trades real sats, never above its budget, and checks the server's estimate before every order. Every cycle (a second or two) it reads every open close of the series and buys wherever the market's odds differ from its forecast, until the site shows its forecast, selling back ranges the market over-weights. `objective = "edge"` in `~/.config/glimpse/bots.toml` switches to buying only positive expected value. `P` shows the bot's whole portfolio.
 
 A full pass over the zoo takes about a second per asset and reruns each time a new hourly bar closes. The whole engine stays under 200 MB of RAM.
 
@@ -267,6 +267,40 @@ glimpse-tui run ema_crossover --series BTC --budget 20000  # a paper run in this
 
 > [!TIP]
 > The bots screen shows what each model believes now. It deliberately shows no APY and no track record, because the terminal has none to show.
+
+### The Bill Benter bot
+
+`benter` trades the way Bill Benter's syndicate beat the Hong Kong tote. It does not try to out-guess the market from scratch. It takes the curve the market's traders are already forming, smooths out single-trade spikes, and pools that curve with the zoo's calibrated consensus in a conditional logit. The more of a shape traders have given a close, the more the bot trusts it.
+
+It buys only ranges that picture says are selling at a discount: at least 10% under value after both fees, and never past a 5% discount. It stakes a 0.15 fraction of Kelly, holds at most 1.5% of its budget in any one close, and sells a range back when the market pays more than it is worth. Each bet is small. The return is meant to come from the long run.
+
+It also learns. Every close it looks at is journalled to `~/.config/glimpse/benter/journal.jsonl`. Once 150 closes have settled, it refits once an hour, by maximum likelihood, how much to trust the crowd against its model, as Benter refitted on each season's races.
+
+Run it around the clock, on every series at once, with the budget split evenly between them:
+
+```sh
+glimpse-tui run benter --series all --budget 500000 --live   # prints a portfolio line per series every minute
+```
+
+To keep it running across logouts and restarts on macOS, save this as `~/Library/LaunchAgents/markets.glimpse.benter.plist` and load it with `launchctl load ~/Library/LaunchAgents/markets.glimpse.benter.plist`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>markets.glimpse.benter</string>
+  <key>ProgramArguments</key><array>
+    <string>/path/to/glimpse-tui</string><string>run</string><string>benter</string>
+    <string>--series</string><string>all</string><string>--budget</string><string>500000</string><string>--live</string>
+  </array>
+  <key>EnvironmentVariables</key><dict><key>GLIMPSE_BOT_LIVE</key><string>I_UNDERSTAND</string></dict>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>/tmp/glimpse-benter.log</string>
+  <key>StandardErrorPath</key><string>/tmp/glimpse-benter.log</string>
+</dict></plist>
+```
+
+`which glimpse-tui` gives the path. The API key comes from your keychain, so log in once from the terminal (`L`) first.
 
 ### Write your own bot
 

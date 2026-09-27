@@ -80,6 +80,18 @@ class FakeApi:
     async def sell(self, topic_id, option_id, shares=None):
         self.sold.append((topic_id, option_id, shares))
 
+    async def all_markets(self, batch_id):
+        return await self.markets(batch_id)
+
+    async def buy_many(self, groups):
+        return [await self.buy_legs(t, legs) for t, legs in groups]
+
+    async def sell_many(self, groups):
+        for t, legs in groups:
+            for o, c in legs:
+                await self.sell(t, o, c)
+        return [Fill(t, "t", 0.0, 0.0) for t, _ in groups]
+
     async def wallet(self): ...
     async def positions(self): return []
     async def summary(self): ...
@@ -95,6 +107,8 @@ def bot(index: int) -> bots.Bot:
 
 
 def runner(api, tmp_path, b, live=False, **cfg):
+    cfg.setdefault("objective", "edge")                            # the tests below pin the edge rules; matching has its own
+    cfg.setdefault("interval_s", 0)                                # no shared snapshot between cycles: tests move the book in between
     return bots.Runner(bot=b, api=api, batch_id="b-h", feed=Feed(), live=live, ledger=bots.Ledger(tmp_path / "ledger.json"),
                        cfg=bots.BotConfig(**cfg))
 
@@ -106,7 +120,7 @@ async def test_dry_run_keeps_a_paper_ledger_and_does_not_buy_the_same_edge_every
     await r.cycle()
     assert api.bought == [] and r.trades == 1 and "would buy" in " ".join(r.log)
     first = r.open_cost
-    assert 0 < first <= 500                                        # a quarter of the budget per cycle
+    assert 0 < first <= 400                                        # a fifth of the budget per cycle
     for _ in range(12):
         await r.cycle()
     assert r.open_cost <= 2_000 + 1e-6                            # never more at risk than the budget
@@ -181,9 +195,84 @@ async def test_a_trader_sells_only_the_overpaid_part_of_a_position(tmp_path):
     assert r.ledger.legs("cheap", "live", 100)[o][0] == pytest.approx(held[o][0] - sold[0][2], abs=0.01)
 
 
+async def test_one_cycle_sweeps_every_close_of_the_series_in_one_order(tmp_path):
+    class Week(FakeApi):
+        closes = 30
+    api = Week("k")
+    calls = []
+    real = api.buy_many
+    async def spy(groups):
+        calls.append(groups)
+        return await real(groups)
+    api.buy_many = spy
+    r = runner(api, tmp_path, bot(90), live=True, kelly=1.0, bankroll_sats=1e6, max_markets_per_order=12)
+    await r.cycle()
+    assert r.scanned == 30                                                    # every close, not the nearest two
+    assert len(calls) == 1 and len(calls[0]) == 12                            # one request, the cap's worth of closes
+    assert len(r.ledger.topics("sure", "live")) == 12 and r.trades == 12
+
+
+async def test_the_portfolio_marks_every_position_to_the_market_and_to_the_picture(tmp_path):
+    api = FakeApi()
+    r = runner(api, tmp_path, bot(90), kelly=1.0, bankroll_sats=10_000)
+    await r.cycle()
+    await r.cycle()                                                          # paper sees its own buys: no second helping
+    assert "book moved" not in " ".join(r.log)
+    rows, cost, value, fair = botsview.valuation(r)
+    assert rows and cost == pytest.approx(r.open_cost)
+    assert all(price is not None for *_, price, _, _, _ in rows)            # marked from the next cycle's book
+    assert fair > cost                                                       # it bought what its picture says is cheap
+    page = botsview.portfolio(r, "BTC", 120).plain
+    assert "PAPER" in page and "CONTRACTS" in page and fmt.span(*BINS[90]) in page
+    assert "PORTFOLIO" in botsview.portfolio_line(r).plain
+
+
+def bell(center: float, width: float = 1_500) -> bots.Bot:
+    def forecast(book, closes, hours):
+        w = [np.exp(-0.5 * (((lo + hi) / 2 - center) / width) ** 2) + 1e-12 for lo, hi in book.bins]
+        return [x / sum(w) for x in w]
+    return bots.Bot("bell", "Bell", "Mine", "a bell", "test", forecast=forecast)
+
+
+async def test_matching_moves_what_the_site_shows_onto_the_forecast(tmp_path):
+    api = FakeApi("k")
+    b = bell(78_000)
+    r = runner(api, tmp_path, b, live=True, objective="match", bankroll_sats=1e7)
+    book = await api.book(100)
+    probs = b.forecast(book, [], 2.0)
+    before = PL.gap(book, probs)
+    await r.cycle()
+    assert len(api.bought) == 1 and r.trades == 1
+    after = PL.gap(await api.book(100), probs)
+    assert before > 0.3 and after < 0.05                                    # the site now draws the bot's bell
+    assert any("shown gap" in x for x in r.log)
+    await r.cycle()
+    assert len(api.bought) == 1                                             # matched: nothing left to buy
+
+
+def test_match_spends_no_more_than_its_budget_and_matches_the_server_price():
+    book = Book(1, "m", 0, "live", 0, list(range(1, 501)), BINS, list(FIX["shares"]), P.alpha_for(500))
+    book.reprice()
+    probs = bell(80_000).forecast(book, [], 2.0)
+    for budget in (50, 500, 5_000):
+        legs, after = PL.match(book, probs, budget)
+        assert 0 < sum(x.cost_sats for x in legs) <= budget + 1e-6
+        q2 = list(book.shares)
+        for x in legs:
+            q2[x.index] += x.contracts
+        raw = P.cost(q2, book.alpha) - P.cost(book.shares, book.alpha)
+        assert sum(x.cost_sats for x in legs) == pytest.approx(raw * (1 + P.FEE), rel=1e-9)
+    assert after < PL.gap(book, probs)
+
+
+def test_the_server_prices_every_ladder_with_the_500_range_alpha():
+    assert P.alpha_for(650) == P.alpha_for(500) and P.display_alpha(650) < P.alpha_for(650)
+
+
 def test_budget_sets_the_caps():
     c = bots.BotConfig().with_budget(400)
-    assert (c.bankroll_sats, c.max_per_cycle_sats, c.max_per_hour_sats) == (400, 100, 200)
+    assert (c.bankroll_sats, c.max_per_cycle_sats, c.max_per_hour_sats) == (400, 80, 4000)
+    assert bots.BotConfig(max_per_cycle_sats=10).with_budget(400).max_per_cycle_sats == 10   # bots.toml can still cap lower
 
 
 def test_every_zoo_model_is_a_bot_and_user_files_join_them(tmp_path, monkeypatch):
@@ -268,10 +357,18 @@ async def test_bots_screen_lists_the_zoo_reads_the_market_and_deploys_in_two_key
         first = app.bots[0]
         await until(pilot, lambda: first.id in app.runners and app.runners[first.id].cycles >= 1)
         r = app.runners[first.id]
-        assert r.running and not r.live and r.cfg.bankroll_sats == 20_000
+        assert r.running and not r.live and r.cfg.bankroll_sats == bots.BotConfig().bankroll_sats
         log = app.query_one("#botlog")
         assert log.display and "ON PAPER" in log.border_title                  # the runner lives in its own container
         assert "stop this bot" in app.query_one("#botdetail").render().plain
+        assert "PORTFOLIO" in log.render().plain and "P full portfolio" in log.render().plain
+        await pilot.press("P")                                         # every position, redrawn each second
+        await pilot.pause()
+        page = app.screen
+        assert isinstance(page, A.LiveAbout) and page._title.startswith("PORTFOLIO · ")
+        assert "by its picture" in page._body.plain
+        await pilot.press("escape")
+        await pilot.pause()
         await pilot.press("x")
         assert not r.running
 

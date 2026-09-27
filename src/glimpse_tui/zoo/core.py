@@ -75,6 +75,8 @@ class Model:
     trades: str = ""             # what the picture buys against the market, and when it leaves the baseline
     pipeline: str = ""           # key into PIPELINES: the shared machinery this picture goes through
     policy: Policy | None = None  # an opportunistic trading rule (glimpse_tui.policy); None trades fractional Kelly
+    reads_market: bool = False   # the picture blends in the market's own odds (ctx.market), as Benter's did
+    trading: dict | None = None  # BotConfig fields this bot trades with, whatever bots.toml says (e.g. its own Kelly)
 
 
 SCALE_NOTE = (
@@ -234,6 +236,8 @@ class Ctx:
     asset: str = "BTC"
     scale: Scale | None = None
     cache: dict = field(default_factory=dict)      # per-bars scratch space shared between models (signals, fits)
+    market: np.ndarray | None = None               # what the site shows for this close (policy.shown); set only for a
+                                                   # model with reads_market, since the rest are pictures of Bitcoin alone
 
     def __post_init__(self) -> None:
         if len(self.bars) < MIN_BARS:

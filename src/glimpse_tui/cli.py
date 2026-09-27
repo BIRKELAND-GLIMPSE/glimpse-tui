@@ -9,6 +9,7 @@ import argparse
 import asyncio
 import os
 import sys
+import time
 
 from . import auth, bots, fmt
 from .api import ApiError, Glimpse
@@ -48,6 +49,17 @@ def about_bot(name: str) -> int:
     return 0
 
 
+async def status(runners: list) -> None:
+    """Every minute, one line per runner: what it holds and what it has done. Returns when every runner has stopped."""
+    from .botsview import portfolio_line
+
+    while any(r.running for r in runners):
+        await asyncio.sleep(60)
+        for r in runners:
+            print(f"[{r.series}] {time.strftime('%H:%M:%S', time.gmtime())}{portfolio_line(r).plain}  ·  "
+                  f"bought {fmt.sats(r.paid_sats)} sold {fmt.sats(r.sold_sats)} {r.trades} trades {r.cycles} cycles", flush=True)
+
+
 async def run(args: argparse.Namespace) -> int:
     from .zoo.data import Feed
 
@@ -68,18 +80,29 @@ async def run(args: argparse.Namespace) -> int:
             return 1
     api = Glimpse(key, os.environ.get("GLIMPSE_BASE_URL"))
     try:
-        batch = next((b for b in await api.batches() if b.short.lower() == args.series.lower()), None)
-        if batch is None:
-            print(f"No series called {args.series}. Try BTC, 'BTC 1D', ETH, SOL or XAU.", file=sys.stderr)
+        every = await api.batches()
+        chosen = every if args.series.lower() == "all" else [b for b in every if b.short.lower() == args.series.lower()]
+        if not chosen:
+            print(f"No series called {args.series}. Try BTC, 'BTC 1D', ETH, SOL, XAU or all.", file=sys.stderr)
             return 2
-        r = bots.Runner(bot=bot, api=api, batch_id=batch.batch_id, feed=Feed(batch.asset or "BTC"), live=args.live,
-                        cfg=bots.BotConfig.load().with_budget(args.budget), series=batch.short, on_log=print)
+        ledger = bots.Ledger()                          # one ledger for every series, so the budget is one budget
+        feeds: dict[str, Feed] = {}
+        runners = []
+        for batch in chosen:
+            asset = batch.asset or "BTC"
+            feed = feeds.setdefault(asset, Feed(asset))
+            tag = f"[{batch.short}] " if len(chosen) > 1 else ""
+            runners.append(bots.Runner(bot=bot, api=api, batch_id=batch.batch_id, feed=feed, live=args.live, ledger=ledger,
+                                       cfg=bots.BotConfig.load().with_budget(args.budget / len(chosen)), series=batch.short,
+                                       on_log=lambda line, tag=tag: print(tag + line, flush=True)))
         if args.once:
-            r.say(f"one cycle  {'LIVE' if r.live else 'dry run'}  budget {fmt.sats(r.cfg.bankroll_sats)}")
-            await r.cycle()
+            for r in runners:
+                r.say(f"one cycle  {'LIVE' if r.live else 'dry run'}  budget {fmt.sats(r.cfg.bankroll_sats)}")
+                await r.cycle()
         else:
-            r.start()
-            await r.wait()
+            for r in runners:
+                r.start()
+            await status(runners)
     except ApiError as e:
         print(e, file=sys.stderr)
         return 1
@@ -99,7 +122,7 @@ def main(argv: list[str]) -> int:
     ab.add_argument("bot", help="a bot id from `glimpse-tui bots`")
     rn = sub.add_parser("run", help="run one bot in this shell (ctrl-c stops it)")
     rn.add_argument("bot", help="a bot id from `glimpse-tui bots`")
-    rn.add_argument("--series", default="BTC")
+    rn.add_argument("--series", default="BTC", help="BTC, 'BTC 1D', ETH, SOL, XAU, or all (the budget is split evenly)")
     rn.add_argument("--budget", type=float, default=bots.BotConfig.load().bankroll_sats, help="sats the bot may have at risk")
     rn.add_argument("--live", action="store_true", help=f"trade real sats (asks you to type LIVE, or set {LIVE_ENV}=I_UNDERSTAND)")
     rn.add_argument("--once", action="store_true", help="one cycle, then exit")
