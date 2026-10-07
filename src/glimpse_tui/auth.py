@@ -62,7 +62,9 @@ def save_key(key: str) -> str:
     if kr := _keyring():
         try:
             kr.set_password(SERVICE, ACCOUNT, key)
-            return "keychain"
+            if kr.get_password(SERVICE, ACCOUNT) == key:   # a locked or refusing keychain can take a write it won't give back
+                _cred_file().unlink(missing_ok=True)     # an older key in the file must not outlive this one
+                return "keychain"
         except Exception:
             pass
     d = config_dir()

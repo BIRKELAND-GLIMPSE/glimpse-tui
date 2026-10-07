@@ -244,8 +244,7 @@ def benter(ctx: Ctx) -> np.ndarray:
 
 
 TRADING = {"objective": "edge", "interval_s": 5, "kelly": 0.15, "min_edge": 0.10, "fill_margin": 0.05, "exit_edge": 0.08,
-           "edge_close_share": 0.015, "max_markets_per_order": 6,
-           "picture_budget_s": 2.0}
+           "edge_close_share": 0.015}
 
 MODELS = [
     Model(
@@ -255,10 +254,10 @@ MODELS = [
         "out-guess the market from scratch: it takes the curve the market's traders are already forming, smooths it, "
         "and pools it with the zoo's calibrated consensus of how far the price moves, trusting the market more the more "
         "of a shape its traders have given it. Then it buys only the ranges that combined picture says are selling at a "
-        "discount, in small fractional-Kelly stakes across every close, and sells a range back when the market pays "
-        "more than it is worth. Each bet is small and each edge is modest; the return is meant to come from the long "
-        "run. It journals what it saw and, as closes settle, refits how much to trust the crowd against its model. Run "
-        "it around the clock: glimpse-tui run benter --series all --live.",
+        "discount, in small fractional-Kelly stakes across every close, and takes profit, selling a range back when the "
+        "market pays more than it is worth and than it cost. Each bet is small and each edge is modest; the return is "
+        "meant to come from the long run. It journals what it saw and, as closes settle, refits how much to trust the "
+        "crowd against its model. Run it around the clock: glimpse-tui run benter --series all --live.",
         benter, kind="forecast", factors=("volatility", "tails", "market"),
         reference="Benter (1994), 'Computer based horse race handicapping and wagering systems: a report'; Bolton and "
                   "Chapman (1986), 'Searching for positive returns at the track'; Kelly (1956); Thorp (2006)",
@@ -273,9 +272,10 @@ MODELS = [
               "weights are kept in weights.json beside it.",
         trades="Fractional Kelly at 0.15 on ranges whose pooled value, after both 2% fees, is at least 10% above the price, "
                "and never past the price at which a 5% discount would be gone, so every contract is bought under its "
-               "value. At most 1.5% of the budget held in one close, six closes an order, a cycle every 5 seconds over "
-               "every close of the series. A range the market later prices 8% or more above the picture is sold back "
-               "down to value. These rules are its own: bots.toml does not change them.",
+               "value. At most 1.5% of the budget held in one close, and no more than the close's even share of it; one "
+               "close every 5 seconds, nearest to farthest and round again. It takes profit on a range the market later prices 8% "
+               "or more above the picture and above what it cost, selling it back down, often only in part. These rules are "
+               "its own: bots.toml does not change them, except profit_only = false, which also trims overpriced losers.",
         pipeline="bins", reads_market=True, trading=TRADING,
     ),
 ]

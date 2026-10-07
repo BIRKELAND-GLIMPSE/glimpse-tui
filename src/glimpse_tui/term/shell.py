@@ -44,11 +44,11 @@ LEADER: dict[str, list[tuple[str, str]]] = {
     "b": [("b", "list buffers"), ("n", "next buffer"), ("p", "previous buffer"), ("d", "close buffer"), ("r", "reload")],
 }
 PAGES = (("GP BTC 24H", "Bitcoin: the last 24 hours and the next 24"), ("DIST BTC", "Bitcoin's odds on the next hour"),
-         ("GP XAU 1D", "gold: the last month and a half and the next month"), ("DIST XAU", "gold's odds on the next close"),
+         ("GP XAU 24H", "gold: the last 24 hours and the next 24"), ("DIST XAU", "gold's odds on the next hour"),
          ("PL BTC", "the power law: Bitcoin against its own age, log-log"), ("PL XAUBTC", "gold priced in Bitcoin, and its power law"),
          ("QM GLOBAL SATS", "the world's prices in satoshis"),
-         ("FCST BTC", "Bitcoin forecast, next 48 hours"), ("FCST XAU", "gold's forecast as a heatmap"),
-         ("FCST BTC 1D", "Bitcoin daily forecast"),
+         ("FCST BTC", "Bitcoin forecast, next 48 hours"), ("FCST XAU", "gold forecast, next 48 hours"),
+         ("FCST BTC 1D", "Bitcoin daily forecast"), ("FCST XAU 1D", "gold daily forecast"),
          ("FCST ETH", "Ether forecast"), ("FCST SOL", "Solana forecast"),
          ("CONS BTC", "what every bot on this machine expects of Bitcoin"), ("BOT BTC", "one bot at a time, [ ] walks the zoo"),
          ("NEWS", "headlines, read here in the terminal"))
@@ -92,7 +92,7 @@ class Shell:
         return app.views if app.batch and app.batch.short == series and app.views else []
 
     def open_series(self, series: str, view: str = "heatmap") -> None:
-        """The full heatmap (or the ladder) on `series` (BTC, BTC 1D, XAU…): switch the app's series if it is on another."""
+        """The full heatmap (or the ladder) on `series` (BTC, BTC 1D, XAU, XAU 1D…): switch the app's series if it is on another."""
         app = self.app
         series = series.upper()
         idx = next((i for i, b in enumerate(app.batches) if b.short.upper() == series), None)

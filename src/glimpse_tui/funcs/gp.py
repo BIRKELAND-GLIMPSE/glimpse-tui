@@ -11,6 +11,8 @@ from dataclasses import replace
 from rich.text import Text
 
 from .. import charts
+from ..api import HOURLY as HOURLY_SERIES
+from ..api import series_name
 from ..data import quotes
 from ..data.core import DELAYED, LIVE, Provenance, SourceError
 from ..heatmap import BAND
@@ -26,14 +28,13 @@ HOURS_BACK, HOURS_AHEAD = 60, 30
 WINDOW = {"24H": (24, 24), "1H": (HOURS_BACK, HOURS_AHEAD)}     # hours back, hours ahead, on the hourly views
 HOURLY = ("24H", "1H")
 # How far the chart looks either side of NOW when it carries a Glimpse forecast: hours on an hourly series, and
-# a month and a half of history against a month ahead on a daily one, which is as far as the gold market is open.
+# a month and a half of history against a month ahead on a daily one, which is as far as the daily gold market is open.
 BACK_S = {"24H": 24 * 3600, "1H": HOURS_BACK * 3600, "1D": 45 * 86400}
 AHEAD_S = {"24H": 24 * 3600, "1H": HOURS_AHEAD * 3600, "1D": 31 * 86400}
 FORECAST_VIEWS = ("24H", "1H", "1D")
-# What Glimpse runs a market on, and how often that market closes: an hourly series is charted on an hourly
-# window, a daily one on the daily window, so the closes ahead are drawn at the scale they settle at.
+# What Glimpse runs a market on. An hourly window runs into the hourly series and the daily window into the daily
+# one, so the closes ahead are drawn at the scale they settle at: GP XAU 24H is hourly gold, GP XAU 1D daily gold.
 FORECAST_SERIES = {"BTC": "BTC", "ETH": "ETH", "SOL": "SOL", "XAU": "XAU", "PAXG": "XAU"}
-HOURLY_SERIES = ("BTC",)
 SETTLES = {"XAU": "PAXG"}       # the Glimpse gold market settles on PAXG: chart what it settles on, not COMEX carry
 NAMED = {"PAXG": "Gold"}        # …and call it by the name of the thing it stands for
 
@@ -122,10 +123,10 @@ class GpPane(FuncPane):
         if not self.view:
             hourly_ok = len(secs) == 1 and secs[0].cls == "CRYPTO"
             self.view = "1H" if hourly_ok else "1Y"
-        if self.view in HOURLY and any(not (s.source("coinbase") or s.source("kraken")) for s in secs):
-            self.view = "1D"
         if self.view in FORECAST_VIEWS and len(secs) == 1 and (alt := self.hub.book.get(SETTLES.get(secs[0].ticker, ""))):
             secs = [alt]                        # gold is forecast, and settled, on the token, not on COMEX carry
+        if self.view in HOURLY and any(not (s.source("coinbase") or s.source("kraken")) for s in secs):
+            self.view = "1D"                    # after the swap: PAXG has hourly candles where COMEX gold has none
         lines = [Line(s) for s in secs]
         for ln in lines:
             await self._one(ln, self.view)
@@ -147,22 +148,25 @@ class GpPane(FuncPane):
     def _forecasting(self) -> bool:
         """This chart runs past NOW into the Glimpse market: one instrument it forecasts, on a window that reaches
         ahead at the rate that market closes. True before the closes arrive: the window is the window either way."""
-        if len(self.lines) != 1 or self.lines[0].ins.cls == "SERIES" or self.view not in FORECAST_VIEWS:
-            return False
-        series = FORECAST_SERIES.get(self.lines[0].ins.ticker, "")
-        return bool(series) and (series in HOURLY_SERIES) == (self.view in HOURLY)
+        return bool(self.series)
 
     @property
     def series(self) -> str:
-        """The Glimpse series this chart runs into, if any: what f and o open from this window."""
-        return FORECAST_SERIES.get(self.lines[0].ins.ticker, "") if self._forecasting() else ""
+        """The Glimpse series this chart runs into, if any: what f and o open from this window. The hourly windows
+        reach only an hourly series; the daily window reaches the daily one (`BTC 1D`, `XAU 1D`, `ETH`)."""
+        if len(self.lines) != 1 or self.lines[0].ins.cls == "SERIES" or self.view not in FORECAST_VIEWS:
+            return ""
+        asset = FORECAST_SERIES.get(self.lines[0].ins.ticker, "")
+        if not asset or (self.view in HOURLY and asset not in HOURLY_SERIES):
+            return ""
+        return series_name(asset, daily=self.view not in HOURLY)
 
     def _fc(self) -> list[tuple[float, float, float, float]]:
         """The market's closes for what is charted, inside this window: (close time, median, band low, band high)."""
         if not self._forecasting():
             return []
         now = time.time()
-        closes = self.hub.forecast_for(FORECAST_SERIES.get(self.lines[0].ins.ticker, ""))
+        closes = self.hub.forecast_for(self.series)
         return [f for f in closes if now < f[0] <= now + AHEAD_S[self.view]]
 
     @property
@@ -288,10 +292,11 @@ register(Function(
     help="One instrument draws as a braille line (C switches to candles where the source has them) with the last price marked on "
          "the axis. Several instruments are rebased to 100 at the left edge so they compare. A Bitview series is charted by its "
          "exact name (find one with FLDS); a series with an instrument, or two series, use two axes, the second on the left. "
-         "[ and ] change the window: 1H (hourly, crypto only), 1D, 1Y, MAX. L toggles a log axis. "
+         "[ and ] change the window: 1H (hourly, crypto and gold only), 1D, 1Y, MAX. L toggles a log axis. "
          "GP BTC 24H is the last 24 hours and the next 24: the price line to NOW, then the Glimpse median and 80% band, with one line "
          "saying where the market expects Bitcoin in 24 hours. "
-         "GP BTC on the hourly window continues past NOW into the Glimpse market's own forecast: the cyan line is each close's "
+         "GP BTC or GP XAU on an hourly window continues past NOW into the hourly Glimpse market, and on the 1D window into the "
+         "daily one (gold is charted as PAXG, which its markets settle on): the cyan line is each close's "
          "median and the shaded band is where the market puts 80% of the probability, from the closes the terminal has loaded. "
          "History comes from the first of the instrument's sources that has it: Coinbase or Kraken candles, FRED, the ECB or "
          "the Treasury, and the frame names it with its delay. A live last price extends the line to now. Reloads every two "

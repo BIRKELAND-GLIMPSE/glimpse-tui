@@ -24,7 +24,7 @@ class FakeApi:
     async def batches(self):
         return [Batch("b-btc", "Daily Bitcoin Markets", 3, 1000), Batch("b-eth", "Daily Ethereum Market", 3, 30)]
 
-    async def markets(self, batch_id, limit=96):
+    async def markets(self, batch_id, limit=96, on_rows=None):
         return [MarketRow(100 + i, f"Daily Bitcoin Markets - d{i}", 2**31 - i, "live", 0, 0,
                           tuple(FIX["shares"]), tuple(FIX["names"])) for i in range(3)]
 

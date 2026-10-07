@@ -17,9 +17,10 @@ if TYPE_CHECKING:
 
 # One module per lab family; each exposes MODELS: list[Model]. Order here is order on screen.
 MODULES = ("baseline", "trend", "reversion", "volatility", "calendar", "regimes", "learning", "distributions", "scenarios", "options",
-           "opportunist", "benter")
+           "opportunist", "benter", "smoothing", "portfolio")
 FAMILIES = ("Baseline", "Trend", "Mean reversion", "Volatility", "Calendar & cycles", "Factor & carry", "Regime & jumps",
-            "Pattern & ML", "GARCH", "HAR", "Power Law", "Distributions", "Scenario", "Options views", "Opportunistic", "Benter")
+            "Pattern & ML", "GARCH", "HAR", "Power Law", "Distributions", "Scenario", "Options views", "Opportunistic", "Benter",
+            "Smoothing", "Portfolio")
 
 
 @lru_cache(maxsize=1)

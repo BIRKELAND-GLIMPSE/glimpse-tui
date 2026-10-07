@@ -1,4 +1,4 @@
-"""FCST: a Glimpse market's forecast as a heatmap you can watch from a launchpad. `FCST BTC`, `FCST XAU`, `FCST BTC 1D`.
+"""FCST: a Glimpse market's forecast as a heatmap you can watch from a launchpad. `FCST BTC`, `FCST XAU`, `FCST BTC 1D`, `FCST XAU 1D`.
 
 The same picture as the full heatmap (f), fitted to a pane: price history left of NOW, then the next two days of
 hourly closes (a month of daily ones) in the columns that are left, each cell one shade block  ░ ▒ ▓ █  by the market's
@@ -17,7 +17,7 @@ from rich.text import Text
 
 from .. import charts, fmt
 from .. import pricing as P
-from ..api import Candle, resample
+from ..api import Candle, resample, series_name
 from ..data.core import LIVE, Provenance, SourceError
 from ..heatmap import ANSI256, BAND, GLYPHS, TRUECOLOR, candle_part, level
 from ..term import ui
@@ -62,7 +62,7 @@ class FcstPane(FuncPane):
         asset = "XAU" if asset == "PAXG" else asset
         daily = any(a.upper() in ("1D", "D", "DAILY") for a in self.args)
         self.asset = asset
-        self.series = f"{asset} 1D" if asset == "BTC" and daily else asset
+        self.series = series_name(asset, daily)
         self.views: list = []                   # RowView, nearest close first
         self.candles: list[Candle] = []
         self.cadence = 3600
@@ -333,10 +333,10 @@ class FcstPane(FuncPane):
         return "f the full forecast · o the odds"
 
     def menu(self) -> list[tuple[str, str]]:
-        return [("FORECAST", f"HM {self.series}"), ("ODDS", f"ODDS {self.series}"), ("NEXT CLOSE", f"DIST {self.asset}")]
+        return [("FORECAST", f"HM {self.series}"), ("ODDS", f"ODDS {self.series}"), ("NEXT CLOSE", f"DIST {self.series}")]
 
     def command(self) -> str:
-        return f"FCST {self.asset}" + (" 1D" if self.series == "BTC 1D" else "")
+        return f"FCST {self.series}"
 
     def export(self):
         rows = [[datetime.fromtimestamp(v.row.end_time_utc, UTC).strftime("%Y-%m-%d %H:%M"), v.median, v.band[0], v.band[1]]
@@ -450,14 +450,14 @@ class DistPane(FcstPane):
         return "o or enter to bet on these odds · f the forecast"
 
     def menu(self) -> list[tuple[str, str]]:
-        return [("ODDS", f"ODDS {self.series}"), ("FORECAST", f"HM {self.series}"), ("BOTS", f"CONS {self.asset}")]
+        return [("ODDS", f"ODDS {self.series}"), ("FORECAST", f"HM {self.series}"), ("BOTS", f"CONS {self.series}")]
 
     def command(self) -> str:
-        return f"DIST {self.asset}" + (" 1D" if self.series == "BTC 1D" else "")
+        return f"DIST {self.series}"
 
 
 register(Function(
-    "DIST", "Odds", "Glimpse", "the odds on every outcome of the next close: Bitcoin's next hour, gold's next day", DistPane,
+    "DIST", "Odds", "Glimpse", "the odds on every outcome of the next close: Bitcoin's next hour, gold's next hour", DistPane,
     takes=("CRYPTO", "CMDTY"), optional=True, args="[BTC|XAU|ETH|SOL] [1D]", needs=("glimpse",),
     help="The Glimpse market's probability for each price range at the next close, read the way the odds screen reads it. Each row "
          "is a round range of prices with a bar, the chance the close lands in it and what a contract on it pays, from the market's "
@@ -467,8 +467,9 @@ register(Function(
          "anyone has traded. Rows "
          "inside the market's 80% range are bright. The top line says when "
          "the close settles, how long is left, and the most likely range. The marker shows where the price is now. Enter opens the "
-         "odds screen on this series, where a range can be selected and bet on after a confirmation. f opens the full forecast. DIST BTC is "
-         "the next hour of Bitcoin, DIST XAU the next daily close of gold. Data: the public Glimpse API, as FCST reads it."))
+         "odds screen on this series, where a range can be selected and bet on after a confirmation. f opens the full forecast. "
+         "DIST BTC is the next hour of Bitcoin, DIST XAU the next hour of gold and DIST XAU 1D gold's next daily close. "
+         "Data: the public Glimpse API, as FCST reads it."))
 
 
 register(Function(
@@ -480,7 +481,7 @@ register(Function(
          "or of several closes averaged when the pane is narrow, and how solid it is drawn is the market's chance the close "
          "lands in that cell:  ░  from 0.6%,  ▒  from 1.5%,  ▓  from 3.9%,  █  above 10%. The cyan trace is each close's median. "
          "The dotted orange rule and the marker on the price axis are spot. The top line reads the price now and the range the market "
-         "puts 80% of the next close's probability in. FCST BTC is hourly Bitcoin, FCST BTC "
-         "1D daily Bitcoin, FCST XAU daily gold. Prices come from the public Glimpse API: when the app already has the series loaded it is "
-         "shared, otherwise the pane reads it every minute (every five on a daily series). Enter, or f, opens the full heatmap on this "
-         "series, where v draws a box and tab opens the bet slip. Trading needs an API key (L)."))
+         "puts 80% of the next close's probability in. FCST BTC is hourly Bitcoin, FCST BTC 1D daily Bitcoin, "
+         "FCST XAU hourly gold and FCST XAU 1D daily gold. Prices come from the public Glimpse API: when the app already has "
+         "the series loaded it is shared, otherwise the pane reads it every minute (every five on a daily series). Enter, or f, "
+         "opens the full heatmap on this series, where v draws a box and tab opens the bet slip. Trading needs an API key (L)."))

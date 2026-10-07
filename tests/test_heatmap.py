@@ -124,7 +124,7 @@ class FakeApi:
     async def batches(self):
         return [Batch("b-btc", "Daily Bitcoin Markets", 6, 1000)]
 
-    async def markets(self, batch_id, limit=96):
+    async def markets(self, batch_id, limit=96, on_rows=None):
         return [MarketRow(100 + i, f"d{i}", T0 + (i + 1) * 86400, "live", 0, 0, tuple(FIX["shares"]),
                           tuple(FIX["names"]), tuple(range(1, 501))) for i in range(6)]
 
@@ -430,7 +430,7 @@ async def test_a_refresh_with_no_changes_costs_nothing_and_never_overlaps(make):
         calls, gate = [], asyncio.Event()
         real = app.api.markets
 
-        async def slow(batch_id, limit=96):
+        async def slow(batch_id, limit=96, on_rows=None):
             calls.append(limit)
             await gate.wait()
             return await real(batch_id, limit)
@@ -455,7 +455,7 @@ def week_of_hours(monkeypatch, hist_hours=300):
     async def batches(self):
         return [Batch("b-h", "Hourly Bitcoin Prediction Markets", 168, 200)]
 
-    async def markets(self, batch_id, limit=96):
+    async def markets(self, batch_id, limit=96, on_rows=None):
         return [MarketRow(100 + i, f"h{i}", hour0 + (i + 1) * 3600, "live", 0, 0, tuple(FIX["shares"]),
                           tuple(FIX["names"]), tuple(range(1, 501))) for i in range(min(168, limit))]
 
@@ -630,7 +630,7 @@ async def test_hourly_history_is_half_hour_candles_on_the_same_time_scale(make, 
     async def batches(self):
         return [Batch("b-h", "Hourly Bitcoin Prediction Markets", 6, 200)]
 
-    async def markets(self, batch_id, limit=96):
+    async def markets(self, batch_id, limit=96, on_rows=None):
         return [MarketRow(100 + i, f"h{i}", hour0 + (i + 1) * 3600, "live", 0, 0, tuple(FIX["shares"]),
                           tuple(FIX["names"]), tuple(range(1, 501))) for i in range(6)]
 

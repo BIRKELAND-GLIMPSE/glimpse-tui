@@ -7,7 +7,7 @@ import pytest
 
 from glimpse_tui import auth, bots, fmt
 from glimpse_tui import pricing as P
-from glimpse_tui.api import Book, parse_bin
+from glimpse_tui.api import Batch, Book, parse_bin
 
 FIX = json.loads((Path(__file__).parent / "fixtures" / "estimates.json").read_text())
 
@@ -125,3 +125,11 @@ async def test_a_closed_client_cancels_quietly_instead_of_crashing_the_app():
 
     with pytest.raises(asyncio.CancelledError):
         await g._call(never)
+
+
+def test_gold_has_an_hourly_series_like_bitcoin_and_its_daily_one_is_marked():
+    # The titles the live API gave on 2026-10-06. Both gold series used to be `XAU`, so one hid the other.
+    shorts = [Batch(str(i), t, 1, 1).short for i, t in enumerate((
+        "Hourly Bitcoin Prediction Markets", "Daily Bitcoin Markets", "Daily Ethereum Market", "Daily Solana Market",
+        "Hourly Gold Prediction Markets", "Daily PAX Gold Market"))]
+    assert shorts == ["BTC", "BTC 1D", "ETH", "SOL", "XAU", "XAU 1D"]

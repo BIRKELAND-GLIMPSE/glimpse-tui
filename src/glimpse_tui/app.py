@@ -22,7 +22,7 @@ from . import api as api_mod
 from . import auth, bots, botsview, charts, chrome, fmt
 from . import policy as PL
 from . import pricing as P
-from .api import ApiError, Batch, Book, Candle, Glimpse, MarketRow, Order, Position, Summary, Wallet, parse_bin
+from .api import ApiError, Batch, Book, Candle, Glimpse, KeyRejected, MarketRow, Order, Position, Summary, Wallet, parse_bin
 from .botsview import SORTS, TABS, BotDetailPane, BotListPane, BotLogPane, Scan
 from .heatmap import ANSI256, P_FLOOR, TRUECOLOR, ZOOMS, Grid, HeatmapPane, fit_zoom, origin, scales, wants_truecolor
 from .slip import WIDTH as SLIP_WIDTH
@@ -32,13 +32,15 @@ from .term.shell import Shell
 from .theme import BURNT, DIM, FAINT, GREEN, ORANGE, RED, RULE, TEXT
 
 BOOK_EVERY, LIST_EVERY, ACCOUNT_EVERY, SPOT_EVERY, CANDLES_EVERY = 5, 60, 15, 10, 120
+CACHED_LIST_MAX_AGE = 3600       # seconds: an older saved market list is not worth drawing, even for the few seconds it shows
+STALE = "prices from"            # the status line while the saved list is showing and the live one downloads
 CANDLE_S = 1800                 # history candles on hourly series: half an hour
 CLOSES_MAX = 400                # closes loaded: every live one (168 hourly = 7 days, ~172 daily); ~25 KB each a refresh
 ESTIMATE_TOLERANCE = 0.005
 MARKETS_PER_REQUEST = 24        # a box across more closes goes out as several requests: the server fills the closes of one
                                 # request in turn, so a timeout mid-request would leave every close in it in doubt
 DEFAULT_SERIES = "BTC"
-OLD_SERIES = {"Hourly BTC": "BTC", "Daily BTC": "BTC 1D", "Daily ETH": "ETH", "Daily SOL": "SOL", "Daily XAU": "XAU"}
+OLD_SERIES = {"Hourly BTC": "BTC", "Daily BTC": "BTC 1D", "Daily ETH": "ETH", "Daily SOL": "SOL", "Daily XAU": "XAU 1D"}
 SLIP_MIN_WIDTH = 118            # narrower terminals keep the compact ticket under the chart
 WASD = {"w": "up", "a": "left", "s": "down", "d": "right"}
 
@@ -48,7 +50,7 @@ HELP = """\
  range and b bets on it. Everything else is behind the bar along the top, which names every screen and every
  series with the key that reaches it: t the front page (the rest of the terminal: charts, the chain, the news,
  the world), f the forecast, o the odds, B bots, p portfolio, [ and ] the previous and next series (BTC,
- BTC 1D, ETH, SOL, XAU).
+ BTC 1D, ETH, SOL, XAU, XAU 1D).
  The panel at the bottom lists what the screen you are on does, one row per kind of action. Above it is a
  vim status line: the mode (NORMAL, VISUAL while a box is selected, SLIP on the bet slip), messages, and
  on the right the keys typed so far, so 5 then j moves five cells and 12| goes to the twelfth close.
@@ -91,10 +93,18 @@ HELP = """\
                i opens the model's own account of itself: the idea, the data it reads, the mathematics that
                turns the reading into a distribution, what it buys against the market, and the machinery every
                picture shares. esc goes back to the list. Nothing here is a track record.
-               enter deploys the bot on this computer with a budget in sats. Every cycle (a second or two) it reads
-               every open close of the series, and wherever the market's odds differ from its forecast it buys until
-               the market shows its forecast, eight closes an order, selling back ranges the market now over-weights.
-               It only ever touches positions it opened itself. P shows its whole portfolio.
+               enter deploys the bot on this computer with a budget in sats. Every 5 seconds it visits the next
+               close of the series, nearest to farthest and then round again, reads its odds and draws its forecast.
+               It takes profit, selling part or all of a range it holds while the market pays more than its
+               forecast says the range is worth and more than it cost, and buys toward its forecast where the
+               market sells under value, up to the close's even share of the budget. What a sale frees, it may
+               buy with again. It only ever touches positions it opened itself. P shows its whole portfolio.
+               R instead lets the bot manage your portfolio: every position your account holds in the series,
+               whoever opened it, sold and bought by the same rules. Its budget is the fresh sats it may add;
+               what it sells, it may buy with again. One bot at a time manages a series.
+               Profit Taker (Portfolio, at the end of the list) only sells: enter runs it across your whole
+               portfolio, every series, selling the part of any position the market overpays at a profit.
+               profit_only = false in bots.toml lets any bot also trim overpriced losers.
                With your API key loaded (L) it asks whether to trade real sats: type LIVE. Otherwise it practises on paper.
                Bots stop when the terminal closes; to keep one running
                without the screen:  glimpse-tui run <bot> --series BTC --budget 20000
@@ -114,7 +124,7 @@ HELP = """\
 
 TERM_HELP = """\
  The front page (t) is one long page, most important at the top: Bitcoin's forecast and the odds on its next
- hour, gold's forecast and the odds on its next close, the chain, the news, the power law, then the world's
+ hour, gold's forecast and the odds on its next hour, the chain, the news, the power law, then the world's
  markets. j and k walk it; everything else on this list works from anywhere. The odds (o) is the screen the
  terminal opens on; this page is the rest of it.
 
@@ -131,7 +141,7 @@ TERM_HELP = """\
  SPC MENU      SPC w windows (/ - split, d close, m maximize)   SPC b buffers (b list, n p, d close)
                SPC t this page   SPC f the forecast   SPC o the odds   SPC B bots   SPC p portfolio
 
- THE PAGE      Bitcoin's next 24 hours and the odds on its next hour · gold, and the odds on its next close ·
+ THE PAGE      Bitcoin's next 24 hours and the odds on its next hour · gold's, and the odds on its next hour ·
                hashrate and the difficulty adjustment · the news and world prices · the power law of Bitcoin in
                dollars and of gold in bitcoin · dollar liquidity, the Treasury curve and the economic prints ·
                currencies and commodities · fees, last. The bots are still there, on B and on the search list.
@@ -571,14 +581,15 @@ def book_of(view: RowView) -> Book:
     return book
 
 
-def scan_one(bot: bots.Bot, book: Book, ctx, market: list[float]) -> Scan:
-    """One bot's picture of one close, summarised. Runs in a worker thread."""
+def scan_one(bot: bots.Bot, book: Book, ctx, market: list[float], series=()) -> Scan:
+    """One bot's picture of one close, summarised. Runs in a worker thread. `series` is the series as the site shows
+    it (`bots.shown_series`), for the bots that read every close."""
     from .zoo.core import describe
 
     if bot.error:
         return Scan(error=bot.error)
     try:
-        probs = bot.probs(book, ctx)
+        probs = bot.probs(book, ctx, series)
         if len(probs) != len(market) or abs(sum(probs) - 1) > 1e-6:
             return Scan(error=f"returned {len(probs)} probabilities summing to {sum(probs):.3f}")
         d = describe(ctx, probs)
@@ -1348,7 +1359,7 @@ class Terminal(App):
         lg, r = self.query_one("#botlog", BotLogPane), self.runners.get(getattr(botsview.selected(self), "id", ""))
         lg.display = bd.display and bool(r and (r.running or r.cycles))
         if lg.display:
-            want = max(min(len(r.log) + min(len(r.ledger.positions(r.bot.id, r.mode)), 4) + 4, 16), 8)
+            want = max(min(len(r.log) + min(len(r.ledger.positions(r.key, r.mode)), 4) + 4, 16), 8)
             if getattr(self, "_lg_height", None) != want:
                 self._lg_height = lg.styles.height = want
             lg.border_title = botsview.log_title(self, r)
@@ -1367,23 +1378,48 @@ class Terminal(App):
 
     @work(exclusive=True, group="batches")
     async def load_batches(self) -> None:
+        """The series list. Last run's copy is used at once, so the closes start downloading without first waiting
+        a second or two for this; the live list then replaces it, and only a series whose id changed reloads."""
+        state = auth.load_state()
+        if not self.batches:
+            try:
+                cached = [Batch(*b) for b in state.get("batches", [])]
+            except TypeError:
+                cached = []
+            if cached:
+                self._pick_batch(cached, None)
         try:
-            self.batches = await self.api.batches()
+            fresh = await self.api.batches()
         except ApiError as e:
-            self.error = str(e)
+            if not self.batches:
+                self.error = str(e)
             self.say(str(e), 30)
             return
+        if fresh:
+            self._pick_batch(fresh, self.batch.batch_id if self.batch else None)
+            auth.save_state({**auth.load_state(), "batches": [[b.batch_id, b.title, b.topic_count, b.interval] for b in fresh]})
+
+    def _pick_batch(self, batches: list[Batch], keep: str | None) -> None:
+        """Take a series list, staying on series `keep` if it is still there, else the one you last watched."""
         want = auth.load_state().get("series", DEFAULT_SERIES)
         want = OLD_SERIES.get(want, want)               # state written before the series were renamed to tickers
-        self.batch_i = next((i for i, b in enumerate(self.batches) if b.short == want),
-                            next((i for i, b in enumerate(self.batches) if b.short == DEFAULT_SERIES), 0))
+        self.batches = batches
+        self.batch_i = next((i for i, b in enumerate(batches) if b.batch_id == keep),
+                            next((i for i, b in enumerate(batches) if b.short == want),
+                                 next((i for i, b in enumerate(batches) if b.short == DEFAULT_SERIES), 0)))
+        if self.batch.batch_id == keep:
+            return
+        if keep is not None:                            # the cached series is gone: drop what was shown for it
+            self.views, self.book, self.m_cur, self.anchor = [], None, 0, None
         self.load_markets()
         self.load_spot()
 
     @work(group="markets")
     async def load_markets(self) -> None:
         """Refresh the market list. A refresh for the same series never overlaps or restarts one in flight:
-        on a slow link that used to cancel and re-download forever, at full CPU."""
+        on a slow link that used to cancel and re-download forever, at full CPU. On first sight of a series the
+        last run's list is drawn from disk at once, or else the nearest page of closes the moment it lands: a blank
+        screen while 4 MB of closes download looks like the terminal needs a key to work."""
         if not self.batch:
             return
         bid = self.batch.batch_id
@@ -1391,34 +1427,47 @@ class Terminal(App):
             return
         self._loading = bid
         try:
-            rows = await self.api.markets(bid, limit=CLOSES_MAX)
-            if not self.batch or bid != self.batch.batch_id:
-                return
-            old = {v.row.topic_id: v for v in self.views}
-            fresh = [r for r in rows if r.shares and not (r.topic_id in old and old[r.topic_id].row.shares == r.shares)]
-            done = {r.topic_id: v for r, v in zip(fresh, await asyncio.to_thread(lambda: [summarise(r) for r in fresh]), strict=True)}
-            if not self.batch or bid != self.batch.batch_id:
-                return
-            views = [done.get(r.topic_id) or old[r.topic_id] for r in rows if r.shares]      # untouched closes keep their RowView
+            if not self.views:
+                at, cached = await asyncio.to_thread(api_mod.load_rows, bid, CACHED_LIST_MAX_AGE)
+                if cached and await self._take_markets(bid, cached[:CLOSES_MAX]):
+                    self.say(f"{STALE} {max(1, round((time.time() - at) / 60))} min ago · updating", 60)
+            first = None if self.views else (lambda rows: self._take_markets(bid, rows))
+            rows = await self.api.markets(bid, limit=CLOSES_MAX, on_rows=first)
+            if await self._take_markets(bid, rows):
+                if self.flash.startswith(STALE):
+                    self.say("", 0)
+                await asyncio.to_thread(api_mod.save_rows, bid, rows)
         except ApiError as e:
             self.say(str(e))
-            return
         finally:
             if self._loading == bid:
                 self._loading = None
+
+    async def _take_markets(self, bid: str, rows: list[MarketRow]) -> bool:
+        """Show `rows` as the market list. False if the series changed while they were being fetched or summarised."""
+        if not self.batch or bid != self.batch.batch_id:
+            return False
+        old = {v.row.topic_id: v for v in self.views}
+        fresh = [r for r in rows if r.shares and not (r.topic_id in old and old[r.topic_id].row.shares == r.shares)]
+        done = {r.topic_id: v for r, v in zip(fresh, await asyncio.to_thread(lambda: [summarise(r) for r in fresh]), strict=True)}
+        if not self.batch or bid != self.batch.batch_id:
+            return False
+        views = [done.get(r.topic_id) or old[r.topic_id] for r in rows if r.shares]      # untouched closes keep their RowView
         changed = bool(done) or [v.row.topic_id for v in views] != [v.row.topic_id for v in self.views]
         keep = self.views[self.m_cur].row.topic_id if self.views and self.m_cur < len(self.views) else None
         self.views = views
         if changed:
             self.data_version += 1
         self.m_cur = next((i for i, v in enumerate(views) if v.row.topic_id == keep), 0)
-        if self.book is None or self.book.topic_id != self.focused_topic:
-            self.load_book()
+        if views and (self.book is None or self.book.topic_id != self.focused_topic):
+            self._show_book(Book.from_row(views[self.m_cur].row))     # the row already has every share: draw it now
+            self.load_book()                                         # and confirm it against a live quote
         if self.view == "heatmap" and not self.candles:
             self.load_candles()
         if self.view == "bots":
             self.scan_bots()
         self.paint()
+        return True
 
     @property
     def focused_topic(self) -> int | None:
@@ -1436,29 +1485,39 @@ class Terminal(App):
             return
         if tid != self.focused_topic or not b.bins:
             return
-        fresh = self.book is None or self.book.topic_id != tid
-        self.book = b
-        if fresh:
+        self._show_book(b)
+
+    def _show_book(self, b: Book) -> None:
+        if self.book is None or self.book.topic_id != b.topic_id:
             self.anchor = None
             self.b_cur = max(range(len(b.probs)), key=lambda i: b.probs[i])
+        self.book = b
         self.paint()
 
     @work(exclusive=True, group="account")
     async def load_account(self) -> None:
         if not self.api.authenticated:
             return
-        try:
-            self.wallet, self.positions, self.summary = await asyncio.gather(
-                self.api.wallet(), self.api.positions(), self.api.summary())
+        async def wallet() -> None:
+            self.wallet = await self.api.wallet()
+            self.paint()
+
+        async def summary() -> None:
+            self.summary = await self.api.summary()
+            self.paint()
+
+        async def positions() -> None:
+            self.positions = sorted(await self.api.positions(), key=lambda p: (p.end_time, p.option_id))
+            held = {(p.topic_id, p.option_id): p.shares for p in self.positions}
+            if held != self.held:
+                self.held, self.held_version = held, self.held_version + 1
+            self.p_cur = min(self.p_cur, max(len(self.positions) - 1, 0))
+            self.paint()
+
+        try:        # each shows as it lands: the balance takes a second or two, the whole portfolio can take ten
+            await asyncio.gather(wallet(), summary(), positions())
         except ApiError as e:
             self.say(str(e))
-            return
-        self.positions.sort(key=lambda p: (p.end_time, p.option_id))
-        held = {(p.topic_id, p.option_id): p.shares for p in self.positions}
-        if held != self.held:
-            self.held, self.held_version = held, self.held_version + 1
-        self.p_cur = min(self.p_cur, max(len(self.positions) - 1, 0))
-        self.paint()
 
     @work(exclusive=True, group="candles")
     async def load_candles(self) -> None:
@@ -1781,6 +1840,8 @@ class Terminal(App):
         elif self.view == "bots":
             if k == "enter":
                 self.toggle_bot()
+            elif ch == "R":
+                self.toggle_bot(manage=True)
             elif ch == "i":
                 self.about_bot()
             elif ch == "e":
@@ -1899,19 +1960,23 @@ class Terminal(App):
             self.say("That does not look like an API key.")
             return False
         probe = Glimpse(key.strip(), os.environ.get("GLIMPSE_BASE_URL"))
+        wallet, unchecked = None, ""
         try:
             wallet = await probe.wallet()
-        except ApiError as e:
+        except KeyRejected as e:
             await probe.close()
             self.say(str(e))
             return False
+        except ApiError as e:           # slow or unreachable, not a bad key: keep it rather than make you paste it again
+            unchecked = f" Could not check it yet ({e})"
         where = auth.save_key(key)
         await self.api.close()
         self.api, self.wallet, self.key_mask, self.key_source = probe, wallet, auth.mask(key.strip()), where
         for r in self.runners.values():
             r.stop()
         self.runners.clear()
-        self.say(f"Logged in. Key saved to {'the OS keychain' if where == 'keychain' else '~/.config/glimpse/credentials (0600)'}.")
+        self.say(f"Logged in. Key saved to {'the OS keychain' if where == 'keychain' else '~/.config/glimpse/credentials (0600)'}."
+                 + unchecked, 10 if unchecked else 6)
         self.load_account()
         return True
 
@@ -2239,7 +2304,7 @@ class Terminal(App):
                 s = self.bot_ahead.get(key)
                 if s is None or s.error or (s.buys is not None and s.budget == budget):
                     continue
-                legs = await asyncio.to_thread(bots.plan, bot, book_of(v), list(s.probs), budget, spot, cfg)
+                legs = await asyncio.to_thread(bots.plan, bot, book_of(v), list(s.probs), budget, spot, cfg, len(closes))
                 self.bot_ahead[key] = s = replace(s, buys=tuple((x.index, x.contracts, x.cost_sats) for x in legs), budget=budget)
                 if bot.id in self.bot_scan and self.bot_scan[bot.id].probs is s.probs:
                     self.bot_scan[bot.id] = s
@@ -2261,6 +2326,9 @@ class Terminal(App):
         closes = self.bot_closes
         if b is None or b.error or not closes:
             return
+        if b.sells_only:
+            self.say(f"{b.name} never buys. enter runs it on your portfolio: it sells what the market overpays at a profit.", 5)
+            return
         v = closes[max(0, min(self.bot_when, len(closes) - 1))]
         feed, budget = self.feed(), self.bot_budget(b.id)
         try:
@@ -2273,7 +2341,7 @@ class Terminal(App):
                 self.say("This market is closed.")
                 return
             probs = await asyncio.to_thread(b.probs, book, feed.ctx(book.bins, book.end_time_utc))
-            legs = await asyncio.to_thread(bots.plan, b, book, list(probs), budget, self.spot or feed.spot)
+            legs = await asyncio.to_thread(bots.plan, b, book, list(probs), budget, self.spot or feed.spot, None, len(closes))
         except Exception as e:                                      # a model or the network: either way, say so
             self.say(f"Could not work out the bet: {e}")
             return
@@ -2357,7 +2425,8 @@ class Terminal(App):
             self.paint()
 
     @work
-    async def toggle_bot(self) -> None:
+    async def toggle_bot(self, manage: bool = False) -> None:
+        """enter runs the bot on positions of its own; R lets it manage the account's whole portfolio in the series."""
         b = self._selected_bot()
         if b is None or b.error or not self.batch:
             return
@@ -2366,10 +2435,35 @@ class Terminal(App):
             r.stop()
             self.paint()
             return
+        if b.sells_only:
+            await self.take_profit(b)
+            return
+        if manage:
+            if not self.api.authenticated:
+                self.say("Managing your portfolio means reading it: press L to log in with your API key first.", 5)
+                return
+            other = next((x for x in self.runners.values() if x.running and x.manage
+                          and (x.batch_id == self.batch.batch_id or not x.buys)), None)
+            if other:
+                self.say(f"{other.name} already manages your {'portfolio' if not other.buys else self.asset + ' portfolio'}. "
+                         "Stop it first (x on it, or X).", 5)
+                return
         every = bots.BotConfig.load().interval_s
+        what = (f"Manages every position your account holds in {self.asset}'s open closes, not only what it buys. Every {every:g} s "
+                "it visits the next close, nearest to farthest and round again, sells what the market pays more for there than "
+                f"{b.name}'s forecast says a position is worth, only at a profit over what you paid, and buys what the market "
+                "sells under its value.\n"
+                "Budget in sats: the most fresh sats it may add. What it sells, it may buy with again. Enter accepts the figure shown."
+                if manage else
+                f"Runs on this computer while the terminal is open. Every {every:g} s it visits the next open {self.asset} close, "
+                "nearest to farthest and round again: it reads that close's odds, draws its forecast of it, takes profit on "
+                "what it holds there while the market pays more than the forecast says it is worth and than it cost, and buys "
+                "where the two differ, never past what its forecast says a range is worth. Each close gets an even share of the "
+                "budget, so one round reaches every close, and every visit is logged below.\n"
+                f"Budget in sats: the most it may have at risk in {self.batch.short if self.batch else self.asset}. Small is fine. "
+                "Enter accepts the figure shown.")
         v = await self.push_screen_wait(Prompt(
-            f"RUN · {b.name}", f"{b.blurb}\n\nRuns on this computer while the terminal is open, reading every open {self.asset} close every {every:g} s and buying wherever the market's odds differ from its forecast, until they match.\n"
-            "Budget in sats: the most it may have at risk. Small is fine. Enter accepts the figure shown.",
+            f"{'MANAGE YOUR PORTFOLIO' if manage else 'RUN'} · {b.name}", f"{b.blurb}\n\n{what}",
             placeholder=f"{self.bot_budget(b.id):,.0f}"))
         if v is None:
             return
@@ -2379,10 +2473,19 @@ class Terminal(App):
         live = False
         if self.api.authenticated:
             c = bots.BotConfig.load().with_budget(budget)
+            mine = [x for x in self.runners.values() if x.running and x.live and not x.manage and x.batch_id == self.batch.batch_id]
             typed = await self.push_screen_wait(Prompt(
-                "REAL SATS OR PAPER?", f"Type LIVE to let {b.name} trade real sats through your API key {self.key_mask}: at most "
-                f"{fmt.sats(c.bankroll_sats)} at risk, {fmt.sats(c.max_per_cycle_sats)} per cycle, {fmt.sats(c.max_per_hour_sats)} per hour.\n"
-                "Press enter alone to practise on paper instead.", placeholder="LIVE"))
+                "REAL SATS OR PAPER?",
+                (f"Type LIVE to let {b.name} sell and buy your real {self.asset} positions through your API key {self.key_mask}: at most "
+                 f"{fmt.sats(c.bankroll_sats)} of fresh sats, {fmt.sats(c.max_per_cycle_sats)} per close visited, "
+                 f"{fmt.sats(c.max_per_hour_sats)} per hour."
+                 + (f" It will also manage what {', '.join(x.name for x in mine)} bought." if mine else "")
+                 + "\nPress enter alone to try it on paper: a copy of your portfolio, no orders sent."
+                 if manage else
+                 f"Type LIVE to let {b.name} trade real sats through your API key {self.key_mask}: at most "
+                 f"{fmt.sats(c.bankroll_sats)} at risk, {fmt.sats(c.max_per_cycle_sats)} per close visited, "
+                 f"{fmt.sats(c.max_per_hour_sats)} per hour.\n"
+                 "Press enter alone to practise on paper instead."), placeholder="LIVE"))
             if typed is None:
                 return
             live = typed.strip() == "LIVE"
@@ -2390,10 +2493,47 @@ class Terminal(App):
         self._save_budget(b.id, budget)
         self.runners[b.id] = r = bots.Runner(
             bot=b, api=self.api, batch_id=self.batch.batch_id, feed=self.feed(), live=live, ledger=self.ledger,
-            cfg=bots.BotConfig.load().with_budget(budget), series=self.batch.short, on_trade=self._after_bot_trade)
+            cfg=bots.BotConfig.load().with_budget(budget), series=self.batch.short, on_trade=self._after_bot_trade, manage=manage)
         r.start()
+        if manage:
+            self.say(f"{b.name} is managing your {self.asset} portfolio with up to {fmt.sats(budget)} of fresh sats: "
+                     + ("LIVE, real sats." if live else "on paper."), 10)
+            return
         self.say(f"{b.name} is running on {self.asset} with {fmt.sats(budget)}: " + ("LIVE, real sats." if live else
                  "on paper." + ("" if self.api.authenticated else " Press L to log in with your API key for real trading.")), 10)
+
+    async def take_profit(self, b: bots.Bot) -> None:
+        """enter on the Profit Taker: it sells, across your whole portfolio, the part of any position the market overpays
+        at a profit, and never buys. No budget to ask for; it needs the API key to read the portfolio, even on paper."""
+        if not self.api.authenticated:
+            self.say("Taking profit means reading your portfolio: press L to log in with your API key first.", 5)
+            return
+        other = next((x for x in self.runners.values() if x.running and x.manage), None)
+        if other:
+            self.say(f"{other.name} already manages your {other.series + ' ' if other.buys else ''}portfolio and would sell "
+                     "the same positions. Stop it first (x on it, or X).", 5)
+            return
+        c = bots.BotConfig.load().for_bot(b)
+        mine = [x for x in self.runners.values() if x.running and x.live and not x.manage]
+        typed = await self.push_screen_wait(Prompt(
+            f"TAKE PROFIT · {b.name}",
+            f"{b.blurb}\n\nEvery {c.interval_s:g} s it visits the next close you hold a position in, across every series, "
+            "nearest to farthest and round again. It sells as many of your contracts there as the market pays more for, after "
+            f"the 2% exit fee, than {b.name}'s forecast says they are worth"
+            + (" and than they cost you (fees included), so it never sells at a loss" if c.profit_only else "")
+            + ". It keeps the rest, and it never buys.\n"
+            + (f"It will also sell what {', '.join(x.name for x in mine)} bought; their own records go stale.\n" if mine else "")
+            + f"Type LIVE to sell real positions through your API key {self.key_mask}. Press enter alone to try it on paper: "
+              "a copy of your portfolio, no orders sent.", placeholder="LIVE"))
+        if typed is None:
+            return
+        live = typed.strip() == "LIVE"
+        self.bot_live[b.id] = live
+        self.runners[b.id] = r = bots.ProfitTaker(
+            bot=b, api=self.api, batch_id="", feed=None, live=live, ledger=self.ledger, cfg=bots.BotConfig.load(),
+            on_trade=self._after_bot_trade, make_feed=self.feed)
+        r.start()
+        self.say(f"{b.name} is taking profit on your whole portfolio: " + ("LIVE, real sats." if live else "on paper."), 10)
 
     def _after_bot_trade(self) -> None:
         """A bot's fill moved the book: show it now rather than on the next 5 s reload."""

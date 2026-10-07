@@ -94,7 +94,7 @@ class Hub:
         self.glimpse: Callable[[], Any] = lambda: None
         self.views: Callable[[str], list] = lambda series: []
         self.series_views: dict[str, list] = {}         # the closes FCST and DIST last loaded, by series: GP's forecast reads BTC
-        self.swarms: dict[str, Any] = {}                # one pass of the model zoo per asset: CONS and BOT read it
+        self.swarms: dict[str, Any] = {}                # one pass of the model zoo per series (XAU, XAU 1D): CONS and BOT read it
         self._tracking: dict[str, int] = {"block": 0, "rbf": 0}     # how many panes want each heavy subscription
         self._tasks: list[asyncio.Task] = []
         self._stopping = False
@@ -196,12 +196,12 @@ class Hub:
         want = [t.upper() for t in self.cfg.get("tape", []) if t.upper() != "MEMP"]
         return list(dict.fromkeys(["BTC", *want, *sorted(self.watch)]))
 
-    def swarm(self, asset: str):
-        """What every bot on this machine makes of one asset. Built on first use: the zoo imports numpy and pandas."""
-        if asset not in self.swarms:
+    def swarm(self, series: str):
+        """What every bot on this machine makes of one series. Built on first use: the zoo imports numpy and pandas."""
+        if series not in self.swarms:
             from .swarm import Swarm
-            self.swarms[asset] = Swarm(self)
-        return self.swarms[asset]
+            self.swarms[series] = Swarm(self)
+        return self.swarms[series]
 
     def forecast_for(self, series: str) -> list[tuple[float, float, float, float]]:
         """The market's median and 80% band for each close of any series the terminal has loaded, nearest first."""

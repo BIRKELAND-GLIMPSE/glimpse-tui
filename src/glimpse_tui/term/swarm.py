@@ -24,15 +24,24 @@ STANCE = {"bullish": BULL, "bearish": BEAR, "neutral": FLAT, "sideways": FLAT, "
 def catalog():
     """Every forecasting bot this machine can run. The tests narrow it to a handful, so a pass stays quick. Bots
     trading on an opportunistic policy are left out: their stance is where they buy, not what they forecast, and
-    the zoo's pooled pictures would count their members twice."""
+    the zoo's pooled pictures would count their members twice. So is the Profit Taker, a pooled picture that only sells."""
     from .. import bots as B
-    return [b for b in B.discover() if b.policy is None]
+    return [b for b in B.discover() if b.policy is None and not b.sells_only]
 
 
 def make_feed(asset: str):
     """The hourly candles every model reads. Replaced in the tests, which never reach a network."""
     from ..zoo.data import Feed
     return Feed(asset)
+
+
+def series_shown(views: list, bots_: list) -> tuple:
+    """The series as the site shows it, for the bots that read every close (the smoothing bots); () when none does."""
+    if not any(getattr(b, "reads_series", False) for b in bots_):
+        return ()
+    from .. import bots as B
+    now = time.time()
+    return B.shown_series((v.row.end_time_utc, v.bins, v.row.shares) for v in views if v.row.end_time_utc > now)
 
 
 def quantile(probs: list[float] | tuple[float, ...], bins, q: float) -> float:
@@ -156,8 +165,9 @@ class Swarm:
                 return
             self.error = ""
             done: list[Picture] = []
+            series = await asyncio.to_thread(series_shown, views, self.bots)
             for label, view in chosen:
-                pic = await self._one(label, view, feed)
+                pic = await self._one(label, view, feed, series)
                 if pic is None:
                     return                      # the pass was abandoned: keep what the page already has
                 done.append(pic)
@@ -171,7 +181,7 @@ class Swarm:
             self.busy = False
             notify()
 
-    async def _one(self, label: str, view, feed) -> Picture | None:
+    async def _one(self, label: str, view, feed, series=()) -> Picture | None:
         from .. import pricing as P
         from ..app import book_of, scan_one
 
@@ -183,7 +193,7 @@ class Swarm:
         for bot in self.bots:
             if self.hub.stopping:
                 return None
-            scans[bot.id] = await asyncio.to_thread(scan_one, bot, book, ctx, market)
+            scans[bot.id] = await asyncio.to_thread(scan_one, bot, book, ctx, market, series)
         pic.scans = scans
         summarise(pic)
         return pic

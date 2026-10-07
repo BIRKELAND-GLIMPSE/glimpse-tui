@@ -76,7 +76,9 @@ class Model:
     pipeline: str = ""           # key into PIPELINES: the shared machinery this picture goes through
     policy: Policy | None = None  # an opportunistic trading rule (glimpse_tui.policy); None trades fractional Kelly
     reads_market: bool = False   # the picture blends in the market's own odds (ctx.market), as Benter's did
+    reads_series: bool = False   # the picture reads every close of the series as the site shows it (ctx.series)
     trading: dict | None = None  # BotConfig fields this bot trades with, whatever bots.toml says (e.g. its own Kelly)
+    sells_only: bool = False     # it never buys: it takes profit on the account's whole portfolio (bots.ProfitTaker)
 
 
 SCALE_NOTE = (
@@ -157,16 +159,53 @@ PIPELINES = {
         "The model writes its probabilities straight onto the market's price ranges from the data, with no density "
         "on the standardised grid in between."
     ),
+    "surface": (
+        "The bot reads the series as the site draws it: every open close's curve (the LS-LMSR softmax of its shares), "
+        "the 12 closes on either side of the one being priced. Each curve is smoothed by a Gaussian of σ = 1.5 ranges, "
+        "so one ticket's spike does not count as an opinion, has the subsidy floor taken off (the 25th-percentile mass "
+        "subtracted, as the site draws it, so an untraded corner is not an opinion about the tails), and is carried to "
+        "the focused close's horizon: the volatility "
+        "clock gives the baseline σ of the log move to every close, a random walk has the same picture in units of that "
+        "σ at every horizon, so a neighbour's curve is read in z = (ln P − ln spot)/σ_neighbour and written back at "
+        "z = (ln P − ln spot)/σ_focused, the same shape over a wider or narrower span of prices. Each close weighs "
+        "ω = formed × kernel: formed = (ln n − H(curve)) / (ln n − H(f)), measured with the floor still on, is how much of "
+        "the structure the fundamental f expects its traders have formed (0 for a flat ladder, 1 once the curve is as "
+        "sharp as f, capped there), and "
+        "kernel = exp(−|ln(h_close / h_focused)| / 0.6) fades a neighbour with its distance in log-horizon. The surface's "
+        "own picture of the focused close is the log-linear pool Σ ω_j ln π̃_j / Σ ω_j of the carried curves, and its "
+        "evidence w = 1 − exp(−Σ ω_j) is how many formed closes' worth it has seen. The fundamental f is the zoo's "
+        "consensus of how far the price moves (seven volatility and jump models, equal weight), the same as Benter's. "
+        "A series the bot cannot see (no neighbours, no market) leaves f alone."
+    ),
 }
 
 TRADING_NOTE = (
-    "The runner compares the picture with the market's price per range (a contract on a range costs its price and "
-    "pays 98 sats net of the settlement fee if the close lands there). It buys a range when p_bot × 98 exceeds the "
-    "price × 1.02 by at least 10% (the edge net of both fees), sizes the stake by a quarter-Kelly fraction of the "
-    "budget, and never buys past the price at which the picture's edge is gone; an order whose expected value the "
-    "commission (at least 1 sat) would eat is not sent. It sells a range it holds while the market pays 5% more for the "
-    "next contract, after the exit fee, than the picture says it is worth, and only that many contracts: an overpaid "
-    "range is trimmed back to fair value. A picture that agrees with the market buys nothing."
+    "The runner visits the series one close at a time, every 5 seconds, nearest to farthest and then round again, and "
+    "gives each close an even share of the budget, so one round reaches every close. On each visit it reads that "
+    "close's odds afresh and draws this model's picture of it. A contract on a range costs its price plus 2% and pays "
+    "98 sats net if the close lands there, so with the picture's chance p it is worth p × 98. The runner buys the "
+    "ranges the site shows below the picture, toward the point where the site shows the picture, but never a contract "
+    "that costs more than it is worth; an order whose expected value the commission (at least 1 sat) would eat is not "
+    "sent. It takes profit too: a range it holds is sold down, part of it if that is all the market overpays for, "
+    "while the market pays, after the 2% exit fee, 2% more than the contract is worth and more than it cost "
+    "(profit_only = false in bots.toml also trims overpriced losers). With objective = \"edge\" in bots.toml it buys "
+    "only ranges at least 4% under value instead, sized by half-Kelly. A picture that agrees with the market trades "
+    "nothing."
+)
+
+
+TAKE_PROFIT_NOTE = (
+    "It never buys. It reads every position your account holds, in every series and whoever opened it, and visits only "
+    "the closes you hold something in, one a second, nearest to farthest and then round again. Live, it reads your "
+    "positions again every minute, so one you open while it runs joins the round. On each visit it reads that "
+    "close's odds afresh and draws this picture of it. A contract you hold is worth p × 98 sats to keep (it pays 100 if "
+    "the close lands in its range, less the 2% settlement fee) and fetches its price less the 2% exit fee if sold. When "
+    "other traders bid a range up, it sells contracts while the next one fetches, after the fee, more than the picture "
+    "says it is worth (by 2%) and more than it cost you (the server's average cost per contract, the 2% buy commission "
+    "included). Selling walks the price back down, so it stops at the contract where either stops being true and keeps "
+    "the rest: often only part of a position is sold. It never sells at a loss, and never a contract the picture says "
+    "is worth more than the market pays for it. profit_only = false in bots.toml lets it also sell an overpriced "
+    "position held at a loss."
 )
 
 
@@ -182,7 +221,7 @@ def explain(m: Model) -> list[tuple[str, str]]:
     if m.pipeline in PIPELINES:
         out.append(("machinery", PIPELINES[m.pipeline]))
     out.append(("scale", SCALE_NOTE))
-    out.append(("runner", m.policy.note() if m.policy else TRADING_NOTE))
+    out.append(("runner", m.policy.note() if m.policy else TAKE_PROFIT_NOTE if m.sells_only else TRADING_NOTE))
     if m.reference:
         out.append(("reference", m.reference))
     return out
@@ -224,6 +263,16 @@ class Scale:
         return self.profile[hours] ** 2 * self.s2_next * np.diff(bounds) / 3600.0
 
 
+@dataclass(frozen=True)
+class Shown:
+    """One close of a series as the site draws it: when it closes, its price edges, and the distribution the ladder
+    shows (policy.shown: the LS-LMSR softmax of its shares). What a model with `reads_series` is handed, one per open
+    close, nearest first."""
+    end: float
+    edges: np.ndarray
+    probs: np.ndarray
+
+
 @dataclass
 class Ctx:
     """Everything a model may look at. `bars` holds complete hourly bars only, oldest first, indexed by the bar's
@@ -238,6 +287,8 @@ class Ctx:
     cache: dict = field(default_factory=dict)      # per-bars scratch space shared between models (signals, fits)
     market: np.ndarray | None = None               # what the site shows for this close (policy.shown); set only for a
                                                    # model with reads_market, since the rest are pictures of Bitcoin alone
+    series: tuple[Shown, ...] = ()                 # every open close of the series as the site shows it, nearest first;
+                                                   # set only for a model with reads_series
 
     def __post_init__(self) -> None:
         if len(self.bars) < MIN_BARS:

@@ -5,9 +5,9 @@ settlement fee if the close lands there. A bot whose picture gives the range pro
 
     EV = p · 98 − x · 1.02    per contract,
 
-so it buys only where EV > 0 by a margin, never past the price at which EV is gone, and sells a contract it holds
-only while the market pays more for it (after the 2% exit fee) than p · 98. Across many small independent bets with
-EV > 0 the law of large numbers does the rest: the average return converges on the average edge.
+so it buys only where EV > 0 by a margin, never past the price at which EV is gone, and takes profit on a contract it
+holds while the market pays more for it (after the 2% exit fee) than p · 98 and than it cost. Across many small
+independent bets with EV > 0 the law of large numbers does the rest: the average return converges on the average edge.
 
 Two rules share that arithmetic:
 
@@ -17,8 +17,9 @@ Two rules share that arithmetic:
   are worth several times their price, only in the region of the ladder the bot is about, with a small fixed stake
   per range spread across many ranges. Risk small, win big, many times.
 
-Both sell partially: a position is sold down only until the next contract would fetch less than the picture says it
-is worth, so an overpaid range is trimmed back to fair value instead of dumped whole.
+Every bot sells the same way, whichever rule it buys by (`sell_down`): partially, a position sold down only until the
+next contract would fetch less than the picture says it is worth or than it cost, so an overpaid range is trimmed back
+instead of dumped whole, and a profit is taken without giving up what the picture still values.
 """
 from __future__ import annotations
 
@@ -48,15 +49,16 @@ class Policy:
     stake: float = 0.01             # target cost per range, as a share of the budget
     market_cap: float = 0.10        # most of the budget held in one close
     max_ranges: int = 40            # most ranges bought in one close per cycle
-    hold: bool = False              # True: buy and hold to settlement; False: also sell down to fair value
+    hold: bool = False              # True: buy and hold to settlement, never taking profit; False: sell what the market overpays
     stance: str = ""                # what the bots list calls it: bullish, bearish, sideways, volatile, neutral
 
     def note(self) -> str:
         """The about screen's RUNNER section for a bot trading on this policy."""
         pays = NET / (self.max_price * (1 + P.FEE))
         sell = ("It never sells: every ticket is held to the close, win or lose." if self.hold else
-                "It sells a range it holds only while the market pays more for the next contract, after the 2% exit fee, "
-                "than p · 98, and only that many contracts: an overpriced range is trimmed back to fair value, not dumped.")
+                "It takes profit: it sells a range it holds while the market pays more for the next contract, after the 2% "
+                "exit fee, than p · 98 and than the contract cost, and only that many contracts: an overpriced range is "
+                "trimmed back, not dumped, and the rest is held to the close.")
         return (
             "An opportunistic rule, not Kelly. A contract costs its price x plus 2% and pays 98 sats net if the close lands in "
             f"its range, so with the picture's probability p its expected value is p · 98 − 1.02 · x. It considers only ranges "
@@ -227,18 +229,23 @@ def decide(book, probs, policy: Policy, bankroll: float, budget: float, held: di
     return legs if worth_sending(legs, probs) else []
 
 
-def sell_down(book, probs, held: dict[int, tuple[float, float]], exit_edge: float) -> list[tuple[int, float, float]]:
+def sell_down(book, probs, held: dict[int, tuple[float, float]], exit_edge: float, profit_only: bool = False
+              ) -> list[tuple[int, float, float]]:
     """(range index, contracts, proceeds) to sell: for each position, as many contracts as the market pays more for,
     after the exit fee, than (1 + exit_edge) · p · 98 each. Selling pushes the price down, so it stops where the next
-    contract would fetch no more than the picture says it is worth: an overpaid range is trimmed, not dumped."""
+    contract would fetch no more than the picture says it is worth: an overpaid range is trimmed, not dumped.
+    `profit_only` also keeps every contract the market would not pay more for than it cost (the position's cost over
+    its contracts): an overpriced position is sold only at a gain, never at a loss."""
     out = []
     index = {o: i for i, o in enumerate(book.option_ids)}
     quote = Quote(book.shares, book.alpha) if held else None
-    for option_id, (contracts, _) in held.items():
+    for option_id, (contracts, cost) in held.items():
         i = index.get(option_id)
         if i is None or contracts <= 0:
             continue
         floor = probs[i] * NET * (1 + exit_edge)                 # the least a contract must fetch, net of the exit fee
+        if profit_only:
+            floor = max(floor, cost / contracts)
         most = min(contracts, book.shares[i])
 
         def fetches(x: float, i: int = i) -> float:             # net sats for the next contract after selling x
@@ -259,7 +266,7 @@ def sell_down(book, probs, held: dict[int, tuple[float, float]], exit_edge: floa
         if x <= 0:
             continue
         proceeds = P.sell_proceeds(book.shares, book.alpha, i, x)
-        if proceeds >= 1 and proceeds > probs[i] * NET * x:
+        if proceeds >= 1 and proceeds > probs[i] * NET * x and (not profit_only or proceeds > cost * x / contracts):
             out.append((i, x, proceeds))
     return out
 
@@ -359,33 +366,16 @@ def match(book, probs, budget: float, tol: float = 0.002) -> tuple[list[Leg], fl
     return legs, gap_of(q0 + np.maximum(d, 0))
 
 
-def match_sells(book, probs, held: dict[int, tuple[float, float]], slack: float = 0.25, floor: float = 0.002
-                ) -> list[tuple[int, float, float]]:
-    """(bin index, contracts, proceeds): a held range the site shows well above the picture (by `slack` of its chance
-    and `floor` in absolute terms) is sold back down to the picture, or as far as the bot's holding goes. The matching
-    counterpart of `sell_down`: it never undoes the buys that put the forecast on the board."""
-    import numpy as np
-
-    q = np.asarray(book.shares, dtype=float)
-    p = np.asarray(probs, dtype=float)
-    p = p / p.sum()
-    da = P.display_alpha(len(q))
-    s = shown(q, da)
-    at = {o: i for i, o in enumerate(book.option_ids)}
-    out = []
-    for o, (n, _) in held.items():
-        i = at.get(o)
-        if i is None or n < 0.01 or s[i] <= p[i] * (1 + slack) + floor:
+def valued(book, probs, legs: list[Leg]) -> list[Leg]:
+    """`legs` with every contract the picture says is worth less than it costs taken off: each range is bought only
+    while its next contract's price, plus the fee, is under p · 98. Repriced in order, as the server prices them."""
+    quote, out = Quote(book.shares, book.alpha), []
+    for x in legs:
+        d, c = fill_to(quote, book.alpha, x.index, probs[x.index] * NET / (1 + P.FEE), x.cost_sats * 1.001 + 0.01)
+        d = min(d, x.contracts)
+        if d < 0.01:
             continue
-        lo, hi = 0.0, min(n, float(q[i]) - 0.01)
-        for _ in range(30):
-            mid = (lo + hi) / 2
-            q2 = q.copy()
-            q2[i] -= mid
-            lo, hi = (mid, hi) if shown(q2, da)[i] > p[i] else (lo, mid)
-        d = math.floor(lo * 100) / 100
-        if d >= 0.01:
-            q2 = q.copy()
-            q2[i] -= d
-            out.append((i, d, (_cost(q, book.alpha) - _cost(q2, book.alpha)) * (1 - P.FEE)))
+        before = quote.base
+        quote.add(x.index, d)
+        out.append(Leg(x.index, d, (quote.base - before) * (1 + P.FEE)))
     return out

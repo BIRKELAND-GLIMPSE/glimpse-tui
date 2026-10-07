@@ -54,7 +54,7 @@ class FakeApi:
     async def batches(self):
         return [Batch("b-h", "Hourly Bitcoin Prediction Markets", 3, 1000)]
 
-    async def markets(self, batch_id, limit=96):
+    async def markets(self, batch_id, limit=96, on_rows=None):
         return [MarketRow(100 + i, "Hourly Bitcoin Prediction Markets - x", e, "live", 0, 0, tuple(self.shares), tuple(FIX["names"]),
                           tuple(range(1, 501))) for i, e in enumerate(self.ends)]
 
@@ -86,11 +86,20 @@ class FakeApi:
     async def buy_many(self, groups):
         return [await self.buy_legs(t, legs) for t, legs in groups]
 
+    def shares_of(self, topic_id: int) -> list[float]:
+        return self.shares
+
     async def sell_many(self, groups):
+        """As the server sells: each leg priced off the book in turn and taken out of it, proceeds net of the exit fee."""
+        out = []
         for t, legs in groups:
+            got = 0.0
             for o, c in legs:
                 await self.sell(t, o, c)
-        return [Fill(t, "t", 0.0, 0.0) for t, _ in groups]
+                got += P.sell_proceeds(self.shares_of(t), P.alpha_for(500), o - 1, c)
+                self.shares_of(t)[o - 1] -= c
+            out.append(Fill(t, "t", got, got * P.FEE / (1 - P.FEE)))
+        return out
 
     async def wallet(self): ...
     async def positions(self): return []
@@ -195,21 +204,150 @@ async def test_a_trader_sells_only_the_overpaid_part_of_a_position(tmp_path):
     assert r.ledger.legs("cheap", "live", 100)[o][0] == pytest.approx(held[o][0] - sold[0][2], abs=0.01)
 
 
-async def test_one_cycle_sweeps_every_close_of_the_series_in_one_order(tmp_path):
-    class Week(FakeApi):
-        closes = 30
-    api = Week("k")
-    calls = []
-    real = api.buy_many
-    async def spy(groups):
-        calls.append(groups)
-        return await real(groups)
-    api.buy_many = spy
-    r = runner(api, tmp_path, bot(90), live=True, kelly=1.0, bankroll_sats=1e6, max_markets_per_order=12)
+async def test_a_matching_bot_takes_profit_on_the_part_of_a_position_the_market_overpays(tmp_path):
+    api = FakeApi("k")
+    b = spread_bot(None)
+    r = runner(api, tmp_path, b, live=True, objective="match", bankroll_sats=20_000, max_per_cycle_sats=20_000)
     await r.cycle()
-    assert r.scanned == 30                                                    # every close, not the nearest two
-    assert len(calls) == 1 and len(calls[0]) == 12                            # one request, the cap's worth of closes
-    assert len(r.ledger.topics("sure", "live")) == 12 and r.trades == 12
+    held = r.ledger.legs("cheap", "live", 100)
+    assert held and api.sold == []                                                         # nothing overpaid yet
+    o = max(held, key=lambda k: held[k][0])
+    probs = b.forecast(await api.book(100), [], 2.0)
+    for _ in range(5_000):                                                                 # other traders bid it up
+        api.shares[o - 1] += 1
+        got = PL.sell_down(await api.book(100), probs, {o: held[o]}, r.cfg.exit_edge, profit_only=True)
+        if got and got[0][1] >= 2:
+            break
+    assert got and got[0][1] < held[o][0]
+    await r.cycle()
+    sold = [x for x in api.sold if x[1] == o]
+    assert sold and 0 < sold[0][2] < held[o][0]                                            # part of it, the rest held
+    assert r.gain_sats > 0 and r.sold_sats > 0                                             # at a profit over what it cost
+    assert any("SELL" in line and "on cost" in line and "+" in line.split("on cost")[0][-12:] for line in r.log)
+
+
+async def test_a_bot_never_sells_at_a_loss_unless_profit_only_is_off(tmp_path):
+    for profit_only in (True, False):
+        api = FakeApi("k")
+        r = runner(api, tmp_path / str(profit_only), bot(90), live=True, bankroll_sats=60, kelly=1.0, max_per_cycle_sats=60,
+                   max_per_hour_sats=60, profit_only=profit_only)
+        await r.cycle()
+        (n, cost), = r.ledger.legs("sure", "live", 100).values()
+        r.bot = bot(10)                         # the picture turns: bin 90 is worth nothing to it now
+        while (await api.book(100)).prices[90] * (1 - P.FEE) >= cost / n:
+            api.shares[9] += 5                  # and the crowd piles into bin 10 until bin 90 fetches less than it cost
+        assert (await api.book(100)).prices[90] > 1                                        # but still far more than it is worth
+        await r.cycle()
+        assert bool(api.sold) is not profit_only
+        assert (91 in r.ledger.legs("sure", "live", 100)) is profit_only
+
+
+class Week(FakeApi):
+    """Five hourly closes, each with its own book, as the real ones have: a buy on one close moves only that one."""
+    closes = 5
+
+    def __init__(self, key=None, base_url=None):
+        super().__init__(key, base_url)
+        self.books: dict[int, list[float]] = {}
+
+    def shares_of(self, topic_id: int) -> list[float]:
+        return self.books.setdefault(topic_id, list(FIX["shares"]))
+
+    async def book(self, topic_id):
+        b = Book(topic_id, "m", self.ends[topic_id - 100], "live", 0, list(range(1, 501)), BINS, list(self.shares_of(topic_id)),
+                 P.alpha_for(500))
+        b.reprice()
+        return b
+
+    async def estimate_legs(self, topic_id, legs):
+        q, q2 = self.shares_of(topic_id), list(self.shares_of(topic_id))
+        for o, c in legs:
+            q2[o - 1] += c
+        raw = P.cost(q2, P.alpha_for(500)) - P.cost(q, P.alpha_for(500))
+        return raw, raw * 0.02
+
+    async def buy_legs(self, topic_id, legs):
+        raw, fee = await self.estimate_legs(topic_id, legs)
+        self.bought.append(legs)
+        for o, c in legs:
+            self.shares_of(topic_id)[o - 1] += c
+        return Fill(topic_id, "t", raw, max(fee, 1.0))
+
+
+def reads(api) -> list[int]:
+    """Spy on the books a runner reads: one per visit, so the order it walks the series in."""
+    seen, real = [], api.book
+
+    async def book(topic_id):
+        seen.append(topic_id)
+        return await real(topic_id)
+    api.book = book
+    return seen
+
+
+async def test_a_visit_is_one_close_nearest_to_farthest_then_round_again(tmp_path):
+    api = Week("k")
+    seen = reads(api)
+    r = runner(api, tmp_path, bot(90), live=True, kelly=1.0, bankroll_sats=1e6)
+    for _ in range(5):
+        await r.cycle()
+    assert seen == [100, 101, 102, 103, 104]                                 # one close a visit, in close order
+    assert len(api.bought) == 5 and len(r.ledger.topics("sure", "live")) == 5   # each its own order
+    assert (r.step, r.of, r.rounds) == (5, 5, 0)
+    assert all(x.split("  ", 2)[1].startswith(f"{i + 1}/5") for i, x in enumerate(y for y in r.log if "BUY" in y))
+    await r.cycle()
+    assert seen[-1] == 100 and r.rounds == 1 and (r.step, r.of) == (1, 5)    # past the farthest: round again
+    assert any(x.split("  ", 1)[1].startswith("round 1 done") and "bought on 5" in x for x in r.log)
+
+
+async def test_each_close_gets_an_even_share_so_one_round_reaches_every_close(tmp_path):
+    api = Week("k")
+    api.ends = api.ends + [api.ends[-1] + 3600 * i for i in range(1, 6)]       # ten closes
+    b = bell(78_000)
+    r = runner(api, tmp_path, b, live=True, objective="match", bankroll_sats=5_000, max_per_cycle_sats=5_000)
+    for _ in range(10):
+        await r.cycle()
+    held = {t: r.ledger.open_cost("bell", "live", t) for t in range(100, 110)}
+    assert all(0 < c <= 500 + 1e-6 for c in held.values())                  # every close, none over 5,000 / 10
+    assert sum(held.values()) > 4_000                                        # and the share is spent, not hoarded
+    for _ in range(10):
+        await r.cycle()
+    assert r.open_cost <= 5_000 + 1e-6 and r.rounds == 1                    # a second round holds, it does not pile on
+    assert all("of its ₿500 share" in x for x in list(r.log)[-10:])          # and says so, close by close
+    assert any("round 1 done in 0m 0" in x and "bought on 10" in x for x in r.log)
+
+
+async def test_every_visit_says_what_it_did(tmp_path):
+    api = FakeApi("k")
+    r = runner(api, tmp_path, bot(90), live=True, bankroll_sats=0.5)          # no budget
+    await r.cycle()
+    assert "budget fully deployed" in r.log[-1] and "1/1" in r.log[-1]
+    r = runner(api, tmp_path, bell(76_500, 400), live=True, objective="edge", bankroll_sats=10_000, min_edge=50.0)
+    await r.cycle()
+    assert "nothing 5000% under value: best edge" in r.log[-1]
+
+
+async def test_the_budget_is_the_series_own_a_bot_s_positions_elsewhere_do_not_spend_it(tmp_path):
+    api = FakeApi("k")
+    r = runner(api, tmp_path, bot(90), live=True, kelly=1.0, bankroll_sats=2_000, max_per_cycle_sats=2_000)
+    other = Book(999, "gold", int(time.time()) + 7200, "live", 0, list(range(1, 501)), BINS, list(FIX["shares"]), P.alpha_for(500))
+    r.ledger.add("sure", "live", other, "XAU", 90, 5_000, 50_000.0)             # the same bot, deep in another series
+    await r.cycle()
+    assert len(api.bought) == 1 and 0 < r.open_cost <= 2_000                   # this series' budget is untouched by it
+    assert r.ledger.open_cost("sure", "live") > 50_000                         # and the other series' position is kept
+
+
+def test_matching_never_buys_a_contract_its_picture_says_is_worth_less_than_it_costs():
+    book = Book(1, "m", 0, "live", 0, list(range(1, 501)), BINS, list(FIX["shares"]), P.alpha_for(500))
+    book.reprice()
+    probs = bell(77_000, 3_000).forecast(book, [], 2.0)
+    raw = PL.match(book, probs, 1e6)[0]
+    legs = PL.valued(book, probs, raw)
+    assert legs and sum(x.cost_sats for x in legs) < sum(x.cost_sats for x in raw)  # something was dearer than its worth
+    quote = PL.Quote(book.shares, book.alpha)
+    for x in legs:                                                           # the last contract of each still pays its way
+        quote.add(x.index, x.contracts)
+        assert quote.price_after(x.index, 0.0) * (1 + P.FEE) <= probs[x.index] * PL.NET * 1.0001 + 0.05
 
 
 async def test_the_portfolio_marks_every_position_to_the_market_and_to_the_picture(tmp_path):
@@ -244,10 +382,15 @@ async def test_matching_moves_what_the_site_shows_onto_the_forecast(tmp_path):
     await r.cycle()
     assert len(api.bought) == 1 and r.trades == 1
     after = PL.gap(await api.book(100), probs)
-    assert before > 0.3 and after < 0.05                                    # the site now draws the bot's bell
+    assert before > 0.7 and after < 0.35                                    # the site now draws much of the bot's bell
     assert any("shown gap" in x for x in r.log)
-    await r.cycle()
-    assert len(api.bought) == 1                                             # matched: nothing left to buy
+    gaps = [after]
+    for _ in range(4):                                                      # each visit closes more of what is left,
+        await r.cycle()
+        gaps.append(PL.gap(await api.book(100), probs))
+    assert gaps == sorted(gaps, reverse=True) and gaps[-1] < 0.2
+    _, cost, _, fair = botsview.valuation(r)
+    assert fair > cost                                                      # never by paying more than its bell says a range is worth
 
 
 def test_match_spends_no_more_than_its_budget_and_matches_the_server_price():
@@ -285,7 +428,8 @@ def test_every_zoo_model_is_a_bot_and_user_files_join_them(tmp_path, monkeypatch
     found = {b.id: b for b in bots.discover()}
     assert len(found) > 100 and found["flat"].blurb == "Every bin the same." and found["broken"].error
     assert {"ema_crossover", "dist_merton_jumps", "opt_iron_condor", "view_bull", "rsi_reversion"} <= set(found)
-    assert found["opp_longshot"].policy.hold and found["ema_crossover"].policy is None
+    assert found["opp_longshot"].policy and found["ema_crossover"].policy is None
+    assert not any(b.policy and b.policy.hold for b in found.values())     # every zoo bot takes profit when the market overpays
     (d / "cheap.py").write_text('"""Cheap."""\nPOLICY = {"max_price": 2, "region": "below"}\n' + flat.split("\n", 1)[1])
     mine = {b.id: b for b in bots.user_bots()}["cheap"]
     assert mine.policy == bots.Policy(max_price=2, region="below") and "opportunistic" in dict(botsview.sections(mine))["runner"]

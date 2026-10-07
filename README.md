@@ -47,7 +47,7 @@
 | ₿ **Priced in Bitcoin** | Any ticker has a satoshi form: `XAUBTC`, `SPXBTC`, `NVDABTC`. Press `$` to reprice a whole table. |
 | ⌨️ **Moves like spacemacs** | Vim keys, windows and buffers, `SPC` as the leader, and `:` to search everything. |
 | 🔓 **Free data, no account** | Every default source is public and keyless. Point it at your own node, or run every request through Tor. |
-| 🧪 **Tested offline** | 712 tests replay recorded responses, so no test touches the network. |
+| 🧪 **Tested offline** | 806 tests replay recorded responses, so no test touches the network. |
 
 ---
 
@@ -73,7 +73,7 @@ Each close, which Glimpse calls a *market*, is cut into **500 adjacent price ran
    84,200 – 84,400      10.7%    5.08×   ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇
 ```
 
-Series run back to back. `BTC` has a close every hour for the week ahead, and there are also `BTC 1D` (daily closes), `ETH`, `SOL` and `XAU` (gold, settled on PAXG).
+Series run back to back. `BTC` and `XAU` (gold, settled on PAXG) have a close every hour for the week ahead, and there are also `BTC 1D` and `XAU 1D` (daily closes), `ETH` and `SOL`.
 
 ### How prices are set
 
@@ -153,13 +153,13 @@ It runs anywhere Python does, including over SSH. If the colours look wrong, pre
 The odds are the front door. **Behind them, on `t`, is the terminal:** one long page, most important first. `j` and `k` walk down it window by window, `enter` opens a window full screen, and `esc` comes back.
 
 <p align="center">
-  <img src="docs/img/front-page.png" alt="The front page: a ticker strip of BTC, gold, S&P, NDX, DXY, the 10-year yield and oil; Bitcoin's last 24 hours beside the odds on its next hour; gold's last 45 days beside the odds on its next daily close" width="100%">
+  <img src="docs/img/front-page.png" alt="The front page: a ticker strip of BTC, gold, S&P, NDX, DXY, the 10-year yield and oil; Bitcoin's last 24 hours beside the odds on its next hour; gold's last 24 hours beside the odds on its next hour" width="100%">
 </p>
 
 In order down the page:
 
 1. **Bitcoin.** The last 24 hours and the next 24, beside the odds on the next hour.
-2. **Gold.** Its recent history and the odds on its next close.
+2. **Gold.** Its last 24 hours and the odds on its next hour.
 3. **The chain.** Hashrate and the difficulty adjustment.
 4. **The world.** The news, beside a world quote monitor.
 5. **The power law.** For Bitcoin, and for gold priced in Bitcoin.
@@ -214,7 +214,7 @@ Some commands to try:
 
 ```
 CONS BTC        what every bot expects            GP BTC 24H     Bitcoin's next 24 hours
-FCST XAU        gold's forecast as a heatmap      NEWS FED       the Fed's headlines, read in place
+FCST XAU        gold's next 48 hours as a heatmap NEWS FED       the Fed's headlines, read in place
 DIST BTC        the odds on the next close        QM STOCKS SATS a stock watchlist in satoshis
 RATES           the Treasury curve                HELP DIST      one function's help page
 ```
@@ -227,7 +227,7 @@ RATES           the Treasury curve                HELP DIST      one function's 
 
 ## 🤖 The bot zoo
 
-Glimpse is a market you can bring a model to. The terminal ships with **138 bots**: 130 forecasting models from the Glimpse Forecast Lab and 8 opportunistic bargain hunters built on them. They run **on your own computer**, from public hourly candles, and nothing about them leaves your machine.
+Glimpse is a market you can bring a model to. The terminal ships with **145 bots**: 130 forecasting models from the Glimpse Forecast Lab, 8 opportunistic bargain hunters built on them, the Bill Benter bot, 5 smoothing bots that trade the whole series as one surface, and the Profit Taker, which only sells. They run **on your own computer**, from public hourly candles, and nothing about them leaves your machine.
 
 <p align="center">
   <img src="docs/img/bots.png" alt="The bots screen: 138 bots grouped by family, each marked bullish, bearish, neutral or sideways with its expected price; on the right, one bot's forecast against the market's, with the ranges it would buy marked in green" width="100%">
@@ -249,13 +249,16 @@ Glimpse is a market you can bring a model to. The terminal ships with **138 bots
 | Baseline | 3 | Random Walk (bootstrap, Student-t, bell curve) |
 | Factor & carry | 2 | Low-Volatility Anomaly, Skewness Premium |
 | Opportunistic | 8 | Bargain Hunter (near spot, upside, downside), Discount Sweep, Signal Bargains, Longshot Collector, Crash Insurance, Moon Tickets |
+| Smoothing | 5 | Surface Pool, Dirichlet Blend, Kalman Surface, Particle Bridge, Band Match |
 
-**Opportunistic bots** hunt for bargains instead of backing a view. Each one pools the zoo's volatility and jump models into one carefully calibrated picture. It then buys only ranges the market sells cheap (a few sats or less), only where that picture says they are worth 1.25 to 2 times their price after both fees, and only in its own part of the ladder: near spot for sideways, above for bullish, below for bearish, far out in the tails for longshots. Every stake is a small fixed share of the budget spread over many ranges. That way a positive expected value, repeated over many closes, becomes a return. Some sell a range back down to fair value when the market overpays. The longshot and insurance bots hold every ticket to the close. Your own bot can trade the same way by setting `POLICY = {"max_price": 3, "region": "above"}` in its file.
+**Opportunistic bots** hunt for bargains instead of backing a view. Each one pools the zoo's volatility and jump models into one carefully calibrated picture. It then buys only ranges the market sells cheap (a few sats or less), only where that picture says they are worth 1.25 to 2 times their price after both fees, and only in its own part of the ladder: near spot for sideways, above for bullish, below for bearish, far out in the tails for longshots. Every stake is a small fixed share of the budget spread over many ranges. That way a positive expected value, repeated over many closes, becomes a return. Like every bot, they take profit: a ticket the market bids up past its worth and its cost is sold back, partly or wholly. The rest are held to the close, the longshot and insurance tickets included. Your own bot can trade the same way by setting `POLICY = {"max_price": 3, "region": "above"}` in its file.
 
 - **`CONS`** runs the whole zoo against the live market at three horizons (next hour, 24 hours, 72 hours). It counts bulls against bears and draws the one picture they make together beside the market's.
 - **`BOT`** takes the zoo one model at a time. `[` and `]` walk through it.
 - **`BOTS` (`B`)** is the full screen. `i` opens a model's account of itself: the idea, the data, the maths and how it trades.
-- **`enter` runs a bot.** It runs on paper by default. With an API key and the word `LIVE` it trades real sats, never above its budget, and checks the server's estimate before every order. Every cycle (a second or two) it reads every open close of the series and buys wherever the market's odds differ from its forecast, until the site shows its forecast, selling back ranges the market over-weights. `objective = "edge"` in `~/.config/glimpse/bots.toml` switches to buying only positive expected value. `P` shows the bot's whole portfolio.
+- **`enter` runs a bot.** It runs on paper by default. With an API key and the word `LIVE` it trades real sats, never above its budget, and checks the server's estimate before every order. It works through the series one close at a time, every 5 seconds, nearest to farthest and then round again. On each visit it reads that close's odds fresh and draws its forecast of that close. Then it trades both ways. It takes profit: while the market pays more for a range it holds than the forecast says it is worth and more than it cost, it sells, often only part of the position, and keeps the rest. Then it buys where the market's odds fall short of its forecast, never paying more for a contract than its forecast says it is worth, so every buy has positive expected value. What a sale frees of the budget it can spend again. Set `profit_only = false` in `bots.toml` to let it also trim overpriced positions held at a loss. Each close gets an even share of the budget (a 100,000 sat budget over 168 hourly closes is 595 sats a close), so one round reaches every close. The budget is per series: what the same bot holds in another series doesn't use it up. Every visit writes one line to the log under the bot: what it bought or sold, or why it did nothing. `objective = "edge"` in `~/.config/glimpse/bots.toml` switches to fractional Kelly on ranges at least 4% under value. `P` shows the bot's whole portfolio.
+- **`R` lets a bot manage your portfolio.** Pick any model, press `R`, and it rebalances every position your account holds in the series toward that model's forecast, including ones you opened yourself. It visits one close at a time like any running bot, and on each visit it sells what the market pays more for than the forecast says a position is worth, and buys what the market sells below its value. By default it sells only at a profit over what you paid, so it never locks in a loss because one model disagrees with you. Set `profit_only = false` in `bots.toml` to let it trim overpriced losers too. Its budget is the fresh sats it may add, and whatever it sells it can spend again. It needs your API key, even on paper: on paper it trades a copy of your portfolio and sends no orders. Only one bot at a time can manage a series.
+- **Profit Taker sells what the crowd overpays you for.** It sits at the end of the list, under Portfolio. Press `enter` on it. It reads every position your account holds, in every series, whoever opened it, and visits only the closes you hold, one a second. When other traders bid a range you own up past what the zoo's consensus says it is worth, it sells as many of your contracts as the market overpays for. It only sells at a profit over what you paid, after both 2% fees, and it keeps the rest. It never buys, so it has no budget. It needs your API key, even on paper; type `LIVE` to sell for real. A portfolio manager (`R`) would sell the same positions, so the terminal won't run both at once.
 
 A full pass over the zoo takes about a second per asset and reruns each time a new hourly bar closes. The whole engine stays under 200 MB of RAM.
 
@@ -263,6 +266,8 @@ A full pass over the zoo takes about a second per asset and reruns each time a n
 glimpse-tui bots [search]                                  # list them
 glimpse-tui about ema_crossover                            # idea, data, maths, trades
 glimpse-tui run ema_crossover --series BTC --budget 20000  # a paper run in this shell; --live for real sats
+glimpse-tui run ema_crossover --manage --budget 20000      # let it manage your BTC portfolio (needs your API key)
+glimpse-tui run take_profit                                # take profit on your whole portfolio, on paper; --live to sell
 ```
 
 > [!TIP]
@@ -272,7 +277,7 @@ glimpse-tui run ema_crossover --series BTC --budget 20000  # a paper run in this
 
 `benter` trades the way Bill Benter's syndicate beat the Hong Kong tote. It does not try to out-guess the market from scratch. It takes the curve the market's traders are already forming, smooths out single-trade spikes, and pools that curve with the zoo's calibrated consensus in a conditional logit. The more of a shape traders have given a close, the more the bot trusts it.
 
-It buys only ranges that picture says are selling at a discount: at least 10% under value after both fees, and never past a 5% discount. It stakes a 0.15 fraction of Kelly, holds at most 1.5% of its budget in any one close, and sells a range back when the market pays more than it is worth. Each bet is small. The return is meant to come from the long run.
+It buys only ranges that picture says are selling at a discount: at least 10% under value after both fees, and never past a 5% discount. It stakes a 0.15 fraction of Kelly, holds at most 1.5% of its budget in any one close, and takes profit, selling a range back when the market pays more than it is worth and more than it cost. Each bet is small. The return is meant to come from the long run.
 
 It also learns. Every close it looks at is journalled to `~/.config/glimpse/benter/journal.jsonl`. Once 150 closes have settled, it refits once an hour, by maximum likelihood, how much to trust the crowd against its model, as Benter refitted on each season's races.
 
@@ -302,6 +307,29 @@ To keep it running across logouts and restarts on macOS, save this as `~/Library
 
 `which glimpse-tui` gives the path. The API key comes from your keychain, so log in once from the terminal (`L`) first.
 
+### The smoothing bots
+
+The forecast page draws a series as a surface: one distribution per close, side by side by horizon. Every ticket moves one range of one close, so the surface is jagged where the last tickets landed, and a close can sit out of line with the ones either side of it. But the closes are not independent bets: the price that settles the 3 pm close is the price that settles the 4 pm close, give or take an hour's move, and a random walk has the same picture in units of its own spread at every horizon. A close whose curve disagrees with its neighbours' is carrying a trade, not an opinion, and the ranges that trade left cheap are worth more than they cost.
+
+The five **Smoothing** bots read the whole series the site shows, the 12 closes either side of the one they are pricing. Each neighbour's curve is smoothed, has the subsidy floor taken off, and is carried to the focused close's horizon (the same shape in standardised units over a wider or narrower span of prices), then weighed by how much of a curve its traders have formed and how near it is in horizon. They combine the neighbours with the zoo's consensus of how far the price moves, Benter's fundamental, each by a different method:
+
+| Bot | Method |
+|---|---|
+| `smooth_pool` Surface Pool | The Bayesian log-linear pool of the carried curves and the consensus, weighted by evidence |
+| `smooth_dirichlet` Dirichlet Blend | The conjugate update: each close's curve as pseudo-counts on a Dirichlet prior at the consensus |
+| `smooth_kalman` Kalman Surface | A Markov state-space model of each close's centre and width along the horizon, filtered forward and smoothed back |
+| `smooth_particles` Particle Bridge | Monte Carlo: paths of the price weighted by the probability every close gives the range they pass through |
+| `smooth_band` Band Match | The consensus shape moved and stretched so its 80% band is the surface's |
+
+Their shared premise is that the market's bands are calibrated: a close's 10–90% band is right about four times in five. So where the surface has formed, each picture keeps 80% of its mass inside the band the surface shows, and smoothing decides the shape inside and outside the band rather than its width. Where the focused close prices a range under that picture, a dip the last tickets left, the bot buys it: fractional Kelly at 0.2 against the budget you set, only ranges at least 6% under value after both fees, never past a 3% discount, at most 2% of the budget in one close. It takes profit the way every bot does, selling a range back when the market pays 6% more than the picture says it is worth and more than it cost. Each buy is made under value, and the surface it leaves behind is a little smoother. One close every 3 seconds, nearest to farthest, then round again.
+
+```sh
+glimpse-tui about smooth_pool                                 # the idea, the data, the maths, what it trades
+glimpse-tui run smooth_pool --series BTC --budget 200000      # on paper; --live for real sats, --series all for every series
+```
+
+On the bots screen the smoothing bots are scanned against the series the screen has loaded, so their row reads the surface too. A one-off bet from a snapshot has no neighbours to read and draws the consensus alone.
+
 ### Write your own bot
 
 A bot is one function in `~/.config/glimpse/bots/<name>.py`. It appears in the terminal under **Mine**.
@@ -321,7 +349,7 @@ def forecast(book, closes, hours):
     return [x / s for x in w]
 ```
 
-The runner owns every safety rule, so your function only has to describe the future. Each cycle, the runner buys ranges your picture says are underpriced, sells what it bought once the market pays more than your picture says a range is worth, never touches a position it didn't open, and stops at its budget. Defaults live in `~/.config/glimpse/bots.toml`.
+The runner owns every safety rule, so your function only has to describe the future. On each visit to a close, the runner buys ranges your picture says are underpriced, takes profit on what it bought once the market pays more than your picture says a range is worth and more than it cost, never touches a position it didn't open, and stops at its budget. Run it with `R` (or `--manage`) and it manages your whole portfolio instead. Defaults live in `~/.config/glimpse/bots.toml`.
 
 > [!WARNING]
 > A bot file is Python that runs with your permissions. Only install bots you have read.
@@ -455,7 +483,7 @@ src/glimpse_tui/
 ├── funcs/          function pages, one module per family (funcs/btc.py is the worked example)
 ├── term/           the terminal shell: windows, buffers, the command line, the hub, the swarm
 ├── launchpads/     shipped layouts as TOML (btc, bots, macro, trader, treasury, chain, miner)
-└── zoo/            130 Forecast Lab models across 13 families, plus 8 opportunistic bots
+└── zoo/            130 Forecast Lab models across 13 families, plus 8 opportunistic bots, Benter, 5 smoothing bots and the Profit Taker
 ```
 
 ---
@@ -466,7 +494,7 @@ src/glimpse_tui/
 
 ```sh
 uv sync
-uv run pytest       # 712 tests, fully offline: every source is replayed from tests/fixtures/sources/
+uv run pytest       # 806 tests, fully offline: every source is replayed from tests/fixtures/sources/
 uv run ruff check .
 ```
 

@@ -7,7 +7,7 @@ from rich.cells import cell_len
 
 from glimpse_tui.data import btcmath, feeds, quotes
 from glimpse_tui.data.mempool import ProjectedTx
-from glimpse_tui.funcs import btc, gp
+from glimpse_tui.funcs import btc, forecast, gp
 from glimpse_tui.term import gobar
 from glimpse_tui.term.hub import Hub
 
@@ -171,7 +171,7 @@ class Close:
 async def test_gp_gold_charts_the_token_the_market_settles_on_and_runs_a_month_ahead(no_network):
     hub = Hub()
     now = time.time()
-    hub.series_views["XAU"] = [Close(now + 86400 * (i + 1), 4_400 + 5 * i, 4_300 - 6 * i, 4_500 + 6 * i) for i in range(35)]
+    hub.series_views["XAU 1D"] = [Close(now + 86400 * (i + 1), 4_400 + 5 * i, 4_300 - 6 * i, 4_500 + 6 * i) for i in range(35)]
     pane = gp.GpPane.from_command(hub, gobar.Command("GP", (hub.book.get("XAU"),), ("1D",)))
     await pane.reload()
     assert pane.lines[0].ins.ticker == "PAXG"                   # gold is forecast, and settles, on the token
@@ -180,6 +180,30 @@ async def test_gp_gold_charts_the_token_the_market_settles_on_and_runs_a_month_a
     assert "NOW" in out and "░" in out and "In 31 days" in out and "likely (80%)" in out
     assert pane._fc() and pane._fc()[-1][0] <= now + 31 * 86400                 # the window, not every close loaded
     assert len(pane.lines[0].xs) > 40 and out.count("┄") > 0                    # more history than the window: it is clipped
+
+
+async def test_gp_gold_on_an_hourly_window_runs_into_hourly_gold(no_network):
+    hub = Hub()
+    now = time.time()
+    hub.series_views["XAU"] = [Close(now + 3600 * (i + 1), 4_400 + i, 4_380 - i, 4_420 + i) for i in range(48)]
+    hub.series_views["XAU 1D"] = [Close(now + 86400 * (i + 1), 9_000, 8_000, 10_000) for i in range(35)]
+    pane = gp.GpPane.from_command(hub, gobar.Command("GP", (hub.book.get("XAU"),), ("24H",)))
+    await pane.reload()
+    assert pane.view == "24H" and pane.lines[0].ins.ticker == "PAXG"     # PAXG has hourly candles; COMEX gold has none
+    assert pane.series == "XAU" and pane.command() == "GP XAU 24H"
+    assert pane._fc() and all(f[1] < 5_000 for f in pane._fc())          # the hourly closes, not the daily ones
+    assert pane._fc()[-1][0] <= now + 24 * 3600
+    pane.key("]", "]")
+    pane.key("]", "]")
+    assert pane.view == "1D" and pane.series == "XAU 1D"
+
+
+def test_fcst_and_dist_name_hourly_and_daily_gold_apart():
+    hub = Hub()
+    assert forecast.FcstPane(hub, None, ("XAU",)).series == "XAU"
+    assert forecast.FcstPane(hub, None, ("XAU", "1D")).command() == "FCST XAU 1D"
+    assert forecast.DistPane(hub, None, ("XAU", "1D")).command() == "DIST XAU 1D"
+    assert forecast.FcstPane(hub, None, ("ETH", "1D")).series == "ETH"      # ETH has only a daily series: it is plain
 
 
 async def test_a_chart_with_no_glimpse_market_behind_it_does_not_look_ahead(no_network):

@@ -7,6 +7,7 @@ page/page_size arguments are ignored by the server), so this module owns paging,
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 from dataclasses import dataclass, field
 
@@ -27,18 +28,29 @@ from . import pricing
 
 NMARKET = "/api/v1/nmarket"
 PAGE = 48
+WAVE = 4                        # pages in flight at once: a week of hourly closes (168) is 4 pages
 COINBASE = "https://api.exchange.coinbase.com/products/{pair}"
 PAIRS = {"BTC": "BTC-USD", "ETH": "ETH-USD", "SOL": "SOL-USD", "XAU": "PAXG-USD"}
+HOURLY = ("BTC", "XAU")         # assets Glimpse runs an hourly series on: theirs is the plain ticker, the daily one is `1D`
 
 
 class ApiError(Exception):
     """A message that is safe and useful to show in the status line."""
 
 
+class KeyRejected(ApiError):
+    """Glimpse refused the API key itself, as opposed to being slow or unreachable."""
+
+
 def asset_of(title: str) -> str:
     """Ticker named by a series or market title, or '' if it names none we know."""
     t = title.lower()
     return next((sym for needle, sym in (("bitcoin", "BTC"), ("ethereum", "ETH"), ("solana", "SOL"), ("gold", "XAU")) if needle in t), "")
+
+
+def series_name(asset: str, daily: bool = False) -> str:
+    """`XAU` with `daily` is `XAU 1D`, because gold has an hourly series too; `ETH` with `daily` stays `ETH`."""
+    return f"{asset} 1D" if daily and asset in HOURLY else asset
 
 
 @dataclass(frozen=True)
@@ -58,10 +70,10 @@ class Batch:
 
     @property
     def short(self) -> str:
-        """The ticker alone. Bitcoin has two series, so the daily one is marked; the hourly one is plain BTC."""
+        """The ticker alone. Bitcoin and gold have two series each, so the daily one is marked; the hourly one is plain."""
         if not self.asset:
             return self.title
-        return f"{self.asset} 1D" if self.asset == "BTC" and not self.hourly else self.asset
+        return series_name(self.asset, daily=not self.hourly)
 
 
 @dataclass(frozen=True)
@@ -96,7 +108,8 @@ class Book:
     @classmethod
     def from_row(cls, row: MarketRow) -> Book:
         """A list row priced as a book: the v2 and batch listings carry every range's shares, so no quote call is needed."""
-        b = cls(row.topic_id, row.title, row.end_time_utc, row.quote_mode, row.volume_msat, list(row.option_ids),
+        b = cls(row.topic_id, row.title, row.end_time_utc, row.quote_mode, row.volume_msat,
+                list(row.option_ids) or list(range(1, len(row.shares) + 1)),
                 [parse_bin(n) for n in row.names], list(row.shares), pricing.alpha_for(max(len(row.shares), 2)), fetched_at=time.time())
         b.reprice()
         return b
@@ -227,9 +240,67 @@ def parse_bin(name: str) -> tuple[float, float]:
     return float(lo), float(hi)
 
 
+def _row(m: dict) -> MarketRow:
+    outs = m.get("outcomes") or []
+    return MarketRow(
+        topic_id=m["topic_id"], title=m.get("title") or "", end_time_utc=int(m.get("end_time_utc") or 0),
+        quote_mode=m.get("quote_mode") or "live",
+        volume_msat=int(m.get("total_volume_millisats") or 0),
+        volume_24h_msat=int(m.get("volume_24h_millisats") or 0),
+        shares=tuple(float(o.get("shares") or 0) for o in outs),
+        names=_shared(tuple(o.get("name") or "" for o in outs)),
+        option_ids=_shared(tuple(int(o.get("option_id") or i + 1) for i, o in enumerate(outs))),
+    )
+
+
+def _live(rows) -> list[MarketRow]:
+    now = time.time()
+    return sorted((r for r in rows if r.end_time_utc > now), key=lambda r: r.end_time_utc)
+
+
+def _rows_file(batch_id: str):
+    from .term.config import cache_dir
+    return cache_dir() / f"markets-{batch_id}.json"
+
+
+def save_rows(batch_id: str, rows: list[MarketRow]) -> None:
+    """Keep the last market list of a series on disk, so the next start can draw it before the network answers.
+    Every close in a series shares its 500 names and ids, so each distinct set is written once."""
+    ladders: list[tuple[tuple, tuple]] = []
+    out = []
+    for r in rows:
+        key = (r.names, r.option_ids)
+        if key not in ladders:
+            ladders.append(key)
+        out.append([r.topic_id, r.title, r.end_time_utc, r.quote_mode, r.volume_msat, r.volume_24h_msat, r.shares,
+                    ladders.index(key)])
+    try:
+        f = _rows_file(batch_id)
+        f.parent.mkdir(parents=True, exist_ok=True)
+        tmp = f.with_suffix(".tmp")
+        tmp.write_text(json.dumps({"at": time.time(), "ladders": ladders, "rows": out}))
+        tmp.replace(f)
+    except (OSError, TypeError, ValueError):
+        pass
+
+
+def load_rows(batch_id: str, max_age: float) -> tuple[float, list[MarketRow]]:
+    """(when it was saved, the closes still open) from the last saved list, or (0, []) if none is younger than max_age."""
+    try:
+        d = json.loads(_rows_file(batch_id).read_text())
+        if time.time() - d["at"] > max_age:
+            return 0.0, []
+        ladders = [(_shared(tuple(n)), _shared(tuple(i))) for n, i in d["ladders"]]
+        rows = [MarketRow(t, title, end, qm, vol, vol24, tuple(sh), *ladders[k])
+                for t, title, end, qm, vol, vol24, sh, k in d["rows"]]
+        return float(d["at"]), _live(rows)
+    except (OSError, ValueError, KeyError, TypeError, IndexError):
+        return 0.0, []
+
+
 def _friendly(e: Exception) -> ApiError:
     if isinstance(e, GlimpseAuthenticationError):
-        return ApiError("API key rejected. Press L to enter a new one.")
+        return KeyRejected("API key rejected. Press L to enter a new one.")
     if isinstance(e, GlimpseTradingNotEligibleError):
         return ApiError(f"Trading not enabled on this account: {e.reason or e.message}. Finish onboarding on the website.")
     if isinstance(e, GlimpseAmbiguousTradeStateError):
@@ -297,34 +368,41 @@ class Glimpse:
             Batch(b.batch_id, b.main_topic_title or "?", b.topic_count or 0, float(b.outcome_interval or 0))
             for b in r.batches or []
         ]
-        order = ["BTC", "BTC 1D", "ETH", "SOL", "XAU"]
+        order = ["BTC", "BTC 1D", "ETH", "SOL", "XAU", "XAU 1D"]
         return sorted(out, key=lambda b: order.index(b.short) if b.short in order else len(order))
 
-    async def markets(self, batch_id: str, limit: int = 96) -> list[MarketRow]:
-        """Nearest-expiry active markets. v2 rows carry shares, so the list is priced without per-market calls."""
-        rows: list[MarketRow] = []
-        offset = 0
-        while len(rows) < limit:
-            d = await self._call(
-                self._pub._get, f"{NMARKET}/v2/batches/{batch_id}/active-markets",
-                {"limit": min(PAGE, limit - len(rows)), "offset": offset},
-            )
-            for m in d.get("markets") or []:
-                outs = m.get("outcomes") or []
-                rows.append(MarketRow(
-                    topic_id=m["topic_id"], title=m.get("title") or "", end_time_utc=int(m.get("end_time_utc") or 0),
-                    quote_mode=m.get("quote_mode") or "live",
-                    volume_msat=int(m.get("total_volume_millisats") or 0),
-                    volume_24h_msat=int(m.get("volume_24h_millisats") or 0),
-                    shares=tuple(float(o.get("shares") or 0) for o in outs),
-                    names=_shared(tuple(o.get("name") or "" for o in outs)),
-                    option_ids=_shared(tuple(int(o.get("option_id") or i + 1) for i, o in enumerate(outs))),
-                ))
-            if not d.get("has_more"):
+    async def markets(self, batch_id: str, limit: int = 96, on_rows=None) -> list[MarketRow]:
+        """Nearest-expiry active markets. v2 rows carry shares, so the list is priced without per-market calls.
+
+        A page of 48 closes is about 1.3 MB (500 ranges each, sent uncompressed) and takes seconds, so pages are asked
+        for WAVE at a time instead of one after another: a week of hourly closes arrives in the time of one page, not
+        four. `on_rows`, if given, is awaited with the nearest closes as soon as the first page lands, then with each
+        longer run, so the screen fills while the far closes are still on the wire."""
+        pages: list[list[MarketRow]] = []
+        offset, total = 0, None
+        while offset < min(limit, total if total is not None else limit):
+            offsets = list(range(offset, min(limit, total if total is not None else limit), PAGE))[:WAVE]
+            tasks = [asyncio.ensure_future(self._call(
+                self._pub._get, f"{NMARKET}/v2/batches/{batch_id}/active-markets", {"limit": min(PAGE, limit - o), "offset": o}))
+                for o in offsets]
+            try:
+                more = True
+                for task in tasks:                  # in order: the nearest closes are shown first
+                    d = await task
+                    pages.append([_row(m) for m in d.get("markets") or []])
+                    total = int(d.get("total") or 0) or total
+                    if on_rows is not None:
+                        await on_rows(_live(r for page in pages for r in page))
+                    if not d.get("has_more"):
+                        more = False
+                        break
+            finally:
+                for task in tasks:              # a page past a failure or the end is not wanted, or is already done
+                    task.cancel() if not task.done() else task.cancelled() or task.exception()
+            if not more:
                 break
-            offset = d.get("next_offset") or offset + PAGE
-        now = time.time()
-        return sorted((r for r in rows if r.end_time_utc > now), key=lambda r: r.end_time_utc)
+            offset = offsets[-1] + PAGE
+        return _live(r for page in pages for r in page)
 
     async def all_markets(self, batch_id: str) -> list[MarketRow]:
         """Every close of a series, with shares, in one request (the paged v2 list takes one per 48 closes, and on a slow

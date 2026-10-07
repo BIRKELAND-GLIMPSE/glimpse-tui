@@ -590,12 +590,29 @@ def detail_title(t: Terminal) -> str:
     return f"FORECAST · {b.name} · {n} close{'' if n == 1 else 's'} ahead" if n else f"FORECAST · {b.name}"
 
 
+def sold(r) -> str:
+    """`sold ₿1,240 (+₿310 on cost)`: what its sales fetched this session, and the profit taken on them."""
+    return f"sold {fmt.sats(r.sold_sats)}" + (f" ({fmt.sats(r.gain_sats, signed=True)} on cost)" if r.sold_sats else "")
+
+
 def log_title(t: Terminal, r) -> str:
     """The runner's state, on the border of the pane that holds its log."""
     state = ("● LIVE · real sats" if r.live else "● ON PAPER") if r.running else "○ stopped"
+    if not r.buys:
+        return (f"{state} · {r.name} takes profit on your whole portfolio · {sold(r)} · holds {fmt.sats(r.open_cost)} at cost"
+                f" · {r.trades} sale{'' if r.trades == 1 else 's'} · {progress(r)}")
+    if r.manage:
+        return (f"{state} · {r.name} manages your {r.series} portfolio · can spend {fmt.sats(max(r.cfg.bankroll_sats - r.committed, 0))}"
+                f" · {sold(r)} · bought {fmt.sats(r.paid_sats)} · holds {fmt.sats(r.open_cost)} at cost"
+                f" · {r.trades} trade{'' if r.trades == 1 else 's'}")
     return (f"{state} · {r.name} · {r.series} · budget {fmt.sats(r.cfg.bankroll_sats)} · at risk {fmt.sats(r.open_cost)}"
-            f" · bought {fmt.sats(r.paid_sats)} · sold {fmt.sats(r.sold_sats)} · {r.trades} trade{'' if r.trades == 1 else 's'}"
-            f" · {r.cycles} cycle{'' if r.cycles == 1 else 's'}")
+            f" · bought {fmt.sats(r.paid_sats)} · {sold(r)} · {r.trades} trade{'' if r.trades == 1 else 's'}"
+            f" · {progress(r)}")
+
+
+def progress(r) -> str:
+    """`round 2 · close 37 of 168`: where the runner is in its walk over the series."""
+    return f"round {r.rounds + 1} · close {r.step} of {r.of}" if r.of else "starting"
 
 
 def valuation(r) -> tuple[list[tuple], float, float, float]:
@@ -604,7 +621,7 @@ def valuation(r) -> tuple[list[tuple], float, float, float]:
     the position at what selling it back into the book would fetch now, after the exit fee; fair values it at the
     bot's own chance, after the settlement fee."""
     rows, cost, value, fair = [], 0.0, 0.0, 0.0
-    for end, asset, topic, option, lo, hi, n, c in r.ledger.holdings(r.bot.id, r.mode):
+    for end, asset, topic, option, lo, hi, n, c in r.holdings():
         price, p, sale = r.marks.get((topic, option), (None, None, None))
         v = sale if sale is not None else c
         f = p * PL.NET * n if p is not None else c
@@ -623,7 +640,7 @@ def portfolio_line(r) -> Text:
     out.append(fmt.sats(value - cost, signed=True), style=GREEN if value >= cost else RED)
     out.append(f"  picture {fmt.sats(fair)} ", style=TEXT)
     out.append(fmt.sats(fair - cost, signed=True), style=GREEN if fair >= cost else RED)
-    out.append(f"  ·  scanning {r.scanned} closes, {r.mispriced} mispriced", style=DIM)
+    out.append(f"  ·  {progress(r)}", style=DIM)
     return out
 
 
@@ -635,10 +652,30 @@ def portfolio(r, asset: str, width: int) -> Text:
     """Every position the bot holds, marked to the market and to its picture, with the session's flow on top."""
     rows, cost, value, fair = valuation(r)
     out = Text(no_wrap=True, overflow="ellipsis")
-    out.append(f"{'LIVE · real sats' if r.live else 'PAPER'} · budget {fmt.sats(r.cfg.bankroll_sats)} · "
-               f"{fmt.sats(max(r.cfg.bankroll_sats - cost, 0))} free\n", style=RED if r.live else GREEN)
-    out.append(f"this session: bought {fmt.sats(r.paid_sats)} · sold {fmt.sats(r.sold_sats)} · {r.trades} trades · "
-               f"{r.cycles} cycles · last cycle priced {r.scanned} closes, {r.mispriced} mispriced\n\n", style=DIM)
+    if not r.buys:
+        out.append(f"{'LIVE · real sats' if r.live else 'PAPER'} · taking profit on your whole portfolio, every series · "
+                   "never buys\n", style=RED if r.live else GREEN)
+        out.append("Every position your account holds, whoever opened it. It sells the part of a position the market pays more "
+                   "for than the picture says it is worth" + (" and than it cost" if r.cfg.profit_only else "")
+                   + ", and keeps the rest.\n", style=DIM)
+    elif r.manage:
+        out.append(f"{'LIVE · real sats' if r.live else 'PAPER'} · managing your {r.series} portfolio · adds at most "
+                   f"{fmt.sats(r.cfg.bankroll_sats)} fresh sats, {fmt.sats(max(r.cfg.bankroll_sats - r.committed, 0))} left "
+                   "(what it sells, it may buy with again)\n", style=RED if r.live else GREEN)
+        out.append("Every position your account holds in this series, whoever opened it. It sells what the market pays more "
+                   "for than the picture says it is worth" + (", only at a gain over cost" if r.cfg.profit_only else "")
+                   + ", and buys what the market sells under its value.\n", style=DIM)
+    else:
+        out.append(f"{'LIVE · real sats' if r.live else 'PAPER'} · budget {fmt.sats(r.cfg.bankroll_sats)} · "
+                   f"{fmt.sats(max(r.cfg.bankroll_sats - cost, 0))} free\n", style=RED if r.live else GREEN)
+        out.append("It takes profit, selling what the market pays more for than the picture says it is worth"
+                   + (" and than it cost" if r.cfg.profit_only else "") + ", and buys what the market sells under its value.\n",
+                   style=DIM)
+    out.append(f"this session: {sold(r)} · {r.trades} sales · {progress(r)} you hold, one every {r.cfg.interval_s:g}s\n\n"
+               if not r.buys else
+               f"this session: bought {fmt.sats(r.paid_sats)} · {sold(r)} · {r.trades} trades · "
+               f"{progress(r)}, one close every {r.cfg.interval_s:g}s · {fmt.sats(r.cfg.bankroll_sats / max(r.of, 1))} a close\n\n",
+               style=DIM)
     out.append(f"{'held':<20}{len(rows)} positions in {len({(x[0], x[1]) for x in rows})} closes\n", style=TEXT)
     for label, v in (("cost", cost), ("at market", value), ("by its picture", fair)):
         out.append(f"{label:<20}{fmt.sats(v):>12}")
@@ -688,7 +725,7 @@ class BotLogPane(Widget):
         h = max(self.size.height - 2, 3)
         out.append_text(portfolio_line(r))
         out.append("   P full portfolio\n", style=FAINT)
-        pos = r.ledger.holdings(b.id, r.mode)
+        pos = r.holdings()
         for end, asset, _, _, p_lo, p_hi, contracts, cost in pos[:3]:
             out.append(f"  {fmt.question(asset or t.asset, end):<24}{fmt.span(p_lo, p_hi):<18}"
                        f"{fmt.contracts(contracts):>8} × cost {fmt.sats(cost)}\n", style=DIM)
@@ -785,13 +822,16 @@ class BotDetailPane(Widget):
         r = t.runners.get(b.id)
         if r and r.running:
             out.append(" x ", style=f"bold #000000 on {ORANGE}")
-            out.append(f"  stop this bot   {'LIVE · real sats' if r.live else 'on paper'} · budget {fmt.sats(r.cfg.bankroll_sats)}",
-                       style=f"bold {TEXT}")
+            out.append(f"  stop this bot   {'LIVE · real sats' if r.live else 'on paper'} · "
+                       + (f"managing your portfolio · {fmt.sats(r.cfg.bankroll_sats)} fresh sats" if r.manage else
+                          f"budget {fmt.sats(r.cfg.bankroll_sats)}"), style=f"bold {TEXT}")
             out.append("   P portfolio   X stops every bot\n", style=DIM)
         else:
             out.append(" enter ", style=f"bold #000000 on {ORANGE}")
             out.append(f"  run this bot · budget {fmt.sats(t.bot_budget(b.id))}", style=f"bold {TEXT}")
-            out.append("   e change budget\n", style=DIM)
+            out.append("   e change budget   ", style=DIM)
+            out.append("R", style=f"bold {ORANGE}")
+            out.append(" let it manage your portfolio\n", style=DIM)
             if t.api.authenticated:
                 out.append(f"  Trades real sats through your API key {t.key_mask} once you type LIVE, otherwise on paper.\n",
                            style=DIM)

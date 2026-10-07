@@ -31,7 +31,7 @@ class SwarmPane(FcstPane):
 
     @property
     def swarm(self):
-        return self.hub.swarm(self.asset)
+        return self.hub.swarm(self.series)     # hourly and daily gold are two passes: their closes are days apart
 
     async def load(self) -> None:
         await super().load()
@@ -57,7 +57,7 @@ class SwarmPane(FcstPane):
         return datetime.fromtimestamp(pic.end, UTC).strftime("%H:%M" if self.cadence < 86400 else "%a %d %b")
 
     def menu(self) -> list[tuple[str, str]]:
-        return [("ZOO", "BOTS"), ("FORECAST", f"FCST {self.asset}"), ("ODDS", f"DIST {self.asset}")]
+        return [("ZOO", "BOTS"), ("FORECAST", f"FCST {self.series}"), ("ODDS", f"DIST {self.series}")]
 
 
 class ConsPane(SwarmPane):
@@ -65,7 +65,7 @@ class ConsPane(SwarmPane):
     code = "CONS"
 
     def caption(self, hourly: bool) -> str:
-        n = len(self.hub.swarm(self.asset).bots)
+        n = len(self.swarm.bots)
         return f"{NAMES.get(self.asset, self.asset)} · what {n if n else 'the'} bots expect"
 
     def draw(self, w: int, h: int) -> list[Text]:
@@ -169,7 +169,7 @@ class ConsPane(SwarmPane):
         return "enter the model zoo · B bots"
 
     def command(self) -> str:
-        return f"CONS {self.asset}"
+        return f"CONS {self.series}"
 
     def export(self):
         rows = [[p.label, datetime.fromtimestamp(p.end, UTC).strftime("%Y-%m-%d %H:%M"), p.counts.get(BULL, 0),
@@ -307,7 +307,7 @@ class BotPane(SwarmPane):
         return "[ ] another bot · enter runs it in the zoo"
 
     def command(self) -> str:
-        return f"BOT {self.asset}"
+        return f"BOT {self.series}"
 
     def export(self):
         s = self.swarm
@@ -325,7 +325,7 @@ _HOW = ("Every model runs on this machine from public hourly Coinbase candles: n
 
 register(Function(
     "CONS", "Bot consensus", "Glimpse", "what every bot on this machine expects: bulls against bears, and the picture they agree on",
-    ConsPane, takes=("CRYPTO", "CMDTY"), optional=True, args="[BTC|XAU|ETH|SOL]", needs=("glimpse", "history"),
+    ConsPane, takes=("CRYPTO", "CMDTY"), optional=True, args="[BTC|XAU|ETH|SOL] [1D]", needs=("glimpse", "history"),
     help="The whole model zoo read against the live market, for three horizons at once: the next hour, the next day and the next "
          "three days (a daily series reads the next close, a week and a month). Each block counts how many models lean bullish, "
          "how many bearish and how many neither, draws that as one bar, and then gives the picture they make together: the median "
@@ -336,7 +336,7 @@ register(Function(
 
 register(Function(
     "BOT", "One bot", "Glimpse", "one model's picture of the next close against the market, [ and ] to walk the zoo", BotPane,
-    takes=("CRYPTO", "CMDTY"), optional=True, args="[BTC|XAU] [model id]", needs=("glimpse", "history"),
+    takes=("CRYPTO", "CMDTY"), optional=True, args="[BTC|XAU] [1D] [model id]", needs=("glimpse", "history"),
     help="One model of the zoo at a time: what it is, which way it leans, and what it expects at each of the three horizons CONS "
          "reads, with the market's median beside each one. Under that is its whole picture of the nearest close: every price range "
          "with the chance the model gives it and the price the market charges for it on the same bar, so the gap between them, "

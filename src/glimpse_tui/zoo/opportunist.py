@@ -159,32 +159,38 @@ MODELS = [
     _bot("opp_longshot", "Longshot Collector", "Risk a sat to win a hundred, far out in both tails",
          "Risk small, win big. It buys only ranges the market sells for a sat or less, far out in the tails of its own "
          "picture, where a win pays a hundred times the stake or more, and only when the zoo's jump models say the range is "
-         "worth at least twice that. Almost every ticket loses. It holds every one to the close anyway, because the few "
-         "that land are meant to pay for all the rest and then some.",
+         "worth at least twice that. Almost every ticket loses, and it holds them to the close anyway, because the few "
+         "that land are meant to pay for all the rest and then some. The exception is a ticket the market bids up past "
+         "both its worth and its cost: that one it sells, at a profit, for more than holding it is worth.",
          jumps, Policy(max_price=1.0, min_ratio=2.0, region="tails", stake=0.0025, market_cap=0.05, max_ranges=40,
-                       hold=True, stance="volatile"),
+                       stance="volatile"),
          inputs=JUMPS_INPUTS, maths=JUMPS_MATHS, factors=("tails", "randomness", "market"),
          trades="Ranges outside the middle 80% of its picture at 1 sat a contract or less (a win pays about 96 times), when the "
                 "jump pool says the range is worth at least twice its fee-inclusive price. A quarter of a percent of the "
-                "budget per range, no more than 5% in one close, held to settlement."),
-    _bot("opp_crash_insurance", "Crash Insurance", "Cheap tickets on a crash, held to the close",
+                "budget per range, no more than 5% in one close, held to settlement unless the market overpays it at a "
+                "profit."),
+    _bot("opp_crash_insurance", "Crash Insurance", "Cheap tickets on a crash, sold when fear overpays",
          "Bearish tail insurance. It buys cheap ranges far below the spot price, past the 10th percentile of the zoo's "
          "jump models, only when those models say the crash is priced at two thirds or less of its odds, and holds them to the "
          "close. Beside a long Bitcoin position it pays out in the hours that hurt most, and it only buys the insurance "
-         "when the premium is lower than the risk.",
+         "when the premium is lower than the risk. When fear bids the premium past what the models say the cover is worth "
+         "and past what it paid, it sells that part back at a profit.",
          jumps, Policy(max_price=2.0, min_ratio=1.5, region="down-tail", stake=0.005, market_cap=0.05, max_ranges=30,
-                       hold=True, stance="bearish"),
+                       stance="bearish"),
          inputs=JUMPS_INPUTS, maths=JUMPS_MATHS, factors=("tails", "direction", "market"),
          trades="Ranges below spot and below the 10th percentile of its picture, at 2 sats a contract or less (a win pays "
                 "about 48 times), when the jump pool values them at 1.5 times their fee-inclusive price or more. Held to "
-                "settlement: insurance is not sold because the fire looks less likely."),
-    _bot("opp_moon_tickets", "Moon Tickets", "Cheap tickets on a squeeze, held to the close",
+                "settlement unless the market pays more than the cover is worth and than it cost: insurance is never sold "
+                "at a loss because the fire looks less likely."),
+    _bot("opp_moon_tickets", "Moon Tickets", "Cheap tickets on a squeeze, sold when greed overpays",
          "The mirror of Crash Insurance: cheap ranges far above the spot price, past the 90th percentile of the zoo's jump "
          "models, bought only when those models say a squeeze is priced at two thirds or less of its odds, and held to the "
-         "close. It profits from the sudden rallies Bitcoin is known for, paying little for the chance.",
+         "close. It profits from the sudden rallies Bitcoin is known for, paying little for the chance, and from the "
+         "traders who chase them: a ticket bid up past its worth and its cost is sold back at a profit.",
          jumps, Policy(max_price=2.0, min_ratio=1.5, region="up-tail", stake=0.005, market_cap=0.05, max_ranges=30,
-                       hold=True, stance="bullish"),
+                       stance="bullish"),
          inputs=JUMPS_INPUTS, maths=JUMPS_MATHS, factors=("tails", "direction", "market"),
          trades="Ranges above spot and above the 90th percentile of its picture, at 2 sats a contract or less, when the jump "
-                "pool values them at 1.5 times their fee-inclusive price or more. Held to settlement."),
+                "pool values them at 1.5 times their fee-inclusive price or more. Held to settlement unless the market "
+                "overpays it at a profit."),
 ]

@@ -207,7 +207,7 @@ def test_the_default_page_is_taller_than_the_screen_and_scrolls_to_the_focused_w
     assert root.row_height == 21 and len(root.children) == 8 and panes.from_doc(panes.to_doc(root)).row_height == 21
     ls = [lf.command for lf in panes.leaves(root)]
     # Bitcoin's chart and its odds, then gold's, then the chain: the most significant thing is the first thing.
-    assert ls[:6] == ["GP BTC 24H", "DIST BTC", "GP XAU 1D", "DIST XAU", "HASH", "DIFF"]
+    assert ls[:6] == ["GP BTC 24H", "DIST BTC", "GP XAU 24H", "DIST XAU", "HASH", "DIFF"]
     assert ls[-3:] == ["FX", "GLCO SATS", "FEES"] and len(ls) == 16 <= panes.MAX_PANES
     assert not [c for c in ls if c.startswith(("CONS", "BOT"))]          # the bots have their own screen (B), not a window here
     assert ["PL BTC", "PL XAUBTC"] == [c for c in ls if c.startswith("PL")]

@@ -14,16 +14,16 @@ until = T.until
 
 
 class SeriesApi(T.FakeApi):
-    """The fake API with the series the default launchpad reads: hourly Bitcoin and daily gold, closing from the
-    next hour (or the next day) on, so the horizons the bots are asked about are real ones."""
+    """The fake API with the series the default launchpad reads: hourly Bitcoin and hourly gold, each beside its daily
+    series as on the live site, closing from the next hour (or the next day) on, so the bots' horizons are real ones."""
 
     async def batches(self):
         return [Batch("b-btch", "Hourly Bitcoin Markets", 96, 3600), Batch("b-btc", "Daily Bitcoin Markets", 30, 86400),
-                Batch("b-xau", "Daily Gold Markets", 30, 86400)]
+                Batch("b-xauh", "Hourly Gold Prediction Markets", 96, 3600), Batch("b-xau", "Daily PAX Gold Market", 30, 86400)]
 
-    async def markets(self, batch_id, limit=96):
-        step = 3600 if batch_id == "b-btch" else 86400
-        base = {"b-btch": 1000, "b-btc": 2000, "b-xau": 3000}.get(batch_id, 4000)
+    async def markets(self, batch_id, limit=96, on_rows=None):
+        step = 3600 if batch_id in ("b-btch", "b-xauh") else 86400
+        base = {"b-btch": 1000, "b-btc": 2000, "b-xau": 3000, "b-xauh": 5000}.get(batch_id, 4000)
         first = (int(time.time()) // step + 1) * step
         return [MarketRow(base + i, f"{batch_id} - close {i}", first + i * step, "live", 0, 0,
                           tuple(T.FIX["shares"]), tuple(T.FIX["names"])) for i in range(min(96, limit))]
@@ -57,7 +57,7 @@ def edge(pane) -> str:
     return str(next(sp.style for sp in text.spans if sp.start == 0))
 
 
-DASHBOARD = ["GP BTC 24H", "DIST BTC", "GP XAU 1D", "DIST XAU", "HASH", "DIFF", "NEWS", "QM GLOBAL", "PL BTC", "PL XAUBTC",
+DASHBOARD = ["GP BTC 24H", "DIST BTC", "GP XAU 24H", "DIST XAU", "HASH", "DIFF", "NEWS", "QM GLOBAL", "PL BTC", "PL XAUBTC",
              "MACRO", "RATES", "ECO", "FX", "GLCO SATS", "FEES"]
 
 
@@ -74,9 +74,9 @@ async def test_the_default_page_is_bitcoin_then_gold_then_the_chain_and_the_worl
         regions = {lf.command: lf.pane.region for lf in panes.leaves(ws.root) if lf.pane}
         assert not [c for c in DASHBOARD if c.startswith(("CONS", "BOT"))]               # the bots are off the front page
         assert regions["GP BTC 24H"].x == 0 and regions["DIST BTC"].x > 0 and regions["GP BTC 24H"].y == regions["DIST BTC"].y
-        assert regions["GP XAU 1D"].y > regions["GP BTC 24H"].y                          # Bitcoin's row, then gold's
-        assert regions["GP XAU 1D"].y == regions["DIST XAU"].y
-        assert regions["GP XAU 1D"].width + regions["DIST XAU"].width == ws.size.width
+        assert regions["GP XAU 24H"].y > regions["GP BTC 24H"].y                          # Bitcoin's row, then gold's
+        assert regions["GP XAU 24H"].y == regions["DIST XAU"].y
+        assert regions["GP XAU 24H"].width + regions["DIST XAU"].width == ws.size.width
         assert regions["HASH"].y > regions["DIST XAU"].y                                 # then the chain
         assert regions["NEWS"].y > regions["HASH"].y and regions["PL BTC"].y > regions["NEWS"].y
         assert ws.page_height() > ws.size.height and regions["FEES"].y >= ws.size.height    # the page runs on below
