@@ -38,6 +38,7 @@ VOL_MULT_BOUNDS = (0.7, 1.6)
 ESS_FLOOR = 0.25                            # a tilt may never lean on less than this share of the baseline
 MIN_BARS = 400                              # hourly bars a model needs before it says anything
 MIN_HISTORY = 200                           # finite past readings a signal needs before it earns conviction
+WEEKEND_LEAN = 0.0                          # how much of a directional lean survives a quiet hour: 0 bets sideways (the desk may override)
 
 FAMILY_SHAPE = {
     # how each family bends the picture on top of its drift (lab decision D-092)
@@ -79,21 +80,32 @@ class Model:
     reads_series: bool = False   # the picture reads every close of the series as the site shows it (ctx.series)
     trading: dict | None = None  # BotConfig fields this bot trades with, whatever bots.toml says (e.g. its own Kelly)
     sells_only: bool = False     # it never buys: it takes profit on the account's whole portfolio (bots.ProfitTaker)
+    arbitrage: str = ""          # the arb.SCHEMES scheme it trades across series ("bitcoin", "gold", "triangle", "oil"); "" trades one close
+    only_series: str = ""        # the one series it can draw a picture of; "" draws any
 
 
 SCALE_NOTE = (
-    "Every picture is sized by one volatility clock, fitted once per set of candles and shared by every model. Hourly "
-    "log returns r = ln(C_t) − ln(C_t−1) are divided by a 24-hour profile (the median |r| of each UTC hour, normalised "
-    "so the mean squared multiplier is 1), then an exponentially weighted variance s² ← 0.94·s² + 0.06·r² gives the "
-    "next hour's variance. The variance from now to the close sums profile[h]²·s²·(fraction of the hour) over every "
-    "hourly step, partial first and last steps included; σ is its square root. Models work in standardised units "
+    "Every picture is sized by one volatility clock, fitted once per set of candles and shared by every model. The clock "
+    "knows the calendar: the quiet hours are CME's closed hours for gold and oil (Friday 22:00 to Sunday 23:00 UTC and the "
+    "22:00 hour each day) and Saturday and Sunday for Bitcoin and the other markets that never close, and a quiet hour's σ "
+    "is measured as a fraction q of a busy hour's (never above 1; 1 when the lull is under 10%; on 31 October 2026 about "
+    "0.5 for Bitcoin, 0.3 for gold, 0.4 for WTI/BTC). Hourly log returns r = ln(C_t) − ln(C_t−1) are divided by a 24-hour "
+    "profile over the busy hours (the median |r| of each UTC hour, normalised so the mean squared multiplier is 1) and by q "
+    "in a quiet hour, then an exponentially weighted variance s² ← 0.94·s² + 0.06·r² gives the next busy hour's variance. "
+    "The variance from now to the close sums profile[h]²·q²·s²·(fraction of the hour) over every hourly step, q² only on "
+    "the quiet steps, partial first and last steps included; σ is its square root, so a picture drawn on Friday evening "
+    "for Monday morning is as narrow as the weekend in between really is. Models work in standardised units "
     "z = (ln P_close − ln spot)/σ on a grid from −14 to +14 in steps of 0.005. The baseline is a driftless random walk "
     "whose hourly shock is Student-t with ν fitted by maximum likelihood to the standardised residuals; a sum of n "
     "such steps keeps 1/n of the excess kurtosis, so the baseline for a close n hours out is Student-t with "
     "ν_n = 4 + n·(ν − 4) (the one-hour excess kurtosis is capped at 12, so a fitted ν at or below 4.5 gives "
     "ν_n = 4 + n/2), thinning towards a bell curve as the close moves further out. The finished density is "
     "integrated between the market's price edges (the cumulative distribution at each edge, differenced), whatever "
-    "falls outside the ladder goes into the end ranges, and every range keeps at least 10⁻⁹ so the picture sums to 1."
+    "falls outside the ladder goes into the end ranges, and every range keeps at least 10⁻⁹ so the picture sums to 1. "
+    "The calendar also damps direction: a model's drift, tilt and stated view are multiplied by the share of the hours to the "
+    "close that are busy ones (plus WEEKEND_LEAN of the rest, 0 unless the desk's config says otherwise), so a picture drawn "
+    "for a close inside the weekend is the narrowed baseline itself, sideways, while its width multipliers are left as the "
+    "model set them."
 )
 
 PIPELINES = {
@@ -155,6 +167,26 @@ PIPELINES = {
         "curve at the same σ, placed on the grid with no shift and unit width. Nothing is read beyond the clock, so "
         "the only way it differs from the market is in shape and width."
     ),
+    "parts": (
+        "Glimpse settles the market on Bitview's hash_price on the hourly slot ending at the close, and that number is an "
+        "identity over the trailing 24 hours of blocks: K·Σ coinbase_usd / Σ difficulty, K = 144·600·10¹⁵/2³². The count of "
+        "blocks cancels, so only the price, the difficulty and the fees move it. The model simulates those hour by hour from "
+        "the state of the chain. Price: hourly shocks redrawn from Bitcoin's own standardised residuals, de-meaned, at the "
+        "volatility clock with its weekends, fading to the long-run variance. Hash rate: the recent blocks' work over the time "
+        "it took, drifting with a share of difficulty's 12-week trend, responding to the price after a lag, and wandering. "
+        "Blocks: Poisson at hash rate over difficulty. Difficulty: Bitcoin's rule on each path when it reaches the retarget "
+        "height, the epoch's real time so far included. Subsidy: the schedule, by height. Fees: reverting from the last "
+        "day's average to the recent median. Blocks already mined inside a window enter as they are. One run of 6,000 paths "
+        "reads every close; 199 quantiles of each are read at the ladder's edges."
+    ),
+    "rule": (
+        "A retarget's value is set by Bitcoin's own rule, the old difficulty times two weeks over the time the epoch took, rebuilt "
+        "to 2e-5 on every retarget since 2014. So the model simulates the blocks still to come, in height, not in hours: every path "
+        "reaches every retarget at its exact height, at its own time. Hash rate: the recent blocks' work over the time it took, known "
+        "to a percent or so, growing at a share of the difficulty's two-year trend, and wandering with fat tails. Blocks: m of them "
+        "take Gamma(m, 600·D/H) seconds. Difficulty: the rule, on each path, the epoch's real start included. One run of 6,000 paths "
+        "reads all twelve retargets on both ladders; 199 quantiles of each are read at the ladder's edges."
+    ),
     "bins": (
         "The model writes its probabilities straight onto the market's price ranges from the data, with no density "
         "on the standardised grid in between."
@@ -209,6 +241,16 @@ TAKE_PROFIT_NOTE = (
 )
 
 
+def arbitrage_note(m: Model) -> str:
+    from .. import tri
+    from ..arb import Rules, rules_text, scheme_of
+
+    t = tri.triangle_of(m)
+    if t is not None:
+        return tri.rules_text(tri.Rules.load(), t)
+    return rules_text(Rules.load(), scheme_of(m))
+
+
 def explain(m: Model) -> list[tuple[str, str]]:
     """The about-screen sections of a model, in order, with the shared machinery filled in."""
     out = [("idea", m.description)]
@@ -220,8 +262,10 @@ def explain(m: Model) -> list[tuple[str, str]]:
         out.append(("trades", m.trades))
     if m.pipeline in PIPELINES:
         out.append(("machinery", PIPELINES[m.pipeline]))
-    out.append(("scale", SCALE_NOTE))
-    out.append(("runner", m.policy.note() if m.policy else TAKE_PROFIT_NOTE if m.sells_only else TRADING_NOTE))
+    if m.pipeline not in ("parts", "rule"):    # a picture built from its parts has its own clock, described in its machinery
+        out.append(("scale", SCALE_NOTE))
+    out.append(("runner", m.policy.note() if m.policy else TAKE_PROFIT_NOTE if m.sells_only else arbitrage_note(m) if m.arbitrage
+                else TRADING_NOTE))
     if m.reference:
         out.append(("reference", m.reference))
     return out
@@ -235,32 +279,74 @@ class ModelUnavailable(Exception):
 
 @dataclass
 class Scale:
-    """The lab's volatility clock, fitted once per set of bars and shared by every model."""
-    profile: np.ndarray          # 24 multipliers by UTC hour of the bar start, mean(profile²) = 1
-    s2_next: float               # EWMA variance of the next deseasonalised hourly return
+    """The lab's volatility clock, fitted once per set of bars and shared by every model. It knows the calendar: the
+    quiet hours (CME's closed hours for gold and oil, Saturday and Sunday for a market that never closes) have their
+    own σ, measured as a fraction of a busy hour's, so every picture narrows through a weekend."""
+    profile: np.ndarray          # 24 multipliers by UTC hour of the bar start over busy hours, mean(profile²) = 1
+    s2_next: float               # EWMA variance of the next deseasonalised hourly return (a busy hour's, profile 1)
     z_pool: np.ndarray           # standardised residuals of history
     nu: float                    # Student-t degrees of freedom of one hour's standardised move
+    session: str = "always"      # the asset's calendar (clock.session_of)
+    quiet: float = 1.0           # a quiet hour's σ over a busy hour's (clock.quiet_ratio)
 
     @classmethod
-    def fit(cls, bars: pd.DataFrame, lam: float = 0.94) -> Scale:
+    def still(cls) -> Scale:
+        """A clock for a series with no hourly moves to measure: a retarget series, which only its own bots draw."""
+        return cls(np.ones(24), 1e-8, np.zeros(0), 30.0, "still")
+
+    @classmethod
+    def fit(cls, bars: pd.DataFrame, lam: float = 0.94, asset: str = "BTC") -> Scale:
+        from ..clock import quiet_at, quiet_ratio, session_of
+
+        session = session_of(asset)
         logp = np.log(bars["close"].to_numpy(dtype=float))
         r = pd.Series(np.diff(logp), index=bars.index[1:])
-        profile = hour_of_day_profile(r)
-        r_d = r.to_numpy() / profile[np.asarray(pd.DatetimeIndex(r.index).hour)]
+        when = pd.DatetimeIndex(r.index).as_unit("s").asi8.astype(float)
+        still = np.array([quiet_at(session, t) for t in when], dtype=bool)
+        busy = r[~still] if (~still).sum() >= 240 else r
+        profile = hour_of_day_profile(busy)
+        by_hour = profile[np.asarray(pd.DatetimeIndex(r.index).hour)]
+        raw = r.to_numpy(dtype=float)
+        ok = np.isfinite(raw)
+        quiet = quiet_ratio(raw[ok & ~still], raw[ok & still], session)      # on raw returns: the profile averages to 1 over a day
+        r_d = raw / (by_hour * np.where(still, quiet, 1.0))
         s2, s2_next = ewma_variance(r_d, lam)
         z = r_d / np.sqrt(s2)
         z = z[24:] if z.size > 48 else z
         z = z[np.isfinite(z)]
-        return cls(profile, s2_next, z, fit_student_df(z))
+        if asset == "HASHPRICE":
+            # A trailing average: its hourly moves are small and trend, so a walk scaled up from them is half as wide as a week
+            # really is. Sized as the site sizes it, on the last 45 days of 96-hour moves, with no day or weekend in it.
+            v = logp[-45 * 24:]
+            s2_next = float(np.var(v[96:] - v[:-96])) / 96.0 if v.size > 192 else s2_next
+            profile, quiet = np.ones(24), 1.0
+        return cls(profile, s2_next, z, fit_student_df(z), session, quiet)
+
+    def quiet_at(self, t: float) -> bool:
+        from ..clock import quiet_at
+
+        return quiet_at(self.session, t)
+
+    def _bounds(self, now: float, end: float) -> np.ndarray:
+        bounds = np.concatenate([[now], np.arange((now // 3600 + 1) * 3600, end, 3600.0), [end]])
+        return bounds[np.concatenate([[True], np.diff(bounds) > 1e-6])]
 
     def step_variances(self, now: float, end: float) -> np.ndarray:
-        """Variance of each hourly step from `now` to `end`; only the first and last steps can be partial."""
+        """Variance of each hourly step from `now` to `end`; only the first and last steps can be partial. A quiet step
+        (a weekend hour, or an hour CME is closed) carries quiet² of a busy one's."""
         if end <= now:
             return np.array([self.s2_next * 1e-6])
-        bounds = np.concatenate([[now], np.arange((now // 3600 + 1) * 3600, end, 3600.0), [end]])
-        bounds = bounds[np.concatenate([[True], np.diff(bounds) > 1e-6])]
+        bounds = self._bounds(now, end)
         hours = (bounds[:-1] // 3600 % 24).astype(int)
-        return self.profile[hours] ** 2 * self.s2_next * np.diff(bounds) / 3600.0
+        calm = np.array([self.quiet if self.quiet_at(t) else 1.0 for t in bounds[:-1]]) if self.quiet < 1 else 1.0
+        return self.profile[hours] ** 2 * calm ** 2 * self.s2_next * np.diff(bounds) / 3600.0
+
+    def hours_quiet(self, now: float, end: float) -> float:
+        """How many of the hours to the close are quiet ones."""
+        if end <= now:
+            return 0.0
+        bounds = self._bounds(now, end)
+        return float(sum((b - a) / 3600.0 for a, b in zip(bounds[:-1], bounds[1:], strict=True) if self.quiet_at(a)))
 
 
 @dataclass(frozen=True)
@@ -289,20 +375,50 @@ class Ctx:
                                                    # model with reads_market, since the rest are pictures of Bitcoin alone
     series: tuple[Shown, ...] = ()                 # every open close of the series as the site shows it, nearest first;
                                                    # set only for a model with reads_series
+    parts: object | None = None                    # hashprice.Inputs or difficulty.Inputs, on those series only
+    height: int = 0                                # a retarget market: the height whose difficulty settles it
 
     def __post_init__(self) -> None:
         if len(self.bars) < MIN_BARS:
             raise ModelUnavailable(f"only {len(self.bars)} hourly bars; need {MIN_BARS}")
         if self.scale is None:
-            self.scale = Scale.fit(self.bars)
+            self.scale = Scale.fit(self.bars, asset=self.asset)
 
     @property
     def hours(self) -> float:
         return max((self.end - self.now) / 3600.0, 1e-3)
 
+    @cached_property
+    def busy_share(self) -> float:
+        """The share of the hours to the close in which the market really trades, by the calendar: 1 on a weekday, 0 for a
+        close inside the weekend (or inside CME's closed hours for gold and oil), 1/3 for Friday noon to Monday noon.
+        A clock with no calendar (`Scale.still`) says 1. Cached like `step_var`: it walks the hours to the close in Python
+        and a picture reads it three times."""
+        if self.end <= self.now:
+            return 1.0
+        hours = (self.end - self.now) / 3600.0
+        return float(np.clip((hours - self.scale.hours_quiet(self.now, self.end)) / hours, 0.0, 1.0))
+
+    @property
+    def lean_scale(self) -> float:
+        """What a model's directional lean is multiplied by: WEEKEND_LEAN + (1 − WEEKEND_LEAN) · busy_share, so with
+        WEEKEND_LEAN at 0 the lean fades with the quiet hours and a weekend close is bet sideways."""
+        return float(WEEKEND_LEAN + (1.0 - WEEKEND_LEAN) * self.busy_share)
+
+    def log_of(self, x):
+        """Prices as the walks see them, in log. The adjustment names its ranges in percent, which can be negative or zero, so it
+        is read as the factor the retarget multiplies the difficulty by, as `zoo.difficulty.adjustment_rule` does."""
+        x = np.asarray(x, dtype=float)
+        return np.log(np.maximum(1.0 + x / 100.0 if self.asset == "ADJUSTMENT" else x, 1e-9))
+
+    def value_of(self, y):
+        """The inverse of `log_of`: back to the market's own unit."""
+        v = np.exp(np.asarray(y, dtype=float))
+        return (v - 1.0) * 100.0 if self.asset == "ADJUSTMENT" else v
+
     @property
     def log_spot(self) -> float:
-        return float(np.log(self.spot))
+        return float(self.log_of(self.spot))
 
     @cached_property
     def step_var(self) -> np.ndarray:
@@ -321,7 +437,7 @@ class Ctx:
     @cached_property
     def edge_z(self) -> np.ndarray:
         """The market's bin edges as standardised moves from spot."""
-        return (np.log(np.maximum(self.edges, 1e-9)) - self.log_spot) / self.sigma
+        return (self.log_of(self.edges) - self.log_spot) / self.sigma
 
     @property
     def close_time(self) -> datetime:
@@ -510,7 +626,8 @@ def conviction_picture(
 
     Drift: z = sign * strength * conviction, on the family's clock. Shape: the family's tilt, at
     shape_conviction * |strength|. Width: exp(0.5 * vol_sign * vol_strength * vol_conviction), within [0.7, 1.6].
-    A signal with no reading, or too little history, leaves the baseline.
+    A signal with no reading, or too little history, leaves the baseline. Drift and tilt are both multiplied by
+    `ctx.lean_scale`, the calendar's share of busy hours to the close, so a weekend close is bet sideways; the width is not.
     """
     pdf = base_pdf(ctx)
     s = strength_of(signal) if signal is not None else 0.0
@@ -521,12 +638,12 @@ def conviction_picture(
     direction = float(sign * s)
     style = shape if shape is not None else FAMILY_SHAPE.get(family, "none")
     f = shape_payoff(style, 1.0 if direction >= 0 else -1.0)
-    if f is not None and abs(s) > 1e-6:
-        pdf = tilt(pdf, f, shape_conviction * abs(s))
+    if f is not None and abs(s) * ctx.lean_scale > 1e-6:
+        pdf = tilt(pdf, f, shape_conviction * abs(s) * ctx.lean_scale)
         m, sd = moments(pdf)
         pdf = transform(pdf, shift=-m / sd, scale=1.0 / sd)       # the tilt bends the shape; drift and width are set below
     z = float(np.clip(direction * conviction, -1.5, 1.5)) * timing_profile(timing or FAMILY_TIMING.get(family, "ride"), ctx.hours)
-    return to_bins(ctx, transform(pdf, shift=z * mult, scale=mult))
+    return to_bins(ctx, transform(pdf, shift=z * ctx.lean_scale * mult, scale=mult))
 
 
 def vol_picture(ctx: Ctx, vol_signal: pd.Series | np.ndarray, *, sign: int = 1, vol_conviction: float = 0.5) -> np.ndarray:
@@ -537,15 +654,17 @@ def vol_picture(ctx: Ctx, vol_signal: pd.Series | np.ndarray, *, sign: int = 1, 
 def view_picture(ctx: Ctx, mean_z: float | Callable[[float], float] = 0.0, vol_mult: float = 1.0,
                  pdf: np.ndarray | None = None) -> np.ndarray:
     """A fixed view: the median sits `mean_z` baseline sigmas from spot (a number, or a function of hours to the
-    close for scripted paths), with the spread scaled by `vol_mult`."""
-    mz = float(mean_z(ctx.hours)) if callable(mean_z) else float(mean_z)
+    close for scripted paths), with the spread scaled by `vol_mult`. The shift is multiplied by `ctx.lean_scale`, so the
+    view goes sideways through the quiet hours of the calendar; the spread is not."""
+    mz = (float(mean_z(ctx.hours)) if callable(mean_z) else float(mean_z)) * ctx.lean_scale
     return to_bins(ctx, transform(base_pdf(ctx) if pdf is None else pdf, shift=mz, scale=vol_mult))
 
 
 def payoff_picture(ctx: Ctx, payoff: Callable[[np.ndarray, float], np.ndarray], conviction: float = 0.3,
                    min_ess: float = ESS_FLOOR) -> np.ndarray:
-    """The picture the holder of an option position is betting on: `payoff(z, hours)` with strikes in sigmas."""
-    return to_bins(ctx, tilt(base_pdf(ctx), payoff(Z, ctx.hours), conviction, min_ess))
+    """The picture the holder of an option position is betting on: `payoff(z, hours)` with strikes in sigmas. The
+    conviction is multiplied by `ctx.lean_scale`, so the bet fades to the baseline through the calendar's quiet hours."""
+    return to_bins(ctx, tilt(base_pdf(ctx), payoff(Z, ctx.hours), conviction * ctx.lean_scale, min_ess))
 
 
 # ── onto the market's bins ──────────────────────────────────
@@ -613,11 +732,11 @@ def cached(ctx: Ctx, key: str, build: Callable[[], object]) -> object:
 
 def describe(ctx: Ctx, probs: np.ndarray) -> dict[str, float | str]:
     """The stance of a picture against the baseline: where its middle sits and how wide it is."""
-    mid = np.log(ctx.edges[1:])                 # the cumulative sum is the probability below each bin's upper edge
+    mid = ctx.log_of(ctx.edges[1:])             # the cumulative sum is the probability below each bin's upper edge
     c = np.cumsum(probs)
     q10, q50, q90 = (float(np.interp(lv, c, mid)) for lv in (0.1, 0.5, 0.9))
     base = cached(ctx, f"base-band:{ctx.end}", lambda: np.interp((0.1, 0.9), np.cumsum(to_bins(ctx, base_pdf(ctx))), mid))
-    centre = np.log((ctx.edges[:-1] + ctx.edges[1:]) / 2.0)
+    centre = ctx.log_of((ctx.edges[:-1] + ctx.edges[1:]) / 2.0)
     lean = (float(np.dot(probs, centre)) - ctx.log_spot) / ctx.sigma     # the mean: a skewed shape's median sits on its thin side
     width = (q90 - q10) / max(float(base[1] - base[0]), 1e-12)
     if lean > 0.10:
@@ -630,5 +749,5 @@ def describe(ctx: Ctx, probs: np.ndarray) -> dict[str, float | str]:
         view = "sideways"
     else:
         view = "neutral"
-    return {"lean": float(lean), "width": float(width), "view": view, "median": float(np.exp(q50)),
-            "low": float(np.exp(q10)), "high": float(np.exp(q90))}
+    return {"lean": float(lean), "width": float(width), "view": view, "median": float(ctx.value_of(q50)),
+            "low": float(ctx.value_of(q10)), "high": float(ctx.value_of(q90))}

@@ -1,4 +1,5 @@
-"""Hourly candles for the models: public Coinbase data, paged, cached on disk, complete bars only."""
+"""Hourly candles for the models: public Coinbase data (or Glimpse's own oracle for what no exchange quotes), paged,
+cached on disk, complete bars only."""
 from __future__ import annotations
 
 import asyncio
@@ -10,7 +11,7 @@ import httpx
 import numpy as np
 import pandas as pd
 
-from ..api import COINBASE, PAIRS
+from ..api import ADJUSTMENT, COINBASE, HASHPRICE, ORACLE, PAIRS, RETARGET_SERIES, oracle_candles, oracle_spot, oracle_topic
 
 HOURS = 2000                     # about twelve weeks: enough for a 30-day signal to have 1,000+ readings of history
 PAGE = 300                       # Coinbase serves at most 300 candles a request
@@ -64,10 +65,17 @@ async def _fetch(client: httpx.AsyncClient, pair: str, start: int, end: int) -> 
     return []
 
 
+async def _fetch_oracle(topic: int, start: int, end: int) -> list[list[float]]:
+    """The oracle's hourly candles as Coinbase rows, [time, low, high, open, close, volume], for `frame`. No volume:
+    the oracle is a price, not a venue."""
+    return [[c.t, c.l, c.h, c.o, c.c, 0.0] for c in await oracle_candles(topic, 3600, start=start, end=end)]
+
+
 async def hourly_bars(asset: str, hours: int = HOURS, now: float | None = None) -> pd.DataFrame:
-    """Complete hourly bars, oldest first. The first call pages through history; later calls fetch only the new hours."""
+    """Complete hourly bars, oldest first. The first call pages through history; later calls fetch only the new hours.
+    An asset no exchange quotes (WTI/BTC) reads Glimpse's own oracle, which answers a whole history in one request."""
     pair = PAIRS.get(asset)
-    if not pair:
+    if not pair and asset not in ORACLE:
         raise ValueError(f"no price feed for {asset}")
     now = time.time() if now is None else now
     async with _LOCKS.setdefault(asset, asyncio.Lock()):
@@ -87,11 +95,14 @@ async def hourly_bars(asset: str, hours: int = HOURS, now: float | None = None) 
         if have is not None and len(have) >= hours - 24:
             start = max(start, int(have.index[-1].timestamp()) - 3600)
         parts = [have] if have is not None and start > int(now) - hours * 3600 else []
+        topic = await oracle_topic(asset) if asset in ORACLE else 0
+        page = HOURS if topic else PAGE
         async with httpx.AsyncClient(timeout=20, headers={"User-Agent": "glimpse-tui"}) as c:
-            t = start
-            while t < now:
-                parts.append(frame(await _fetch(c, pair, t, min(t + PAGE * 3600, int(now)))))
-                t += PAGE * 3600
+            t, last = start, int(now)
+            while t < last:
+                until = min(t + page * 3600, last)
+                parts.append(frame(await (_fetch_oracle(topic, t, until) if topic else _fetch(c, pair, t, until))))
+                t += page * 3600
                 await asyncio.sleep(0.12)
         df = pd.concat([p for p in parts if p is not None and len(p)]) if parts else frame([])
         df = complete(df[~df.index.duplicated(keep="last")].sort_index(), now, max(hours, HOURS))
@@ -105,6 +116,11 @@ async def hourly_bars(asset: str, hours: int = HOURS, now: float | None = None) 
 
 
 async def spot_price(asset: str) -> float | None:
+    if asset in ORACLE:
+        try:
+            return await oracle_spot(await oracle_topic(asset)) or None
+        except Exception:
+            return None
     pair = PAIRS.get(asset)
     if not pair:
         return None
@@ -114,6 +130,9 @@ async def spot_price(asset: str) -> float | None:
             return float(r.json()["price"])
     except Exception:
         return None
+
+
+MIN_FEED_BARS = 400
 
 
 class Feed:
@@ -128,14 +147,37 @@ class Feed:
         self._key = None
         self._scale = None
         self._cache: dict = {}
+        self.parts = None                       # hashprice.Inputs or difficulty.Inputs on those series: what their own bots read
 
     @property
     def ready(self) -> bool:
+        if self.asset in RETARGET_SERIES:       # no change, the adjustment's spot, is zero
+            return self.bars is not None and self.parts is not None and self.parts.ready
         return self.bars is not None and len(self.bars) > 0 and self.spot > 0
+
+    async def _refresh_retarget(self) -> None:
+        """A retarget series has no price to walk. Its only bars are the difficulty's own, which only name the hour; its spot is
+        the level at which nothing changes: today's difficulty, or a 0% adjustment."""
+        from ..difficulty import shared_inputs
+
+        self.parts = shared_inputs()
+        await self.parts.refresh()
+        if self.parts.ts is not None:
+            self.bars = self.parts.hourly_bars(MIN_FEED_BARS)
+            self.spot = 0.0 if self.asset == ADJUSTMENT else float(self.parts.diff[-1]) / 1e12
+        self.fetched_at = time.time()
 
     async def refresh(self, max_age: float = 30.0) -> None:
         if time.time() - self.fetched_at < max_age and self.ready:
             return
+        if self.asset in RETARGET_SERIES:
+            await self._refresh_retarget()
+            return
+        if self.asset == HASHPRICE:
+            from ..hashprice import Inputs
+
+            self.parts = self.parts or Inputs()
+            await self.parts.refresh()
         bars, spot = await asyncio.gather(hourly_bars(self.asset), spot_price(self.asset))
         if len(bars):
             self.bars = bars
@@ -145,14 +187,15 @@ class Feed:
             self.spot = float(self.bars["close"].iloc[-1])
         self.fetched_at = time.time()
 
-    def ctx(self, bins: list[tuple[float, float]], end: float, now: float | None = None):
+    def ctx(self, bins: list[tuple[float, float]], end: float, now: float | None = None, height: int = 0):
         from .core import Ctx, Scale
 
         if self.bars is None:
             raise RuntimeError("feed not loaded")
         key = self.bars.index[-1]
         if key != self._key:
-            self._key, self._scale, self._cache = key, Scale.fit(self.bars), {}
+            self._key, self._cache = key, {}
+            self._scale = Scale.still() if self.asset in RETARGET_SERIES else Scale.fit(self.bars, asset=self.asset)
         edges = np.array([bins[0][0]] + [hi for _, hi in bins], dtype=float)
         return Ctx(bars=self.bars, spot=self.spot, edges=edges, now=time.time() if now is None else now, end=float(end),
-                   asset=self.asset, scale=self._scale, cache=self._cache)
+                   asset=self.asset, scale=self._scale, cache=self._cache, parts=self.parts, height=height)

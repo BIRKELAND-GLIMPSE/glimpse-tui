@@ -6,7 +6,7 @@ from glimpse_tui import zoo
 from glimpse_tui.zoo import core as C
 
 
-@pytest.mark.parametrize("m", zoo.catalog(), ids=lambda m: m.id)
+@pytest.mark.parametrize("m", [m for m in zoo.catalog() if not m.only_series], ids=lambda m: m.id)
 def test_every_model_meets_the_contract(m):
     check_model(m)
 

@@ -37,6 +37,10 @@ what the market sells under its value. Its budget is the fresh sats it may add: 
 The Profit Taker (`ProfitTaker`, the zoo's `take_profit`) only sells. It reads every position your account holds in every
 series, visits only the closes you hold something in, and sells the part of each position the market overpays at a
 profit, net of both fees. It never buys and has no budget.
+
+The Arbitrageurs (`glimpse_tui.arb.Arbitrageur`, the zoo's `arbitrage` across BTC, BTC 1D and WTIBTC and `arbitrage_gold`
+across XAU, XAU 1D, XAUTBTC, BTC and WTIBTC) trade pairs of closes at one instant in two series, buying across the two
+books the cheapest cover of the price line when it pays more than it costs either way. `Bot.arbitrage` names the scheme.
 """
 from __future__ import annotations
 
@@ -54,7 +58,7 @@ from typing import ClassVar
 from . import fmt
 from . import policy as PL
 from . import pricing as P
-from .api import PAIRS, ApiError, Batch, Book, Glimpse, MarketRow, Position, parse_bin
+from .api import ASSETS, RETARGET_SERIES, ApiError, Batch, Book, Glimpse, MarketRow, NoServiceAuth, Position, parse_bin
 from .auth import config_dir
 from .policy import Leg, Policy
 
@@ -73,6 +77,7 @@ class BotConfig:
     kelly: float = 0.5
     min_edge: float = 0.04           # net ev/cost, already after both fees: any real edge left over is traded
     fill_margin: float = 0.0         # edge: stop buying a range this far short of its value (0: buy up to fair value)
+    hedger_edge: float = 0.0         # edge: the net edge a range on the hedgers' side must show (see hedgers_side); 0: no such side, inf: never
     edge_close_share: float = 1.0    # edge: most held in one close, as a share of the budget (the even share caps it too)
     exit_edge: float = 0.02          # sell when the market pays this much more than the picture says a position is worth
     cycle_share: float = 0.20        # spend cap per visit, as a share of the budget
@@ -122,6 +127,12 @@ class Bot:
     reads_series: bool = False              # the picture reads every close of the series as the site shows it (shown_series)
     trading: dict | None = None             # BotConfig fields of its own (see BotConfig.for_bot)
     sells_only: bool = False                # never buys: it takes profit on your whole portfolio (ProfitTaker runs it)
+    arbitrage: str = ""                     # the arb.SCHEMES scheme whose coinciding closes it covers (arb.Arbitrageur runs it)
+    only_series: str = ""                   # the one series it can draw a picture of; "" draws any
+
+    def draws(self, asset: str) -> bool:
+        """Whether it has a picture of this series. A retarget series is a step a walk knows nothing of: only its own bots."""
+        return self.only_series == asset if asset in RETARGET_SERIES else self.only_series in ("", asset)
 
     def probs(self, book: Book, ctx, series=()) -> list[float]:
         """The bot's picture of `book`'s close. `series` is what `shown_series` gives for the series' open closes; a bot
@@ -168,8 +179,14 @@ def discover() -> list[Bot]:
     from . import zoo
 
     return [Bot(m.id, m.name, m.family, m.blurb, m.description, m.kind, m.factors, model=m, policy=m.policy,
-                reads_market=m.reads_market, reads_series=m.reads_series, trading=m.trading, sells_only=m.sells_only)
+                reads_market=m.reads_market, reads_series=m.reads_series, trading=m.trading, sells_only=m.sells_only,
+                arbitrage=m.arbitrage, only_series=m.only_series)
             for m in zoo.catalog()] + user_bots()
+
+
+def ctx_of(feed, book: Book):
+    """A feed's context for this book's close: a retarget market's names the height that settles it."""
+    return feed.ctx(book.bins, book.end_time_utc, height=book.close_block) if book.close_block else feed.ctx(book.bins, book.end_time_utc)
 
 
 def shown_series(closes) -> tuple:
@@ -289,17 +306,32 @@ class Ledger:
 
 # ── decision ────────────────────────────────────────────────
 
-def decide(book: Book, probs: list[float], cfg: BotConfig, budget_sats: float, held_cost: float = 0.0) -> list[Leg]:
+def hedgers_side(book: Book, probs: list[float], unchanged: float) -> list[bool]:
+    """The ranges a miner hedging against a rising difficulty would buy: those wholly above both the picture's median and the
+    level at which nothing changes. Every range at or below that is a bet on down or stable."""
+    below, median = 0.0, book.bins[-1][1]
+    for (lo, _), p in zip(book.bins, probs, strict=True):
+        below += p
+        if below >= 0.5:
+            median = lo
+            break
+    pivot = max(median, unchanged)
+    return [lo > pivot for lo, _ in book.bins]
+
+
+def decide(book: Book, probs: list[float], cfg: BotConfig, budget_sats: float, held_cost: float = 0.0, spot: float = 0.0) -> list[Leg]:
     """Buys on bins the market underprices net of both fees, fractional Kelly, truthful-capped. `held_cost` is what
-    the bot already has in this market: Kelly's stake is a target, not a top-up to repeat every cycle."""
+    the bot already has in this market: Kelly's stake is a target, not a top-up to repeat every cycle. With `hedger_edge`, a
+    range on the hedgers' side must show that much edge instead, or with infinity is never bought."""
     q = book.shares[:]
     px = book.prices
     net = P.PAYOUT_SATS * (1 - P.FEE)
+    theirs = hedgers_side(book, probs, spot) if cfg.hedger_edge else [False] * len(probs)
     cands = []
     for i, p in enumerate(probs):
         c1 = px[i] * (1 + P.FEE)
         ev = p * net - c1
-        if c1 <= 0 or ev <= 0 or ev / c1 < cfg.min_edge:
+        if c1 <= 0 or ev <= 0 or ev / c1 < (cfg.hedger_edge if theirs[i] else cfg.min_edge):
             continue
         b = net / c1 - 1
         f = (b * p - (1 - p)) / b
@@ -343,7 +375,7 @@ def buys(bot: Bot, cfg: BotConfig, book: Book, probs: list[float], room: float, 
     sizing = cfg if bankroll is None else BotConfig(**{**asdict(cfg), "bankroll_sats": bankroll})
     if bot.policy is not None:
         return PL.decide(book, probs, bot.policy, sizing.bankroll_sats, room, held or {}, held_cost, spot)
-    return decide(book, probs, sizing, room, held_cost)
+    return decide(book, probs, sizing, room, held_cost, spot)
 
 
 def plan(bot: Bot, book: Book, probs: list[float], budget_sats: float, spot: float, cfg: BotConfig | None = None,
@@ -351,7 +383,7 @@ def plan(bot: Bot, book: Book, probs: list[float], budget_sats: float, spot: flo
     """What `bot` would buy on this close right now with this budget and nothing held: the visit a runner would make
     here, with the close's even share of the budget across `closes`, and the order a one-off snapshot bet sends.
     Pass `cfg` (already sized to the budget) when planning many closes, so bots.toml is read once."""
-    if bot.sells_only:
+    if bot.sells_only or bot.arbitrage:     # neither trades one close on its own
         return []
     cfg = (cfg or BotConfig.load().with_budget(budget_sats)).for_bot(bot)
     return buys(bot, cfg, book, probs, share(cfg, closes), spot)
@@ -630,7 +662,8 @@ class Runner:
         self._series = {r.topic_id for r in rows}
         if not await self.sync(rows):
             return
-        closes = [r for r in rows if r.quote_mode == "live" and r.end_time_utc - now >= self.cfg.stop_before_close_s]
+        closes = [r for r in rows if r.quote_mode == "live" and r.end_time_utc - now >= self.cfg.stop_before_close_s
+                  and not self._stopped_at_block(r.trading_stops_block)]
         self._closes = closes[: self.cfg.markets] if self.cfg.markets else closes
         if not self._closes:
             self.say("no open close to trade")
@@ -644,7 +677,8 @@ class Runner:
         except ApiError as e:
             self.say(f"{self.tag(row)}  cannot read its book: {e}")
             return
-        if not book.bins or book.quote_mode != "live" or book.end_time_utc - time.time() < self.cfg.stop_before_close_s:
+        if (not book.bins or book.quote_mode != "live" or book.end_time_utc - time.time() < self.cfg.stop_before_close_s
+                or self._stopped_at_block(book.trading_stops_block)):
             self.say(f"{self.tag(book)}  closed to trading, skipped")
             return
         self._remember(book)
@@ -666,9 +700,13 @@ class Runner:
             self.on_trade()
         self.ledger.save()
 
+    def _stopped_at_block(self, stops: int) -> bool:
+        """A retarget market stops trading at a height, not a time: its close time is only the service's estimate of it."""
+        return bool(stops) and getattr(self.feed.parts, "tip", 0) >= stops
+
     def _draw(self, feed, book: Book, series=()) -> list[float]:
         """The bot's picture of one close. Runs in a runner thread: a model that simulates paths takes seconds."""
-        return [float(x) for x in self.bot.probs(book, feed.ctx(book.bins, book.end_time_utc), series)]
+        return [float(x) for x in self.bot.probs(book, ctx_of(feed, book), series)]
 
     def _remember(self, book: Book) -> None:
         """The close as the bot saw it on this visit: what a bot that reads the series is shown for it until the next."""
@@ -779,6 +817,8 @@ class Runner:
                 (f"{pic.gap:.0%} off its forecast, nothing worth buying{part}" if part else
                  f"{pic.gap:.0%} off its forecast, but no range sells under its value") if self.matching else
                 "nothing it may buy under its rule" if pol else
+                f"holds {fmt.sats(held_cost)} here, its Kelly stake: best edge left {pic.edge:+.0%}"
+                if held_cost >= 1 and pic.edge >= self.cfg.min_edge else
                 f"nothing {self.cfg.min_edge:.0%} under value: best edge {pic.edge:+.0%}") + slow)
             return traded
         return await self._enter(pic, legs, per) or traded
@@ -814,7 +854,7 @@ class Runner:
                 fills = await self.api.sell_many([(book.topic_id, [(book.option_ids[i], c) for i, c, _ in sells])])
             except ApiError as e:
                 self.say(f"{self.tag(book)}  sell failed: {e}")
-                if "may or may not" in str(e):
+                if "may or may not" in str(e) or isinstance(e, NoServiceAuth):
                     self.stop()
                 return False
             if fills[0].error:
@@ -854,8 +894,8 @@ class Runner:
                 fill = (await self.api.buy_many([(book.topic_id, order)]))[0]
             except ApiError as e:
                 self.say(f"{self.tag(book)}  buy failed: {e}")
-                if "may or may not" in str(e):
-                    self.stop()             # unknown fill state: a human should look before more orders go out
+                if "may or may not" in str(e) or isinstance(e, NoServiceAuth):
+                    self.stop()             # unknown fill state, or no way to trade: a human should look before more orders go out
                 return False
             if fill.error:
                 self.say(f"{self.tag(book)}  buy rejected: {fill.error}")
@@ -945,7 +985,7 @@ class ProfitTaker(Runner):
     async def _every_close(self) -> list[MarketRow]:
         """Every open close of every series it checks, each read again every `list_s` (shared with other runners)."""
         if not self.batches:
-            self.batches = [b for b in await self.api.batches() if b.asset in PAIRS]
+            self.batches = [b for b in await self.api.batches() if b.asset in ASSETS and self.bot.draws(b.asset)]
         got = await asyncio.gather(*(listing(self.api, b.batch_id, self.cfg.list_s) for b in self.batches))
         rows: list[MarketRow] = []
         for b, rs in zip(self.batches, got, strict=True):

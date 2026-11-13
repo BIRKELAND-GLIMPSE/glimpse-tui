@@ -22,7 +22,7 @@ from textual.widget import Widget
 from . import charts, fmt
 from . import policy as PL
 from . import pricing as P
-from .api import Candle
+from .api import ADJUSTMENT, Candle
 from .heatmap import axis_labels
 from .theme import DIM, FAINT, GREEN, ORANGE, RED, RULE, TEXT
 
@@ -94,6 +94,8 @@ def visible(t: Terminal) -> list[Bot]:
     out = []
     for b in t.bots:
         s = t.bot_scan.get(b.id)
+        if not b.draws(t.asset):
+            continue
         if tab == "Running" and not (b.id in t.runners and t.runners[b.id].running):
             continue
         if tab == "Mine" and b.family != "Mine":
@@ -193,7 +195,7 @@ def ladder(probs, bins, spot: float, width: int, rows: int = 13, market=None, mi
     for n in range(len(groups) - 1, -1, -1):                                       # highest price on top
         (a, b), p = groups[n], weights[n]
         g_lo, g_hi = bins[a][0], bins[b][1]
-        here = g_lo <= spot < g_hi
+        here = g_lo < spot < g_hi                     # a spot on an edge (the adjustment's 0%) is in neither range
         out.append(f"  {fmt.span(g_lo, g_hi):<16}", style=f"bold {TEXT}" if here else TEXT)
         out.append(f"{'◂ now' if here else '':<6}", style=f"bold {TEXT}")
         out.append(f"{fmt.pct(p):>7}", style=f"bold {ORANGE}")
@@ -317,16 +319,18 @@ def row_mass(probs, bins, hi: float, step: float, rows: int) -> list[float]:
 
 
 def chart(bars: list[Candle], closes: list[RowView], scans: dict[int, Scan], cur: int, spot: float, now: float,
-          width: int, rows: int, mode: str = "forecast", zoom: int = 0) -> Text:
+          width: int, rows: int, mode: str = "forecast", zoom: int = 0, signed: bool = False) -> Text:
     """Price up, time across. Left of NOW the hourly candles the model read, merged to the chart's time scale; right
     of it, at every close ahead, either the bot's whole distribution as heat (mode "forecast": dark where it expects
     little, bright orange where it expects most) or the order it would send there now (mode "trades": the sats it
     would stake in each price row, bright green for the biggest stake on the chart, black where it buys nothing).
     Over either, its median (─), the market's median (·) for contrast, and the close the ladder shows (░ █). One row
     per price step, labelled on the right where the step is a round number. `zoom` widens (above 0) or narrows the
-    price range around spot, ZOOM times per step."""
+    price range around spot, ZOOM times per step. `signed`: a series whose values run through zero (the adjustment, in
+    percent), where a spot of 0 is a value, not a missing one."""
     out = Text(no_wrap=True, overflow="crop")
     chart_w = width - GUTTER - 2
+    has_spot = signed or spot > 0
     if not closes or rows < 3 or chart_w < 8:
         return out
     t0 = int(now // 3600) * 3600                                            # the hour in progress: no complete bar yet
@@ -342,17 +346,18 @@ def chart(bars: list[Candle], closes: list[RowView], scans: dict[int, Scan], cur
         ahead.setdefault(max(col, 0), []).append((i, v, scans.get(v.row.topic_id)))
     lows = [k.l for k in hist if k] + [s.low for cs in ahead.values() for _, _, s in cs if s and not s.error]
     highs = [k.h for k in hist if k] + [s.high for cs in ahead.values() for _, _, s in cs if s and not s.error]
-    if spot > 0:
+    if has_spot:
         lows.append(spot)
         highs.append(spot)
     if not lows:
         return out
     lo, hi = min(lows), max(highs)
-    pad = max((hi - lo) * 0.06, spot * 0.002 if spot > 0 else 1e-9)
+    pad = max((hi - lo) * 0.06, abs(spot) * 0.002, 1e-9)
     lo, hi = lo - pad, hi + pad
     if zoom:
         mid, f = (spot if lo < spot < hi else (lo + hi) / 2), ZOOM ** zoom
-        lo, hi = max(mid - (mid - lo) * f, 1e-9), mid + (hi - mid) * f
+        lo, hi = mid - (mid - lo) * f, mid + (hi - mid) * f
+        lo = lo if signed else max(lo, 1e-9)
     step = (hi - lo) / rows
     row_of = lambda p: min(max(int((hi - p) // step), 0), rows - 1)        # noqa: E731  0 is the top row
     rule_step = round_step(2 * step)
@@ -360,7 +365,7 @@ def chart(bars: list[Candle], closes: list[RowView], scans: dict[int, Scan], cur
     ruled = {r: p for r, p in ruled.items() if math.floor(p / rule_step) != math.floor((p - step) / rule_step)}
     for r in ruled:
         ruled[r] = math.floor(ruled[r] / rule_step) * rule_step
-    spot_r = row_of(spot) if spot > 0 else -1
+    spot_r = row_of(spot) if has_spot else -1
 
     cells: list[dict[int, tuple[str, str]]] = [{} for _ in range(rows)]
     for k_i, k in enumerate(hist):
@@ -401,8 +406,9 @@ def chart(bars: list[Candle], closes: list[RowView], scans: dict[int, Scan], cur
             for r in range(rows):
                 cells[r][x] = ("╎", DIM)
         for _, v, _ in cs:
-            if v.median > 0:
+            if (signed or v.median > 0) and math.isfinite(v.median):
                 cells[row_of(v.median)][x] = ("·", f"bold {MARKET}")
+        done = [s for s in done if math.isfinite(s.median)]                # a picture whose middle could not be read draws no line
         if done:
             cells[row_of(done[-1].median)][x] = ("█", f"bold {TEXT}") if here else ("─", f"bold {TEXT}")
     for (r, x), bg in shade.items():
@@ -598,9 +604,21 @@ def sold(r) -> str:
 def log_title(t: Terminal, r) -> str:
     """The runner's state, on the border of the pane that holds its log."""
     state = ("● LIVE · real sats" if r.live else "● ON PAPER") if r.running else "○ stopped"
+    if is_desk(r):
+        w = r.watch
+        return (f"{state} · {r.name} as a desk across {r.series} · bankroll {fmt.sats(r.bankroll)} · deployed {fmt.sats(r.open_cost)}"
+                f" · bought {fmt.sats(r.paid_sats)} · {sold(r)} · {r.trades} trade{'' if r.trades == 1 else 's'}, {r.launches} at the seed"
+                f" · {'stream up' if w and w.streaming else 'polling'} · {progress(r)}")
     if not r.buys:
         return (f"{state} · {r.name} takes profit on your whole portfolio · {sold(r)} · holds {fmt.sats(r.open_cost)} at cost"
                 f" · {r.trades} sale{'' if r.trades == 1 else 's'} · {progress(r)}")
+    if getattr(r, "triangle", None) is not None:
+        return (f"{state} · {r.name} trades the triangle across {r.series} through {r.lens_name} · budget {fmt.sats(r.cfg.bankroll_sats)}"
+                f" · at risk {fmt.sats(r.open_cost)} · bought {fmt.sats(r.paid_sats)} · {sold(r)} · {r.trades} "
+                f"trade{'' if r.trades == 1 else 's'} · {progress(r)}")
+    if r.bot.arbitrage:
+        return (f"{state} · {r.name} covers coinciding closes across {r.series} · budget {fmt.sats(r.cfg.bankroll_sats)} · at risk "
+                f"{fmt.sats(r.open_cost)} · bought {fmt.sats(r.paid_sats)} · {r.trades} cover{'' if r.trades == 1 else 's'} · {progress(r)}")
     if r.manage:
         return (f"{state} · {r.name} manages your {r.series} portfolio · can spend {fmt.sats(max(r.cfg.bankroll_sats - r.committed, 0))}"
                 f" · {sold(r)} · bought {fmt.sats(r.paid_sats)} · holds {fmt.sats(r.open_cost)} at cost"
@@ -610,8 +628,16 @@ def log_title(t: Terminal, r) -> str:
             f" · {progress(r)}")
 
 
+def is_desk(r) -> bool:
+    """A Desk (glimpse_tui.desk) rather than a Runner: every series at once, on every update."""
+    return hasattr(r, "allotments")
+
+
 def progress(r) -> str:
-    """`round 2 · close 37 of 168`: where the runner is in its walk over the series."""
+    """`round 2 · close 37 of 168`: where the runner is in its walk over the series. A desk has no walk: its ticks."""
+    if is_desk(r):
+        n = sum(len(r.tradable(b)) for b in r.batches) if r.watch else 0
+        return f"tick {r.ticks} · {n} closes watched" if r.ticks else "starting"
     return f"round {r.rounds + 1} · close {r.step} of {r.of}" if r.of else "starting"
 
 
@@ -652,12 +678,33 @@ def portfolio(r, asset: str, width: int) -> Text:
     """Every position the bot holds, marked to the market and to its picture, with the session's flow on top."""
     rows, cost, value, fair = valuation(r)
     out = Text(no_wrap=True, overflow="ellipsis")
-    if not r.buys:
+    if is_desk(r):
+        out.append(f"{'LIVE · real sats' if r.live else 'PAPER'} · a desk across {r.series} · bankroll {fmt.sats(r.bankroll)}"
+                   f"{' (the wallet)' if r.live else ''} · {fmt.sats(max(r.deployable - cost, 0))} free of the "
+                   f"{1 - r.cfg.reserve:.0%} it may deploy\n", style=RED if r.live else GREEN)
+        out.append("Every open close of every series, re-planned on every trade in it and the moment it is launched. It sells what "
+                   "the market pays more for than the picture says a position is worth" + (" and than it cost" if r.cfg.profit_only else "")
+                   + f", and buys {r.cfg.kelly:g} of the Kelly optimum for each close's share of the bankroll, never a contract past "
+                   f"{r.cfg.min_edge:.0%} under value after fees.\n", style=DIM)
+    elif not r.buys:
         out.append(f"{'LIVE · real sats' if r.live else 'PAPER'} · taking profit on your whole portfolio, every series · "
                    "never buys\n", style=RED if r.live else GREEN)
         out.append("Every position your account holds, whoever opened it. It sells the part of a position the market pays more "
                    "for than the picture says it is worth" + (" and than it cost" if r.cfg.profit_only else "")
                    + ", and keeps the rest.\n", style=DIM)
+    elif getattr(r, "triangle", None) is not None:
+        out.append(f"{'LIVE · real sats' if r.live else 'PAPER'} · trading the triangle across {r.series} through {r.lens_name} · budget "
+                   f"{fmt.sats(r.cfg.bankroll_sats)} · {fmt.sats(max(r.cfg.bankroll_sats - cost, 0))} free\n", style=RED if r.live else GREEN)
+        out.append("Every leg's picture is pooled with the one the other two legs imply; on each leg it sells what the market pays "
+                   "more for than that triangle says a position is worth" + (" and than it cost" if r.cfg.profit_only else "")
+                   + ", and buys the ranges priced under it, all legs in one request. A cover across two books, when taken, is "
+                   "held to the close.\n", style=DIM)
+    elif r.bot.arbitrage:
+        out.append(f"{'LIVE · real sats' if r.live else 'PAPER'} · covering coinciding closes across {r.series} · budget "
+                   f"{fmt.sats(r.cfg.bankroll_sats)} · {fmt.sats(max(r.cfg.bankroll_sats - cost, 0))} free\n", style=RED if r.live else GREEN)
+        out.append("Each cover is a set of ranges across two books that holds the settlement price wherever it lands in its band, "
+                   "bought when it pays more than it costs either way, and held to the close. Both legs show here; the two "
+                   "together are the position.\n", style=DIM)
     elif r.manage:
         out.append(f"{'LIVE · real sats' if r.live else 'PAPER'} · managing your {r.series} portfolio · adds at most "
                    f"{fmt.sats(r.cfg.bankroll_sats)} fresh sats, {fmt.sats(max(r.cfg.bankroll_sats - r.committed, 0))} left "
@@ -671,11 +718,20 @@ def portfolio(r, asset: str, width: int) -> Text:
         out.append("It takes profit, selling what the market pays more for than the picture says it is worth"
                    + (" and than it cost" if r.cfg.profit_only else "") + ", and buys what the market sells under its value.\n",
                    style=DIM)
-    out.append(f"this session: {sold(r)} · {r.trades} sales · {progress(r)} you hold, one every {r.cfg.interval_s:g}s\n\n"
-               if not r.buys else
-               f"this session: bought {fmt.sats(r.paid_sats)} · {sold(r)} · {r.trades} trades · "
-               f"{progress(r)}, one close every {r.cfg.interval_s:g}s · {fmt.sats(r.cfg.bankroll_sats / max(r.of, 1))} a close\n\n",
-               style=DIM)
+    if is_desk(r):
+        out.append(f"this session: bought {fmt.sats(r.paid_sats)} · {sold(r)} · {r.trades} trades, {r.launches} at the seed · "
+                   f"{progress(r)}" + (f" · settled {fmt.sats(r.settled_sats, signed=True)} on paper" if not r.live else "") + "\n\n",
+                   style=DIM)
+    else:
+        out.append(f"this session: {sold(r)} · {r.trades} sales · {progress(r)} you hold, one every {r.cfg.interval_s:g}s\n\n"
+                   if not r.buys else
+                   f"this session: bought {fmt.sats(r.paid_sats)} · {sold(r)} · {r.trades} trades · "
+                   f"{progress(r)}, one {'instant' if getattr(r, 'triangle', None) else 'pair' if r.bot.arbitrage else 'close'} "
+                   f"every {r.cfg.interval_s:g}s · "
+                   + (f"{fmt.sats(r.cfg.bankroll_sats * r.tri.instant_share)} an instant at most" if getattr(r, "triangle", None) else
+                      f"{fmt.sats(r.cfg.bankroll_sats * r.rules.pair_share)} a pair at most" if r.bot.arbitrage else
+                      f"{fmt.sats(r.cfg.bankroll_sats / max(r.of, 1))} a close") + "\n\n",
+                   style=DIM)
     out.append(f"{'held':<20}{len(rows)} positions in {len({(x[0], x[1]) for x in rows})} closes\n", style=TEXT)
     for label, v in (("cost", cost), ("at market", value), ("by its picture", fair)):
         out.append(f"{label:<20}{fmt.sats(v):>12}")
@@ -813,7 +869,8 @@ class BotDetailPane(Widget):
                 hist_h = max(int((int(now // 3600) * 3600 - bars[0].t) // 3600), 0) if bars else 0
                 out.append_text(chart_header(columns(closes, hist_h, now, w - GUTTER - 2)[0], len(closes), walking, t.bot_mode))
                 out.append("\n")
-                out.append_text(chart(bars, closes, t.bot_pictures(b), cur, t.spot, now, w, chart_rows, t.bot_mode, t.bot_zoom))
+                out.append_text(chart(bars, closes, t.bot_pictures(b), cur, t.spot, now, w, chart_rows, t.bot_mode, t.bot_zoom,
+                                      signed=t.asset == ADJUSTMENT))
                 out.append("\n")
             elif not walking:
                 out.append("  tab", style=f"bold {ORANGE}")
@@ -822,8 +879,9 @@ class BotDetailPane(Widget):
         r = t.runners.get(b.id)
         if r and r.running:
             out.append(" x ", style=f"bold #000000 on {ORANGE}")
-            out.append(f"  stop this bot   {'LIVE · real sats' if r.live else 'on paper'} · "
-                       + (f"managing your portfolio · {fmt.sats(r.cfg.bankroll_sats)} fresh sats" if r.manage else
+            out.append(f"  stop this {'desk' if is_desk(r) else 'bot'}   {'LIVE · real sats' if r.live else 'on paper'} · "
+                       + (f"every series on every update · bankroll {fmt.sats(r.bankroll)}" if is_desk(r) else
+                          f"managing your portfolio · {fmt.sats(r.cfg.bankroll_sats)} fresh sats" if r.manage else
                           f"budget {fmt.sats(r.cfg.bankroll_sats)}"), style=f"bold {TEXT}")
             out.append("   P portfolio   X stops every bot\n", style=DIM)
         else:
@@ -832,6 +890,8 @@ class BotDetailPane(Widget):
             out.append("   e change budget   ", style=DIM)
             out.append("R", style=f"bold {ORANGE}")
             out.append(" let it manage your portfolio\n", style=DIM)
+            out.append(" D ", style=f"bold #000000 on {ORANGE}")
+            out.append("  run it as a desk: every series, every update\n", style=f"bold {TEXT}")
             if t.api.authenticated:
                 out.append(f"  Trades real sats through your API key {t.key_mask} once you type LIVE, otherwise on paper.\n",
                            style=DIM)

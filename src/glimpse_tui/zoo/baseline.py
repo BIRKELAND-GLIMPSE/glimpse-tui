@@ -3,11 +3,20 @@ from __future__ import annotations
 
 import numpy as np
 
-from .core import Ctx, Model, base_pdf, from_samples, rng_for, t_pdf, to_bins
+from ..clock import Clock, session_of
+from .core import Ctx, Model, base_pdf, finish, from_samples, rng_for, t_pdf, to_bins
 
 
 def rw_student_t(ctx: Ctx) -> np.ndarray:
     return to_bins(ctx, base_pdf(ctx))
+
+
+def session_walk(ctx: Ctx) -> np.ndarray:
+    """A Student-t walk at the σ of the hours the asset's market trades; the clock is fitted once per set of candles."""
+    clock = ctx.cache.get("session_clock")
+    if clock is None:
+        clock = ctx.cache["session_clock"] = Clock.fit(ctx.bars, session_of(ctx.asset))
+    return finish(clock.picture(ctx.spot, clock.sigma_to(ctx.now, ctx.end), ctx.edges))
 
 
 def rw_bootstrap(ctx: Ctx, n_paths: int = 4000) -> np.ndarray:
@@ -91,4 +100,30 @@ MODELS = [
                  "those; it thins the far tails and the centre within about 0.5σ and buys neither. Against a market "
                  "priced as a bell curve at the same σ it buys nothing.",
           pipeline="baseline"),
+    Model("session_walk", "Session Walk", "Baseline", "A Student-t walk at the σ of the hours the market trades",
+          "A driftless random walk with one thing the shared clock does not know: when the asset's market is open. Gold "
+          "and oil keep CME's week, Sunday 23:00 to Friday 22:00 UTC with an hour's break at 22:00 each day, and in the "
+          "hours between their prices barely move: PAX Gold drifts a little on Coinbase, WTI/BTC moves only with "
+          "Bitcoin. The hourly ladders through a weekend are priced as if every hour were a trading hour, so a picture "
+          "that adds up only the hours that trade is far sharper there, and that sharpness is where it earns. For "
+          "Bitcoin every hour is open and this is a Student-t walk at an exponentially weighted recent σ. It is the "
+          "picture the Triangulators start from.",
+          session_walk, factors=("randomness", "timing", "tails"),
+          inputs="Hourly closes only. The asset's calendar (CME's for XAU, XAUT, XAUTBTC, WTI and WTIBTC; every hour for "
+                 "the rest), the last 1,000 open hours and the last 1,000 closed hours of hourly log returns, and the "
+                 "time to the close. It needs a hundred open hours; with fewer it assumes 0.5% an hour.",
+          maths="Hourly log returns r are split by whether the hour's market was open. σ_open² is an exponentially "
+                "weighted mean of r² over the open hours with a half-life of 120 open hours; σ_closed = σ_open × "
+                "(sd of closed hours / sd of open hours) over the long run (0.3 with fewer than 50 closed hours, never "
+                "above 1); ν is the maximum-likelihood degrees of freedom of a unit-variance Student-t on the open "
+                "hours' standardised returns, at least 2.5. The variance to the close is Σ over the hourly steps from "
+                "now to the close (partial first and last) of σ_open² or σ_closed² by the calendar, times the fraction "
+                "of the hour. The picture is the Student-t with ν of the log price around spot with that σ (scaled to "
+                "unit variance), its distribution function differenced at the ladder's edges; what falls past the ends "
+                "goes in the end ranges. No drift, no tilt: the centre stays on spot.",
+          trades="Centred on spot. In trading hours it is the baseline at a recent σ and differs from the market only "
+                 "in width. Through a weekend or a daily break it is much narrower than a ladder priced for trading "
+                 "hours, so it buys the centre, a few ranges either side of spot, and nothing else; its edge is largest "
+                 "on gold's and oil's closes from Friday evening to Sunday night. Against a market already as narrow as "
+                 "the calendar says it buys nothing."),
 ]

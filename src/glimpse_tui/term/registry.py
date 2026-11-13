@@ -13,7 +13,7 @@ from typing import Any
 CATEGORIES = ("Bitcoin", "On-chain", "Markets", "Companies", "Glimpse", "Tools")
 CLASSES = ("CRYPTO", "CURNCY", "CMDTY", "INDEX", "GOVT", "EQUITY", "ETF", "SERIES")
 FAMILIES = ("tools", "glimpse", "btc", "chain", "mining", "gp", "onchain", "markets", "powerlaw", "companies", "news", "forecast",
-            "options", "swarm", "toolbox", "demo")
+            "options", "swarm", "toolbox", "demo", "hashprice", "difficulty")
 
 
 @dataclass(frozen=True)

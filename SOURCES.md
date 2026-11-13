@@ -150,6 +150,31 @@ What works without a key: crypto on three exchanges, five FX majors on Kraken, d
 Treasury curve, FRED macro series and daily index closes, Deribit, the CFTC report and Fear and Greed. There is no
 keyless live source for equities, ETFs, spot gold, silver, USD/JPY, USD/SEK, USD/CNH or any commodity.
 
+### Glimpse hashprice and difficulty service, and its oracles
+
+The hashprice markets are not on `main.bpmapi.io`. `https://difficulty.bpmapi.io/api/v1/dmarket` serves the same API shape under its own prefix, topic ids from 1,000,000,000. Checked live on 5 Nov 2026:
+
+- `GET /batches` lists `hashprice_daily`, `btc_difficulty` and `adjustment_epoch`. A series says what it is by `topic_type`, since its title cannot: "Bitcoin Difficulty Adjustment" is the difficulty in terahash. The SDK drops `topic_type`, `alpha` and the block heights, so these are read raw. `GET /v2/batches/{id}/active-markets` needs `include_quotes=true` to carry outcomes; the one-shot `/batches/{id}/active-markets` has none. There is no `/markets/{id}/chart`.
+- 1,000 ranges named in whole cents, `3570-3580` = $35.70 up to $35.80. The terminal turns the names into dollars on the way in. Seed 800 shares, subsidy 240,000 sats, `alpha` 0.0002895296546 = 2/(1000 ln 1000), with no 500-range cap: `tests/fixtures/estimates_hashprice.json` pins five live estimates to a hundredth of a sat.
+- Writes answer `{"error":"Authorization header is required"}` to an `X-API-Key`, where the main service answers `Invalid API key`. So API keys are not read here. The site also sends an `Idempotency-Key`, as the terminal does.
+- Settlement is Bitview's `hash_price` on the `hour1` slot starting an hour before the close, read 15 minutes after it. Both markets settled so far paid exactly that (32.853832, 33.532898).
+
+- The retarget markets, checked live on 5 Nov 2026: twelve markets a series, one per coming retarget, each with `close_block_height`, `trading_closes_at_block` (three before it), `resolves_at_block` (six after it) and `end_time_utc`, only an estimate of when trading stops. `btc_difficulty`: 200 ranges `50-51` to `249-250` in terahash, seed 10,000 shares, `subsidy_amount` 2,000,000 sats, `alpha` 0.00188739 = 2/(200 ln 200). `adjustment_epoch`: 60 ranges `-30 to -29` to `29 to 30` in percent, seed 100,000 shares, `subsidy_amount` 1,000,000 sats, `alpha` 0.00040707 = 0.1/(60 ln 60). So alpha is read from each market, not assumed: `tests/fixtures/estimates_retarget.json` pins ten live estimates to a hundredth of a sat. No retarget market has settled yet, so the settlement rule is what the market's description says, not something checked against a payout. Outcomes beyond a ladder's ends are counted in its end ranges, an assumption about the backend.
+
+Bitview serves the parts: `coinbase_usd`, `coinbase`, `fees`, `difficulty`, `timestamp` by `height`, `price_close`, `difficulty`, `hash_price` by `hour1`. For the retarget forecast, `timestamp` by `height` and `difficulty` by `height` and `difficulty_epoch`: the rule on those raw timestamps matches every retarget since 2014 to 2e-5. A request is limited by weight, 320,000 a request: about 8 a point for most series and 16 for `difficulty`.
+
+### Glimpse oracle (WTI/BTC)
+
+- **Serves.** The price behind a market Glimpse prices itself: WTI crude in satoshis a barrel (WTI in dollars over Bitcoin in dollars, from twelvedata server-side). No exchange quotes the pair, so this is the only source for its history and spot; it is also the price the market settles on.
+- **Access.** `GET https://main.bpmapi.io/api/v1/nmarket/markets/{topic_id}/chart?period=1h`, no key. `topic_id` is any market of the WTI/BTC series, open or settled: the server reads the ticker, not the close. `period` is `1min`, `5min`, `15min`, `30min`, `1h`, `4h` or `1day`; `start` and `end` are unix seconds (milliseconds fail with a twelvedata 400). Checked 27 Oct 2026.
+- **Latency.** 0.6 to 2.9 s a request; 2,000 hourly candles in one answer (293 KB, 2.6 s).
+- **Quirks.**
+  - Without `start`/`end` the answer is the last week: 168 hourly, 336 half-hourly, 672 quarter-hourly or 2,016 five-minute candles. `1min` is capped at 5,000 and starts 23 Oct 2026. `1day` answered 502 on 27 Oct 2026 (a twelvedata date-parsing error server-side), so the terminal never asks for it.
+  - Hourly candles have no weekend gap: WTI does not trade at weekends, Bitcoin does, so the ratio keeps moving on the frozen oil leg. `volume` is always 0.
+  - The last candle is the one in progress and its close is the price now (it matched the last `1min` close); the terminal reads spot as the last `1min` candle of the past 15 minutes, a few hundred bytes.
+- **Verdict.** Keep. The only source for the `WTIBTC` series, and what the bots' hourly bars come from for it.
+- **Endpoints used**, fixtures in `tests/fixtures/sources/glimpse/`: `/markets/8422/chart?period=1h` (trimmed to 48 candles) and `?period=1min&start=…&end=…`.
+
 ### Coinbase Exchange
 
 - **Serves.** Spot crypto tickers, 24 hour stats, candles and a WebSocket feed. It has BTC-USD, ETH-USD, SOL-USD and PAXG-USD. It has no fiat FX pairs against USD except USDT-USD.

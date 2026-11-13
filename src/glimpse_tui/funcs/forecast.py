@@ -1,4 +1,4 @@
-"""FCST: a Glimpse market's forecast as a heatmap you can watch from a launchpad. `FCST BTC`, `FCST XAU`, `FCST BTC 1D`, `FCST XAU 1D`.
+"""FCST: a Glimpse market's forecast as a heatmap you can watch from a launchpad. `FCST BTC`, `FCST XAU`, `FCST BTC 1D`, `FCST WTIBTC`.
 
 The same picture as the full heatmap (f), fitted to a pane: price history left of NOW, then the next two days of
 hourly closes (a month of daily ones) in the columns that are left, each cell one shade block  ░ ▒ ▓ █  by the market's
@@ -13,11 +13,12 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
+import httpx
 from rich.text import Text
 
 from .. import charts, fmt
 from .. import pricing as P
-from ..api import Candle, resample, series_name
+from ..api import ASSETS, ORACLE, PAIRS, Candle, oracle_candles, oracle_spot, resample, series_name
 from ..data.core import LIVE, Provenance, SourceError
 from ..heatmap import ANSI256, BAND, GLYPHS, TRUECOLOR, candle_part, level
 from ..term import ui
@@ -28,8 +29,8 @@ from ..theme import DIM, FAINT, ORANGE, TEXT
 GUTTER = 9                      # price labels on the right
 HISTORY_SHARE = 0.3             # of the chart's width, left of NOW
 LIMIT = {True: 168, False: 90}  # closes fetched when the pane loads its own: a week hourly, three months daily
-PAIRS = {"BTC": "BTC-USD", "ETH": "ETH-USD", "SOL": "SOL-USD", "XAU": "PAXG-USD"}
-NAMES = {"BTC": "Bitcoin", "ETH": "Ether", "SOL": "Solana", "XAU": "Gold"}
+NAMES = {"BTC": "Bitcoin", "ETH": "Ether", "SOL": "Solana", "XAU": "Gold", "WTIBTC": "WTI/BTC", "HASHPRICE": "Hashprice", "DIFFICULTY": "Difficulty",
+         "ADJUSTMENT": "Difficulty adjustment"}
 BATCHES_TTL = 600.0
 HORIZON = {True: 48, False: 31}  # closes drawn: two days of hourly, a month of daily. The full heatmap (f) has the rest
 
@@ -58,13 +59,14 @@ class FcstPane(FuncPane):
 
     def __init__(self, hub, security=None, args=()) -> None:
         super().__init__(hub, security, args)
-        asset = security.ticker if security else next((a.upper() for a in self.args if a.upper() in PAIRS), "BTC")
+        asset = security.ticker if security else next((a.upper() for a in self.args if a.upper() in ASSETS), "BTC")
         asset = "XAU" if asset == "PAXG" else asset
         daily = any(a.upper() in ("1D", "D", "DAILY") for a in self.args)
         self.asset = asset
         self.series = series_name(asset, daily)
         self.views: list = []                   # RowView, nearest close first
         self.candles: list[Candle] = []
+        self.oracle_px = 0.0                    # the price now on an oracle-priced series, when no candles are wanted
         self.cadence = 3600
         self.shared = False                     # reading the app's own loaded closes
         self.title = f"{NAMES.get(asset, asset)} · Glimpse forecast"
@@ -109,14 +111,25 @@ class FcstPane(FuncPane):
         self.hub.series_views[self.series] = self.views
         provs = [Provenance("glimpse", time.time(), time.time(), LIVE)]
         coinbase = self.hub.sources.get("coinbase") if self.wants_candles else None
-        if coinbase and (pair := PAIRS.get(self.asset)):
+        if self.asset in ORACLE:
+            if self.views:                          # no exchange quotes WTI/BTC: the market's own oracle does, and any
+                topic = self.views[0].row.topic_id  # open close names the series to it
+                try:
+                    if self.wants_candles:
+                        self.candles = await oracle_candles(topic, self.cadence)
+                    else:
+                        self.oracle_px = await oracle_spot(topic)
+                except (httpx.HTTPError, ValueError, KeyError):
+                    pass                            # history is context: the forecast stands without it
+        elif coinbase and (pair := PAIRS.get(self.asset)):
             try:
                 rows, _ = await coinbase.candles(pair, self.cadence)     # history is context: the frame names the forecast
                 self.candles = [Candle(int(r[0]), float(r[3]), float(r[2]), float(r[1]), float(r[4]))
                                 for r in sorted(rows, key=lambda r: r[0])]
             except SourceError:
                 pass                                # history is context: the forecast stands without it
-        self.hub.watch.add("PAXG" if self.asset == "XAU" else self.asset)
+        if self.asset not in ORACLE:                # the quote board has no feed for an oracle price; the candles are it
+            self.hub.watch.add("PAXG" if self.asset == "XAU" else self.asset)
         self.title = self.caption(batch.hourly)
         self.provs = provs
 
@@ -131,6 +144,8 @@ class FcstPane(FuncPane):
     # numbers ────────────────────────────────────────────────
 
     def spot(self) -> float:
+        if self.asset in ORACLE:                    # settled on the oracle's own price: its candle in progress is the price now
+            return self.candles[-1].c if self.candles else self.oracle_px
         # The market settles on Coinbase's price: PAXG for gold, not COMEX futures, which sit a carry above spot.
         q = self.hub.quotes.get("PAXG" if self.asset == "XAU" else self.asset)
         if q:
@@ -457,8 +472,8 @@ class DistPane(FcstPane):
 
 
 register(Function(
-    "DIST", "Odds", "Glimpse", "the odds on every outcome of the next close: Bitcoin's next hour, gold's next hour", DistPane,
-    takes=("CRYPTO", "CMDTY"), optional=True, args="[BTC|XAU|ETH|SOL] [1D]", needs=("glimpse",),
+    "DIST", "Odds", "Glimpse", "the odds on every outcome of the next close: Bitcoin's next hour, gold's, WTI/BTC's", DistPane,
+    takes=("CRYPTO", "CMDTY"), optional=True, args="[BTC|XAU|WTIBTC|ETH|SOL] [1D]", needs=("glimpse",),
     help="The Glimpse market's probability for each price range at the next close, read the way the odds screen reads it. Each row "
          "is a round range of prices with a bar, the chance the close lands in it and what a contract on it pays, from the market's "
          "own prices (the seed that keeps every bin tradeable included, as on the odds screen). The window holds as many outcomes as "
@@ -468,20 +483,22 @@ register(Function(
          "inside the market's 80% range are bright. The top line says when "
          "the close settles, how long is left, and the most likely range. The marker shows where the price is now. Enter opens the "
          "odds screen on this series, where a range can be selected and bet on after a confirmation. f opens the full forecast. "
-         "DIST BTC is the next hour of Bitcoin, DIST XAU the next hour of gold and DIST XAU 1D gold's next daily close. "
-         "Data: the public Glimpse API, as FCST reads it."))
+         "DIST BTC is the next hour of Bitcoin, DIST XAU the next hour of gold, DIST XAU 1D gold's next daily close and "
+         "DIST WTIBTC the next hour of WTI crude priced in satoshis a barrel. Data: the public Glimpse API, as FCST reads it."))
 
 
 register(Function(
-    "FCST", "Glimpse forecast", "Glimpse", "a Glimpse market's forecast as a heatmap: Bitcoin, gold, any open series", FcstPane,
-    takes=("CRYPTO", "CMDTY"), optional=True, args="[BTC|XAU|ETH|SOL] [1D]", needs=("glimpse",),
+    "FCST", "Glimpse forecast", "Glimpse", "a Glimpse market's forecast as a heatmap: Bitcoin, gold, WTI/BTC, any open series", FcstPane,
+    takes=("CRYPTO", "CMDTY"), optional=True, args="[BTC|XAU|WTIBTC|ETH|SOL] [1D]", needs=("glimpse",),
     help="The Glimpse prediction market's own forecast for one series, drawn the way the full heatmap draws it. Left of NOW is price "
-         "history (Coinbase candles; gold is PAXG, a token backed by gold, labelled as a proxy). Right of NOW are the next two days of "
+         "history (Coinbase candles; gold is PAXG, a token backed by gold, labelled as a proxy; WTI/BTC, a barrel of WTI crude in "
+         "satoshis, has no exchange and is read from Glimpse's own oracle, the price it settles on). Right of NOW are the next two days of "
          "closes on an hourly series, the next month on a daily one (f shows every close): each character is a price cell of one close, "
          "or of several closes averaged when the pane is narrow, and how solid it is drawn is the market's chance the close "
          "lands in that cell:  ░  from 0.6%,  ▒  from 1.5%,  ▓  from 3.9%,  █  above 10%. The cyan trace is each close's median. "
          "The dotted orange rule and the marker on the price axis are spot. The top line reads the price now and the range the market "
          "puts 80% of the next close's probability in. FCST BTC is hourly Bitcoin, FCST BTC 1D daily Bitcoin, "
-         "FCST XAU hourly gold and FCST XAU 1D daily gold. Prices come from the public Glimpse API: when the app already has "
+         "FCST XAU hourly gold, FCST XAU 1D daily gold and FCST WTIBTC hourly WTI/BTC. Prices come from the public Glimpse API: "
+         "when the app already has "
          "the series loaded it is shared, otherwise the pane reads it every minute (every five on a daily series). Enter, or f, "
          "opens the full heatmap on this series, where v draws a box and tab opens the bet slip. Trading needs an API key (L)."))

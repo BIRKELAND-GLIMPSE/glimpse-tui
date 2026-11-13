@@ -325,7 +325,7 @@ _HOW = ("Every model runs on this machine from public hourly Coinbase candles: n
 
 register(Function(
     "CONS", "Bot consensus", "Glimpse", "what every bot on this machine expects: bulls against bears, and the picture they agree on",
-    ConsPane, takes=("CRYPTO", "CMDTY"), optional=True, args="[BTC|XAU|ETH|SOL] [1D]", needs=("glimpse", "history"),
+    ConsPane, takes=("CRYPTO", "CMDTY"), optional=True, args="[BTC|XAU|WTIBTC|ETH|SOL] [1D]", needs=("glimpse", "history"),
     help="The whole model zoo read against the live market, for three horizons at once: the next hour, the next day and the next "
          "three days (a daily series reads the next close, a week and a month). Each block counts how many models lean bullish, "
          "how many bearish and how many neither, draws that as one bar, and then gives the picture they make together: the median "
@@ -336,7 +336,7 @@ register(Function(
 
 register(Function(
     "BOT", "One bot", "Glimpse", "one model's picture of the next close against the market, [ and ] to walk the zoo", BotPane,
-    takes=("CRYPTO", "CMDTY"), optional=True, args="[BTC|XAU] [1D] [model id]", needs=("glimpse", "history"),
+    takes=("CRYPTO", "CMDTY"), optional=True, args="[BTC|XAU|WTIBTC] [1D] [model id]", needs=("glimpse", "history"),
     help="One model of the zoo at a time: what it is, which way it leans, and what it expects at each of the three horizons CONS "
          "reads, with the market's median beside each one. Under that is its whole picture of the nearest close: every price range "
          "with the chance the model gives it and the price the market charges for it on the same bar, so the gap between them, "

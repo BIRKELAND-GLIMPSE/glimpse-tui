@@ -12,6 +12,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
+from ..api import RETARGET_SERIES
 from ..botsview import Scan
 
 # (seconds ahead, how the row is labelled) for an hourly series and for a daily one.
@@ -24,9 +25,10 @@ STANCE = {"bullish": BULL, "bearish": BEAR, "neutral": FLAT, "sideways": FLAT, "
 def catalog():
     """Every forecasting bot this machine can run. The tests narrow it to a handful, so a pass stays quick. Bots
     trading on an opportunistic policy are left out: their stance is where they buy, not what they forecast, and
-    the zoo's pooled pictures would count their members twice. So is the Profit Taker, a pooled picture that only sells."""
+    the zoo's pooled pictures would count their members twice. So are the Profit Taker, a pooled picture that only sells,
+    and the Arbitrageur, a pooled picture that trades covers across series, and any bot built for one series alone."""
     from .. import bots as B
-    return [b for b in B.discover() if b.policy is None and not b.sells_only]
+    return [b for b in B.discover() if b.policy is None and not b.sells_only and not b.arbitrage and not b.only_series]
 
 
 def make_feed(asset: str):
@@ -141,6 +143,9 @@ class Swarm:
     async def refresh(self, asset: str, views: list, cadence: int, changed=lambda: None) -> None:
         """One pass: every bot against each chosen close, nearest first, painting as each close fills."""
         if not views:
+            return
+        if asset in RETARGET_SERIES:            # a step a walk knows nothing of: the zoo has no picture of it, and DFF has the bots' own
+            self.error = f"the zoo has no picture of {asset}: DFF has the forecast its own bot trades"
             return
         await self.discover()                   # both windows wait for the zoo, but only one of them walks it
         if not self.bots or self.busy:

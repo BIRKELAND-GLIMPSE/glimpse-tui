@@ -70,10 +70,26 @@ KEYMAP: dict[str, list[tuple[str, list[tuple[str, str]]]]] = {
                  ("e", "budget"), ("x", "stop"), ("L", "log in to trade real sats")]),
         ("MORE", [("r", "re-read the market")]),
     ],
+    "advanced": [
+        ("MOVE", [(VERT, "a bot"), (SIDE, "an instant (while watching)"), ("gg G", "first / last bot")]),
+        ("READ", [("i", "how this bot works: idea, data, maths, trades"), ("m", "the lens: the smoothing model each leg starts from"),
+                  ("P", "its portfolio")]),
+        ("RUN", [("enter", "run / stop"), ("e", "budget"), ("x", "stop"), ("X", "stop all"), ("L", "log in to trade real sats")]),
+        ("MORE", [("A esc", "back to the odds"), ("r", "re-read the market"), ("c", "colours")]),
+    ],
+    "noc": [
+        ("MOVE", [(VERT, "a bot"), (SIDE, "a series"), ("tab", "its positions, close by close"), ("gg G", "first / last")]),
+        ("VIEW", [("m", "one series / every series"), ("- +", "look further ahead / nearer"), ("P", "its whole portfolio"),
+                  ("i", "how this bot works")]),
+        ("RUN", [("enter", "stop / start again · open a position's odds"), ("b", "change its bankroll while it runs"), ("x", "stop"),
+                 ("X", "stop all"), ("B", "the zoo: run a bot"),
+                 ("L", "log in to trade real sats")]),
+        ("MORE", [("M esc", "back to the odds"), ("p", "the account's portfolio"), ("c", "colours")]),
+    ],
     "term": [
         ("MOVE", [("j k · ↓ ↑", "down and up the page"), ("h l · ← →", "across"), ("g G", "top / bottom"), ("1-9", "window")]),
         ("OPEN", [("enter", "this window full screen"), ("esc", "back"), ("f", "the forecast"), ("o", "the odds"),
-                  ("B", "bots"), ("p", "portfolio")]),
+                  ("B", "bots"), ("A", "advanced bots"), ("M", "monitor"), ("p", "portfolio")]),
         ("FIND", [(": or SPC SPC", "search everything"), ("ctrl-j ctrl-k", "choose"), ("SPC", "menu"), ("?", "every key"),
                   ("q", "quit")]),
     ],
@@ -157,7 +173,9 @@ def tabs(t: Terminal) -> list[tuple[str, str, str, bool]]:
     """(label, short label, the key after SPC that reaches it, showing now) for each screen."""
     return [("FRONT PAGE", "PAGE", "t", t.view == "term"), ("FORECAST", "FCST", "f", t.view == "heatmap"),
             ("ODDS", "ODDS", "o", t.view == "main"),
-            ("BOTS", "BOTS", "B", t.view == "bots"), ("PORTFOLIO", "PORT", "p", t.view == "portfolio")]
+            ("BOTS", "BOTS", "B", t.view == "bots"), ("ADVANCED", "ADV", "A", t.view == "advanced"),
+            ("MONITOR", "MON", "M", t.view == "noc"),
+            ("PORTFOLIO", "PORT", "p", t.view == "portfolio")]
 
 
 def keycap(out: Text, key: str, label: str, on: bool) -> None:

@@ -158,7 +158,7 @@ class FakeApi:
 
 @pytest.fixture
 def make(monkeypatch):
-    async def candles(asset, granularity):
+    async def candles(asset, granularity, topic_id=0):
         return [Candle(T0 - (40 - i) * 86400, 76_000 + 50 * i, 77_500 + 50 * i, 75_200 + 50 * i, 76_300 + 50 * i) for i in range(40)]
 
     def _make(key):
@@ -459,7 +459,7 @@ def week_of_hours(monkeypatch, hist_hours=300):
         return [MarketRow(100 + i, f"h{i}", hour0 + (i + 1) * 3600, "live", 0, 0, tuple(FIX["shares"]),
                           tuple(FIX["names"]), tuple(range(1, 501))) for i in range(min(168, limit))]
 
-    async def candles(asset, granularity):
+    async def candles(asset, granularity, topic_id=0):
         n = 80 if granularity == 900 else hist_hours
         return [Candle(hour0 - (n - i) * granularity, 76_000, 76_400, 75_800, 76_200) for i in range(n)]
 
@@ -636,7 +636,7 @@ async def test_hourly_history_is_half_hour_candles_on_the_same_time_scale(make, 
 
     asked = []
 
-    async def candles(asset, granularity):
+    async def candles(asset, granularity, topic_id=0):
         asked.append(granularity)
         return [Candle(hour0 - (80 - i) * 900, 76_000, 76_400, 75_800, 76_200) for i in range(80)]
 

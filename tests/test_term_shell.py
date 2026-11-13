@@ -228,7 +228,7 @@ async def test_spc_windows_and_buffers_split_close_and_save(make):
 
 async def test_todays_screens_are_functions_and_keep_their_keys(make):
     app = make(launchpad="BTC")
-    async with app.run_test(size=(160, 40)) as pilot:
+    async with app.run_test(size=(170, 40)) as pilot:                         # seven screens' full names and four series need 162
         await until(pilot, lambda: len(app.shell.ws.panes) == len(DASHBOARD) and app.book)
         await type_go(pilot, "MKT")                                         # the old name still opens the odds
         assert app.view == "main" and app.query_one("#main").display and not app.query_one("#term").display

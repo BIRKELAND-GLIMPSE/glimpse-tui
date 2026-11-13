@@ -7,7 +7,7 @@ __version__ = "0.1.0"
 
 
 def main() -> None:
-    if sys.argv[1:2] and sys.argv[1] in ("bots", "about", "run"):
+    if sys.argv[1:2] and sys.argv[1] in ("bots", "about", "run", "desk", "hashprice", "difficulty"):
         from .cli import main as cli_main
 
         raise SystemExit(cli_main(sys.argv[1:]))
@@ -19,7 +19,10 @@ def main() -> None:
 
         print("glimpse-tui: the Glimpse prediction market in your terminal.\n\n" + HELP)
         print("\n Without the screen:  glimpse-tui bots [search]   glimpse-tui about <bot>\n"
-              "                      glimpse-tui run <bot> [--series BTC] [--budget 20000] [--live] [--once]")
+              "                      glimpse-tui run <bot> [--series BTC] [--budget 20000] [--live] [--once]\n"
+              "                      glimpse-tui desk <bot> [--series all] [--budget 200000] [--kelly 0.5] [--live] [--once]\n"
+              "                      glimpse-tui hashprice [now|backtest|fit]\n"
+              "                      glimpse-tui difficulty [now|backtest|fit|hedge]")
         return
     import os
 

@@ -8,11 +8,12 @@ from __future__ import annotations
 import time
 from dataclasses import replace
 
+import httpx
 from rich.text import Text
 
 from .. import charts
 from ..api import HOURLY as HOURLY_SERIES
-from ..api import series_name
+from ..api import ORACLE, ApiError, oracle_candles, series_name
 from ..data import quotes
 from ..data.core import DELAYED, LIVE, Provenance, SourceError
 from ..heatmap import BAND
@@ -34,9 +35,9 @@ AHEAD_S = {"24H": 24 * 3600, "1H": HOURS_AHEAD * 3600, "1D": 31 * 86400}
 FORECAST_VIEWS = ("24H", "1H", "1D")
 # What Glimpse runs a market on. An hourly window runs into the hourly series and the daily window into the daily
 # one, so the closes ahead are drawn at the scale they settle at: GP XAU 24H is hourly gold, GP XAU 1D daily gold.
-FORECAST_SERIES = {"BTC": "BTC", "ETH": "ETH", "SOL": "SOL", "XAU": "XAU", "PAXG": "XAU"}
+FORECAST_SERIES = {"BTC": "BTC", "ETH": "ETH", "SOL": "SOL", "XAU": "XAU", "PAXG": "XAU", "WTIBTC": "WTIBTC"}
 SETTLES = {"XAU": "PAXG"}       # the Glimpse gold market settles on PAXG: chart what it settles on, not COMEX carry
-NAMED = {"PAXG": "Gold"}        # …and call it by the name of the thing it stands for
+NAMED = {"PAXG": "Gold", "WTIBTC": "WTI/BTC"}    # …and call it by the name of the thing it stands for
 
 
 def _span(hours: int) -> str:
@@ -90,6 +91,16 @@ class GpPane(FuncPane):
         elif pair := ins.source("kraken"):
             rows, ln.prov = await self.hub.sources["kraken"].ohlc(pair, 60)
             ln.candles = [charts.Candle(float(r[0]), float(r[1]), float(r[2]), float(r[3]), float(r[4])) for r in rows[-self.back_h:]]
+        elif ins.ticker in ORACLE:                  # WTI/BTC: no exchange quotes it, Glimpse's own oracle does
+            api = self.hub.glimpse()
+            if api is None:
+                raise SourceError("the Glimpse API is not connected")
+            try:
+                got = await oracle_candles(await api.oracle_topic(ins.ticker), 3600)
+            except (ApiError, httpx.HTTPError, ValueError, KeyError) as e:
+                raise SourceError(f"Glimpse: {e}") from None
+            ln.candles = [charts.Candle(float(c.t), c.o, c.h, c.l, c.c) for c in got[-self.back_h:]]
+            ln.prov = Provenance("glimpse", time.time(), time.time(), DELAYED)
         else:
             raise SourceError(f"{ins.ticker} has no hourly source. It is quoted once a day.")
         ln.xs, ln.ys = [c.t + 3600 for c in ln.candles], [c.c for c in ln.candles]
@@ -121,11 +132,11 @@ class GpPane(FuncPane):
         if not secs:
             raise SourceError("GP needs something to chart: GP BTC · GP BTC XAU SPX · GP mvrv · GP realized_price BTC")
         if not self.view:
-            hourly_ok = len(secs) == 1 and secs[0].cls == "CRYPTO"
+            hourly_ok = len(secs) == 1 and (secs[0].cls == "CRYPTO" or secs[0].ticker in ORACLE)
             self.view = "1H" if hourly_ok else "1Y"
         if self.view in FORECAST_VIEWS and len(secs) == 1 and (alt := self.hub.book.get(SETTLES.get(secs[0].ticker, ""))):
             secs = [alt]                        # gold is forecast, and settled, on the token, not on COMEX carry
-        if self.view in HOURLY and any(not (s.source("coinbase") or s.source("kraken")) for s in secs):
+        if self.view in HOURLY and any(not (s.source("coinbase") or s.source("kraken") or s.ticker in ORACLE) for s in secs):
             self.view = "1D"                    # after the swap: PAXG has hourly candles where COMEX gold has none
         lines = [Line(s) for s in secs]
         for ln in lines:

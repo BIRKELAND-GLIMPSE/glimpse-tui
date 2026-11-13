@@ -193,10 +193,13 @@ def fill_to(q, alpha: float, i: int, target_price: float, stake: float) -> tuple
 
 
 def worth_sending(legs: list[Leg], probs) -> bool:
-    """An order earns its keep: expected payout beats the charge, the 1 sat minimum commission included."""
-    total = sum(x.cost_sats for x in legs)
-    if total < 0.01:
+    """An order earns its keep: expected payout beats the charge, the 1 sat minimum commission included. The cost itself may be
+    next to nothing: when the crowd has priced one range as certain the LS-LMSR sells every other range for almost nothing,
+    and thousands of contracts on the ranges the picture likes, for the one sat of commission, are the best trade on the
+    ladder. What must not be empty is the order, not its cost."""
+    if sum(x.contracts for x in legs) < 0.01:
         return False
+    total = max(sum(x.cost_sats for x in legs), 0.0)
     raw = total / (1 + P.FEE)
     charge = raw + max(P.FEE * raw, P.MIN_FEE_SATS)
     return sum(probs[x.index] * NET * x.contracts for x in legs) > charge

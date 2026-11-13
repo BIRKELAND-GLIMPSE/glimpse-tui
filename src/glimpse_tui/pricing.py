@@ -12,21 +12,31 @@ from dataclasses import dataclass
 FEE = 0.02              # commission: added on top of buy cost, taken from sell proceeds and redemption
 PAYOUT_SATS = 100.0     # gross sats per winning contract
 MIN_FEE_SATS = 1.0      # the enter route charges at least one sat of commission; it has no minimum ticket
-V = 2.0                 # LS-LMSR sensitivity; alpha = V / (N_ALPHA ln N_ALPHA)
-N_ALPHA = 500           # the server sizes alpha for 500 outcomes on every market, SOL's 650-range ladders included
+V = 2.0                 # LS-LMSR sensitivity; alpha = V / (m ln m), m the ladder's length capped at N_ALPHA
+N_ALPHA = 500           # the main service never sizes alpha for more than 500 outcomes, SOL's 650-range ladders included
+DMARKET_TOPIC = 1_000_000_000   # topic ids from here up are the second service's (hashprice, difficulty), which has no such cap
+STATED_ALPHA: dict[int, float] = {}     # topic -> the alpha the second service states for it: its markets do not share one V
 
 
-def alpha_for(n: int) -> float:
-    """The server's alpha. It does not follow the ladder's length: a 650-range SOL market is priced with the same
-    alpha as a 500-range one (checked against /estimate on 2026-09-26; n = 650 overpriced SOL orders by up to 60%).
-    `n` is kept so callers still say which market they price."""
-    return V / (N_ALPHA * math.log(N_ALPHA))
+def alpha_for(n: int, topic_id: int = 0) -> float:
+    """The server's alpha for an `n`-range ladder: V / (m ln m) with m = min(n, 500) on the main service.
+
+    A shorter ladder is priced on its own length: WTI/BTC's 250 ranges fit /estimate to the cent with m = 250 and are
+    off by up to 13 times with m = 500 (checked 2026-10-27). A longer one is capped: a 650-range SOL market is priced
+    with the same alpha as a 500-range one (checked 2026-09-26; m = 650 overpriced SOL orders by up to 60%). The second
+    service (`topic_id` at or above DMARKET_TOPIC) has no cap: hashprice's 1,000 ranges report alpha = 2 / (1000 ln 1000)
+    and price on it (checked 2026-11-05). That service states each market's alpha, and it is not always V = 2: the adjustment
+    markets run at V = 0.1. What it stated wins."""
+    if topic_id in STATED_ALPHA:
+        return STATED_ALPHA[topic_id]
+    m = n if topic_id >= DMARKET_TOPIC else min(n, N_ALPHA)
+    return V / (m * math.log(m))
 
 
 def display_alpha(n: int) -> float:
     """The alpha glimpse.markets draws a ladder with: V / (n ln n) on the ladder's own length (mapQuotesToMarket.ts).
-    Equal to alpha_for on a 500-range ladder; on SOL's 650 ranges the site draws with a smaller alpha than the server
-    charges with. A bot that wants the site to show its forecast shapes the book with this one."""
+    Equal to alpha_for on ladders of up to 500 ranges; on SOL's 650 ranges the site draws with a smaller alpha than the
+    server charges with. A bot that wants the site to show its forecast shapes the book with this one."""
     return V / (n * math.log(n))
 
 
