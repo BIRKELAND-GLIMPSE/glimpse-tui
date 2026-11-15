@@ -605,20 +605,9 @@ def log_title(t: Terminal, r) -> str:
     """The runner's state, on the border of the pane that holds its log."""
     state = ("● LIVE · real sats" if r.live else "● ON PAPER") if r.running else "○ stopped"
     if is_desk(r):
-        w = r.watch
         return (f"{state} · {r.name} as a desk across {r.series} · bankroll {fmt.sats(r.bankroll)} · deployed {fmt.sats(r.open_cost)}"
                 f" · bought {fmt.sats(r.paid_sats)} · {sold(r)} · {r.trades} trade{'' if r.trades == 1 else 's'}, {r.launches} at the seed"
-                f" · {'stream up' if w and w.streaming else 'polling'} · {progress(r)}")
-    if not r.buys:
-        return (f"{state} · {r.name} takes profit on your whole portfolio · {sold(r)} · holds {fmt.sats(r.open_cost)} at cost"
-                f" · {r.trades} sale{'' if r.trades == 1 else 's'} · {progress(r)}")
-    if getattr(r, "triangle", None) is not None:
-        return (f"{state} · {r.name} trades the triangle across {r.series} through {r.lens_name} · budget {fmt.sats(r.cfg.bankroll_sats)}"
-                f" · at risk {fmt.sats(r.open_cost)} · bought {fmt.sats(r.paid_sats)} · {sold(r)} · {r.trades} "
-                f"trade{'' if r.trades == 1 else 's'} · {progress(r)}")
-    if r.bot.arbitrage:
-        return (f"{state} · {r.name} covers coinciding closes across {r.series} · budget {fmt.sats(r.cfg.bankroll_sats)} · at risk "
-                f"{fmt.sats(r.open_cost)} · bought {fmt.sats(r.paid_sats)} · {r.trades} cover{'' if r.trades == 1 else 's'} · {progress(r)}")
+                f" · {r.link} · {progress(r)}")
     if r.manage:
         return (f"{state} · {r.name} manages your {r.series} portfolio · can spend {fmt.sats(max(r.cfg.bankroll_sats - r.committed, 0))}"
                 f" · {sold(r)} · bought {fmt.sats(r.paid_sats)} · holds {fmt.sats(r.open_cost)} at cost"
@@ -686,25 +675,6 @@ def portfolio(r, asset: str, width: int) -> Text:
                    "the market pays more for than the picture says a position is worth" + (" and than it cost" if r.cfg.profit_only else "")
                    + f", and buys {r.cfg.kelly:g} of the Kelly optimum for each close's share of the bankroll, never a contract past "
                    f"{r.cfg.min_edge:.0%} under value after fees.\n", style=DIM)
-    elif not r.buys:
-        out.append(f"{'LIVE · real sats' if r.live else 'PAPER'} · taking profit on your whole portfolio, every series · "
-                   "never buys\n", style=RED if r.live else GREEN)
-        out.append("Every position your account holds, whoever opened it. It sells the part of a position the market pays more "
-                   "for than the picture says it is worth" + (" and than it cost" if r.cfg.profit_only else "")
-                   + ", and keeps the rest.\n", style=DIM)
-    elif getattr(r, "triangle", None) is not None:
-        out.append(f"{'LIVE · real sats' if r.live else 'PAPER'} · trading the triangle across {r.series} through {r.lens_name} · budget "
-                   f"{fmt.sats(r.cfg.bankroll_sats)} · {fmt.sats(max(r.cfg.bankroll_sats - cost, 0))} free\n", style=RED if r.live else GREEN)
-        out.append("Every leg's picture is pooled with the one the other two legs imply; on each leg it sells what the market pays "
-                   "more for than that triangle says a position is worth" + (" and than it cost" if r.cfg.profit_only else "")
-                   + ", and buys the ranges priced under it, all legs in one request. A cover across two books, when taken, is "
-                   "held to the close.\n", style=DIM)
-    elif r.bot.arbitrage:
-        out.append(f"{'LIVE · real sats' if r.live else 'PAPER'} · covering coinciding closes across {r.series} · budget "
-                   f"{fmt.sats(r.cfg.bankroll_sats)} · {fmt.sats(max(r.cfg.bankroll_sats - cost, 0))} free\n", style=RED if r.live else GREEN)
-        out.append("Each cover is a set of ranges across two books that holds the settlement price wherever it lands in its band, "
-                   "bought when it pays more than it costs either way, and held to the close. Both legs show here; the two "
-                   "together are the position.\n", style=DIM)
     elif r.manage:
         out.append(f"{'LIVE · real sats' if r.live else 'PAPER'} · managing your {r.series} portfolio · adds at most "
                    f"{fmt.sats(r.cfg.bankroll_sats)} fresh sats, {fmt.sats(max(r.cfg.bankroll_sats - r.committed, 0))} left "
@@ -723,15 +693,8 @@ def portfolio(r, asset: str, width: int) -> Text:
                    f"{progress(r)}" + (f" · settled {fmt.sats(r.settled_sats, signed=True)} on paper" if not r.live else "") + "\n\n",
                    style=DIM)
     else:
-        out.append(f"this session: {sold(r)} · {r.trades} sales · {progress(r)} you hold, one every {r.cfg.interval_s:g}s\n\n"
-                   if not r.buys else
-                   f"this session: bought {fmt.sats(r.paid_sats)} · {sold(r)} · {r.trades} trades · "
-                   f"{progress(r)}, one {'instant' if getattr(r, 'triangle', None) else 'pair' if r.bot.arbitrage else 'close'} "
-                   f"every {r.cfg.interval_s:g}s · "
-                   + (f"{fmt.sats(r.cfg.bankroll_sats * r.tri.instant_share)} an instant at most" if getattr(r, "triangle", None) else
-                      f"{fmt.sats(r.cfg.bankroll_sats * r.rules.pair_share)} a pair at most" if r.bot.arbitrage else
-                      f"{fmt.sats(r.cfg.bankroll_sats / max(r.of, 1))} a close") + "\n\n",
-                   style=DIM)
+        out.append(f"this session: bought {fmt.sats(r.paid_sats)} · {sold(r)} · {r.trades} trades · {progress(r)}, one close "
+                   f"every {r.cfg.interval_s:g}s · {fmt.sats(r.cfg.bankroll_sats / max(r.of, 1))} a close\n\n", style=DIM)
     out.append(f"{'held':<20}{len(rows)} positions in {len({(x[0], x[1]) for x in rows})} closes\n", style=TEXT)
     for label, v in (("cost", cost), ("at market", value), ("by its picture", fair)):
         out.append(f"{label:<20}{fmt.sats(v):>12}")

@@ -1,11 +1,11 @@
 """The monitor: every bot trading on this machine as one desk, and what the fleet holds across every market.
 
-The bots screen shows one model on one series; the advanced screen one bot across a few. Neither answers the question a
-desk asks all day: what is running, what does it hold, what is it worth, and what did it just do. The monitor does. It
-keeps one row per bot (a `Unit`): every runner the terminal started (a bot walking a series, a portfolio manager, a
-desk, a Triangulator, an Arbitrageur, the Profit Taker), every bot the ledger says still holds positions although nothing
-here runs it (a bot from an earlier session, or one a `glimpse-tui run` in another shell is trading: the ledger file is
-read again when it changes), and the account itself, as the API reports it, whoever opened its positions.
+The bots screen shows one model on one series. It does not answer the question a desk asks all day: what is running, what
+does it hold, what is it worth, and what did it just do. The monitor does. It keeps one row per bot (a `Unit`): every
+runner the terminal started (a bot walking a series, a portfolio manager, a desk), every bot the ledger says still holds
+positions although nothing here runs it (a bot from an earlier session, or one a `glimpse-tui run` in another shell is
+trading: the ledger file is read again when it changes), and the account itself, as the API reports it, whoever opened
+its positions.
 
 Positions are marked to what selling them back into the book would fetch now, after the exit fee, against books the
 monitor keeps current while its screen shows: a `watch.Watch` of every price series (the market stream plus a listing
@@ -70,7 +70,7 @@ class Unit:
     """One row of the fleet: a bot and everything it holds."""
     id: str
     name: str
-    kind: str                       # desk | runner | manager | taker | triangle | arbitrage | idle | account | all
+    kind: str                       # desk | runner | manager | idle | account | all
     live: bool
     running: bool
     where: str = ""
@@ -129,12 +129,6 @@ class Fill:
 def kind_of(r) -> str:
     if is_desk(r):
         return "desk"
-    if not r.buys:
-        return "taker"
-    if getattr(r, "triangle", None) is not None:
-        return "triangle"
-    if r.bot.arbitrage:
-        return "arbitrage"
     return "manager" if r.manage else "runner"
 
 
@@ -385,9 +379,8 @@ class Monitor:
                      r.trades, r.paid_sats, r.sold_sats, r.gain_sats + (getattr(r, "settled_sats", 0.0) if desk else 0.0),
                      r.bankroll if desk else r.cfg.bankroll_sats, last_at, alert, shown=bool(r.running or r.cycles or rows),
                      key=f"{bot_id}:{r.mode}")
-            if r.buys:
-                carried = 0.0 if desk and r.live else self.equity.carry(u.key, u.taken, r.trades)
-                u.funds = funding.funds(r, u.value, t.wallet.balance_sats if t.wallet else None, carried)
+            carried = 0.0 if desk and r.live else self.equity.carry(u.key, u.taken, r.trades)
+            u.funds = funding.funds(r, u.value, t.wallet.balance_sats if t.wallet else None, carried)
             units.append(u)
         for key, modes in self._ledger_data(t, now).items():
             if key == PORTFOLIO or not isinstance(modes, dict):

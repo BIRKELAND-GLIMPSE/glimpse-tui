@@ -79,8 +79,6 @@ class Model:
     reads_market: bool = False   # the picture blends in the market's own odds (ctx.market), as Benter's did
     reads_series: bool = False   # the picture reads every close of the series as the site shows it (ctx.series)
     trading: dict | None = None  # BotConfig fields this bot trades with, whatever bots.toml says (e.g. its own Kelly)
-    sells_only: bool = False     # it never buys: it takes profit on the account's whole portfolio (bots.ProfitTaker)
-    arbitrage: str = ""          # the arb.SCHEMES scheme it trades across series ("bitcoin", "gold", "triangle", "oil"); "" trades one close
     only_series: str = ""        # the one series it can draw a picture of; "" draws any
 
 
@@ -226,31 +224,6 @@ TRADING_NOTE = (
 )
 
 
-TAKE_PROFIT_NOTE = (
-    "It never buys. It reads every position your account holds, in every series and whoever opened it, and visits only "
-    "the closes you hold something in, one a second, nearest to farthest and then round again. Live, it reads your "
-    "positions again every minute, so one you open while it runs joins the round. On each visit it reads that "
-    "close's odds afresh and draws this picture of it. A contract you hold is worth p × 98 sats to keep (it pays 100 if "
-    "the close lands in its range, less the 2% settlement fee) and fetches its price less the 2% exit fee if sold. When "
-    "other traders bid a range up, it sells contracts while the next one fetches, after the fee, more than the picture "
-    "says it is worth (by 2%) and more than it cost you (the server's average cost per contract, the 2% buy commission "
-    "included). Selling walks the price back down, so it stops at the contract where either stops being true and keeps "
-    "the rest: often only part of a position is sold. It never sells at a loss, and never a contract the picture says "
-    "is worth more than the market pays for it. profit_only = false in bots.toml lets it also sell an overpriced "
-    "position held at a loss."
-)
-
-
-def arbitrage_note(m: Model) -> str:
-    from .. import tri
-    from ..arb import Rules, rules_text, scheme_of
-
-    t = tri.triangle_of(m)
-    if t is not None:
-        return tri.rules_text(tri.Rules.load(), t)
-    return rules_text(Rules.load(), scheme_of(m))
-
-
 def explain(m: Model) -> list[tuple[str, str]]:
     """The about-screen sections of a model, in order, with the shared machinery filled in."""
     out = [("idea", m.description)]
@@ -264,8 +237,7 @@ def explain(m: Model) -> list[tuple[str, str]]:
         out.append(("machinery", PIPELINES[m.pipeline]))
     if m.pipeline not in ("parts", "rule"):    # a picture built from its parts has its own clock, described in its machinery
         out.append(("scale", SCALE_NOTE))
-    out.append(("runner", m.policy.note() if m.policy else TAKE_PROFIT_NOTE if m.sells_only else arbitrage_note(m) if m.arbitrage
-                else TRADING_NOTE))
+    out.append(("runner", m.policy.note() if m.policy else TRADING_NOTE))
     if m.reference:
         out.append(("reference", m.reference))
     return out

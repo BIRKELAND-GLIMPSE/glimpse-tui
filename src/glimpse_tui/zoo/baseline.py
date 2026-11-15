@@ -106,8 +106,7 @@ MODELS = [
           "hours between their prices barely move: PAX Gold drifts a little on Coinbase, WTI/BTC moves only with "
           "Bitcoin. The hourly ladders through a weekend are priced as if every hour were a trading hour, so a picture "
           "that adds up only the hours that trade is far sharper there, and that sharpness is where it earns. For "
-          "Bitcoin every hour is open and this is a Student-t walk at an exponentially weighted recent σ. It is the "
-          "picture the Triangulators start from.",
+          "Bitcoin every hour is open and this is a Student-t walk at an exponentially weighted recent σ.",
           session_walk, factors=("randomness", "timing", "tails"),
           inputs="Hourly closes only. The asset's calendar (CME's for XAU, XAUT, XAUTBTC, WTI and WTIBTC; every hour for "
                  "the rest), the last 1,000 open hours and the last 1,000 closed hours of hourly log returns, and the "

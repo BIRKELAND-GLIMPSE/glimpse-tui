@@ -76,6 +76,19 @@ class NoServiceAuth(ApiError):
     service may take it."""
 
 
+class Transient(ApiError):
+    """Glimpse did not answer, or answered that it cannot right now: a timeout, no connection, a 5xx, a 429. Nothing was
+    wrong with the request, so it is worth asking again. `status` is the HTTP status when there was one."""
+
+    def __init__(self, msg: str, status: int = 0) -> None:
+        super().__init__(msg)
+        self.status = status
+
+
+class Ambiguous(ApiError):
+    """An order was sent and its answer never came: it may or may not have filled. Only the account can say which."""
+
+
 def asset_of(title: str) -> str:
     """Ticker named by a series or market title, or '' if it names none we know."""
     t = title.lower()
@@ -512,15 +525,17 @@ def _friendly(e: Exception) -> ApiError:
     if isinstance(e, GlimpseTradingNotEligibleError):
         return ApiError(f"Trading not enabled on this account: {e.reason or e.message}. Finish onboarding on the website.")
     if isinstance(e, GlimpseAmbiguousTradeStateError):
-        return ApiError("Connection dropped mid-trade. The order may or may not have filled: check the portfolio before retrying.")
+        return Ambiguous("Connection dropped mid-trade. The order may or may not have filled: check the portfolio before retrying.")
     if isinstance(e, GlimpseRateLimitError):
-        return ApiError("Rate limited by Glimpse. Slowing down.")
+        return Transient("Rate limited by Glimpse. Slowing down.", 429)
     if isinstance(e, GlimpseAPIError):
-        return ApiError(f"Glimpse {e.status_code}: {e.error or e.message or 'request failed'}")
+        status = e.status_code or 0
+        msg = f"Glimpse {status}: {e.error or e.message or 'request failed'}"
+        return Transient(msg, status) if status >= 500 else ApiError(msg)
     if isinstance(e, httpx.TimeoutException):
-        return ApiError("Glimpse timed out.")
+        return Transient("Glimpse timed out.")
     if isinstance(e, httpx.HTTPError):
-        return ApiError("Cannot reach Glimpse. Check the connection.")
+        return Transient("Cannot reach Glimpse. Check the connection.")
     return ApiError(str(e) or e.__class__.__name__)
 
 

@@ -13,8 +13,7 @@ and `quiet_ratio`, so every picture narrows through a weekend.
 `Clock.fit` reads the open-hour σ as an exponentially weighted average of recent open hours (so it follows the
 volatility regime), the closed-hour σ as the long-run ratio of closed to open hours times that, and the Student-t ν
 of one open hour's standardised move. `Clock.picture` is the Student-t of the log price at a close around spot with
-the clock's σ, integrated between a ladder's edges. The `session_walk` model in the zoo is this picture, and the
-Triangulators start from it.
+the clock's σ, integrated between a ladder's edges. The `session_walk` model in the zoo is this picture.
 """
 from __future__ import annotations
 

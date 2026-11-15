@@ -26,19 +26,19 @@ if TYPE_CHECKING:
     from ..app import Terminal
 
 INK = "#0D0D0D"
-PASS_THROUGH = {"q", "c", "?", "L", "O", "r", "p", "B", "A", "M", "f", "o"}      # the app's own keys that still work from a launchpad
+PASS_THROUGH = {"q", "c", "?", "L", "O", "r", "p", "B", "M", "f", "o"}           # the app's own keys that still work from a launchpad
 ARROWS = {"left": "h", "down": "j", "up": "k", "right": "l", "ctrl+j": "j", "ctrl+k": "k"}      # ctrl-j ctrl-k are down and up
 SCROLL = {"ctrl+d", "ctrl+u", "ctrl+f", "ctrl+b", "pagedown", "pageup"}
 # Short on purpose: the key panel under it lists the rest, and a long line is cut on a narrow terminal.
 WELCOME = "j k walk the page · o the odds · f the forecast · $ prices in bitcoin · ? every key"
-LEGACY_VIEW = {"ODDS": "main", "HM": "heatmap", "SLIP": "heatmap", "PORT": "portfolio", "BOTS": "bots", "ADV": "advanced", "NOC": "noc"}
-SCREENS = {"f": "HM", "o": "ODDS", "B": "BOTS", "A": "ADV", "M": "NOC", "p": "PORT"}
+LEGACY_VIEW = {"ODDS": "main", "HM": "heatmap", "SLIP": "heatmap", "PORT": "portfolio", "BOTS": "bots", "NOC": "noc"}
+SCREENS = {"f": "HM", "o": "ODDS", "B": "BOTS", "M": "NOC", "p": "PORT"}
 MAX_BUFFERS = 24
 BUF = "\x00buf:"                                        # a command-list entry that switches to an open buffer
 LEADER: dict[str, list[tuple[str, str]]] = {
     "": [("SPC", "open anything (same as :)"), ("1-9", "window 1 to 9"), ("TAB", "back a page"), ("w", "windows…"),
          ("b", "buffers…"), ("t", "the front page"), ("f", "the forecast"), ("o", "the odds"), ("B", "the bots"),
-         ("A", "advanced bots"), ("M", "monitor the bots"), ("p", "portfolio"), ("?", "help"), ("q", "quit")],
+         ("M", "monitor the bots"), ("p", "portfolio"), ("?", "help"), ("q", "quit")],
     "w": [("/", "split right"), ("-", "split below"), ("d", "close window"), ("m", "maximize / restore"), ("=", "even sizes"),
           ("h j k l", "move"), ("w", "next window")],
     "b": [("b", "list buffers"), ("n", "next buffer"), ("p", "previous buffer"), ("d", "close buffer"), ("r", "reload")],
@@ -60,7 +60,7 @@ PAGES = (("GP BTC 24H", "Bitcoin: the last 24 hours and the next 24"), ("DIST BT
          ("NEWS", "headlines, read here in the terminal"))
 SCREEN_ITEMS = (("HM", "the full forecast: every close, every price, select and bet (SPC f)"),
                 ("ODDS", "the odds on every outcome, close by close, and bet (SPC o)"),
-                ("BOTS", "the model zoo (SPC B)"), ("ADV", "advanced bots: one bot across several markets, side by side (SPC A)"),
+                ("BOTS", "the model zoo (SPC B)"),
                 ("NOC", "the monitor: every bot running, what it holds across every market, every fill (SPC M)"),
                 ("PORT", "your positions (SPC p)"))
 
@@ -429,9 +429,6 @@ class Shell:
                 app.bot_filter, app.bot_cur, app.bot_tab, app.bot_pane = " ".join(args), 0, 0, 0
             app.load_bots()
             app.scan_bots()
-        elif view == "advanced":
-            app.view = "advanced"
-            app.load_bots()
         elif view == "noc":
             app.open_noc()
         elif view == "heatmap":
@@ -573,7 +570,7 @@ class Shell:
         self.ws.relayout()
 
     def screen(self, ch: str) -> None:
-        """SPC t f o B A M p: the front page, the forecast, the odds, the bots, the advanced bots, the monitor, the portfolio."""
+        """SPC t f o B M p: the front page, the forecast, the odds, the bots, the monitor, the portfolio."""
         if ch == "t":
             self.show()
         else:

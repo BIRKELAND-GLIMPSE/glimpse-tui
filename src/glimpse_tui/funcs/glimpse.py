@@ -35,16 +35,9 @@ register(Function(
          "position after a confirmation. Needs an API key (L). Reads the keyed Glimpse API every 15 s, inside the "
          "60 requests a minute the API allows. Trade history is not available to API keys (PLAN F4)."))
 register(Function(
-    "ADV", "Advanced bots", "Glimpse", "bots that trade several markets at once, those markets side by side", None, legacy="advanced",
-    help="The bots that read a family of linked series together and trade across them: the Triangulator (Bitcoin, gold and gold in "
-         "satoshis as one triangle, every leg of an instant in one request) and the Arbitrageurs (covers across pairs of "
-         "coinciding closes). One column per market the selected bot trades: the close at one instant, the market's picture, the "
-         "bot's, and on each range what it holds, buys or sells. Before a bot runs the screen watches on paper; m picks the lens "
-         "(any smoothing or Benter model) the triangle starts from. Data: the public Glimpse API, Coinbase candles, Glimpse's oracle."))
-register(Function(
     "NOC", "Monitor", "Glimpse", "every bot running: what it holds across every market, what it is worth, every fill", None, legacy="noc",
-    help="The desk's view of every bot on this computer. FLEET: one row per bot (a runner, a manager, a desk, a Triangulator, the "
-         "Profit Taker, and any bot the ledger says still holds positions), with cost, what the positions would fetch sold back now "
+    help="The desk's view of every bot on this computer. FLEET: one row per bot (a runner, a manager, a desk, and any bot the "
+         "ledger says still holds positions), with cost, what the positions would fetch sold back now "
          "after the fee, and the difference; real and paper sats are totalled apart, and with a key the last row is the account "
          "itself. MARKETS: a tile per series, candles then the market's forecast (green above spot, red below) with the chosen "
          "bot's positions in white over it, fresh buys orange and sales cyan. POSITIONS: the chosen bot's holdings in the chosen "

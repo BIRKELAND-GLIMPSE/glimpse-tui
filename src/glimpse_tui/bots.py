@@ -34,13 +34,6 @@ series' open closes, whoever opened it, and rebalances them toward its picture. 
 than the picture says a position is worth, only at a gain over what it cost unless `profit_only` is off, and buys
 what the market sells under its value. Its budget is the fresh sats it may add: what it sells, it may buy with again.
 
-The Profit Taker (`ProfitTaker`, the zoo's `take_profit`) only sells. It reads every position your account holds in every
-series, visits only the closes you hold something in, and sells the part of each position the market overpays at a
-profit, net of both fees. It never buys and has no budget.
-
-The Arbitrageurs (`glimpse_tui.arb.Arbitrageur`, the zoo's `arbitrage` across BTC, BTC 1D and WTIBTC and `arbitrage_gold`
-across XAU, XAU 1D, XAUTBTC, BTC and WTIBTC) trade pairs of closes at one instant in two series, buying across the two
-books the cheapest cover of the price line when it pays more than it costs either way. `Bot.arbitrage` names the scheme.
 """
 from __future__ import annotations
 
@@ -53,12 +46,11 @@ from collections import deque
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
-from typing import ClassVar
 
 from . import fmt
 from . import policy as PL
 from . import pricing as P
-from .api import ASSETS, RETARGET_SERIES, ApiError, Batch, Book, Glimpse, MarketRow, NoServiceAuth, Position, parse_bin
+from .api import RETARGET_SERIES, ApiError, Book, Glimpse, MarketRow, NoServiceAuth, Position, parse_bin
 from .auth import config_dir
 from .policy import Leg, Policy
 
@@ -126,8 +118,6 @@ class Bot:
     reads_market: bool = False              # the picture blends in what the site shows for the close
     reads_series: bool = False              # the picture reads every close of the series as the site shows it (shown_series)
     trading: dict | None = None             # BotConfig fields of its own (see BotConfig.for_bot)
-    sells_only: bool = False                # never buys: it takes profit on your whole portfolio (ProfitTaker runs it)
-    arbitrage: str = ""                     # the arb.SCHEMES scheme whose coinciding closes it covers (arb.Arbitrageur runs it)
     only_series: str = ""                   # the one series it can draw a picture of; "" draws any
 
     def draws(self, asset: str) -> bool:
@@ -179,8 +169,7 @@ def discover() -> list[Bot]:
     from . import zoo
 
     return [Bot(m.id, m.name, m.family, m.blurb, m.description, m.kind, m.factors, model=m, policy=m.policy,
-                reads_market=m.reads_market, reads_series=m.reads_series, trading=m.trading, sells_only=m.sells_only,
-                arbitrage=m.arbitrage, only_series=m.only_series)
+                reads_market=m.reads_market, reads_series=m.reads_series, trading=m.trading, only_series=m.only_series)
             for m in zoo.catalog()] + user_bots()
 
 
@@ -383,8 +372,6 @@ def plan(bot: Bot, book: Book, probs: list[float], budget_sats: float, spot: flo
     """What `bot` would buy on this close right now with this budget and nothing held: the visit a runner would make
     here, with the close's even share of the budget across `closes`, and the order a one-off snapshot bet sends.
     Pass `cfg` (already sized to the budget) when planning many closes, so bots.toml is read once."""
-    if bot.sells_only or bot.arbitrage:     # neither trades one close on its own
-        return []
     cfg = (cfg or BotConfig.load().with_budget(budget_sats)).for_bot(bot)
     return buys(bot, cfg, book, probs, share(cfg, closes), spot)
 
@@ -456,7 +443,6 @@ def _round() -> dict:
 @dataclass
 class Runner:
     """One bot trading one series, a close at a time: see the module's docstring."""
-    buys: ClassVar[bool] = True                 # False for the Profit Taker, which only sells
     bot: Bot
     api: Glimpse
     batch_id: str
@@ -758,11 +744,10 @@ class Runner:
         held, took = self.holdings(), int(time.time() - r["at"])
         span = f"{took // 3600}h {took % 3600 // 60:02d}m" if took >= 3600 else f"{took // 60}m {took % 60:02d}s"
         self.say(f"round {self.rounds} done in {span}: {r['visited']} closes visited, "
-                 + (f"bought on {r['bought']} for {fmt.sats(r['paid'])}, " if self.buys else "")
-                 + f"sold on {r['sold_on']} for {fmt.sats(r['sold'])}"
+                 f"bought on {r['bought']} for {fmt.sats(r['paid'])}, sold on {r['sold_on']} for {fmt.sats(r['sold'])}"
                  + (f" ({fmt.sats(r['gain'], signed=True)} on cost)" if r["sold_on"] else "") + "  ·  "
-                 f"holds {fmt.sats(sum(x[7] for x in held))} in {len({x[2] for x in held})} closes"
-                 + (f", {fmt.sats(self.cfg.bankroll_sats / max(len(self._closes), 1))} a close" if self.buys else ""))
+                 f"holds {fmt.sats(sum(x[7] for x in held))} in {len({x[2] for x in held})} closes, "
+                 f"{fmt.sats(self.cfg.bankroll_sats / max(len(self._closes), 1))} a close")
         self._round = _round()
 
     def _room(self, book: Book) -> tuple[float, float, float, str]:
@@ -931,130 +916,3 @@ def _after(book: Book, legs: list[Leg]) -> Book:
         b.shares[x.index] += x.contracts
     b.reprice()
     return b
-
-
-# ── the Profit Taker ────────────────────────────────────────
-
-@dataclass
-class ProfitTaker(Runner):
-    """Takes profit on your whole portfolio and never buys. It reads every position your account holds, in every series
-    and whoever opened it, and walks only the closes you hold something in, by close time across every series, nearest
-    to farthest and round again. On each visit it reads that close's book fresh, draws the bot's picture of it, and sells
-    the part of each position the market pays more for, after the exit fee, than the picture says it is worth (by
-    `exit_edge`) and than it cost: `exits`, the same rule every bot sells by. When nothing sells it says how near the
-    nearest position is. Build it with `batch_id=""` and `feed=None`: it keeps a feed per asset (`make_feed`)."""
-    buys: ClassVar[bool] = False
-    make_feed: Callable[[str], object] | None = None    # asset -> its Feed (the terminal passes its own, shared); else a new one
-    batches: list[Batch] = field(default_factory=list)  # the series it checks; empty: every series with a price feed
-    feeds: dict[str, object] = field(default_factory=dict)
-    _where: dict[int, tuple[str, str]] = field(default_factory=dict)  # topic -> (asset, series name)
-    _quiet: tuple[str, float] = ("", 0.0)               # the last idle line and when it was said
-
-    def __post_init__(self) -> None:
-        self.manage = True                      # it trades the account's own positions, as a portfolio manager does
-        super().__post_init__()
-
-    def _asset_of(self, topic_id: int) -> str:
-        return self._where.get(topic_id, ("", ""))[0]
-
-    def _label_of(self, topic_id: int) -> str:
-        return self._where.get(topic_id, ("", ""))[1]
-
-    def _intro(self) -> str:
-        return (f"taking profit on your whole portfolio, every series: it sells the part of a position the market pays "
-                f"more for than {self.bot.name}'s picture says it is worth"
-                + (" and than it cost" if self.cfg.profit_only else "")
-                + f", and never buys  ·  one close you hold every {self.cfg.interval_s:g}s, nearest to farthest, then round again")
-
-    def _feed(self, asset: str):
-        if asset not in self.feeds:
-            if self.make_feed is None:
-                from .zoo.data import Feed
-
-                self.feeds[asset] = Feed(asset)
-            else:
-                self.feeds[asset] = self.make_feed(asset)
-        return self.feeds[asset]
-
-    def _idle(self, msg: str) -> None:
-        """A line for a visit with nothing to visit: said once, then once a minute while it stays true."""
-        if msg != self._quiet[0] or time.time() - self._quiet[1] >= 60:
-            self.say(msg)
-            self._quiet = (msg, time.time())
-
-    async def _every_close(self) -> list[MarketRow]:
-        """Every open close of every series it checks, each read again every `list_s` (shared with other runners)."""
-        if not self.batches:
-            self.batches = [b for b in await self.api.batches() if b.asset in ASSETS and self.bot.draws(b.asset)]
-        got = await asyncio.gather(*(listing(self.api, b.batch_id, self.cfg.list_s) for b in self.batches))
-        rows: list[MarketRow] = []
-        for b, rs in zip(self.batches, got, strict=True):
-            for r in rs:
-                self._where[r.topic_id] = (b.asset, b.short)
-            rows += rs
-        return rows
-
-    async def cycle(self) -> None:
-        """One visit: the next close you hold a position in, across every series, by close time and round again."""
-        self.cycles += 1
-        now = time.time()
-        self.ledger.prune(now)
-        try:
-            rows = await self._every_close()
-        except ApiError as e:
-            self.say(f"cannot read the open closes: {e}")
-            return
-        self._series = {r.topic_id for r in rows}
-        if not await self.sync(rows):
-            return
-        held = {x[2] for x in self.holdings()}
-        self._closes = sorted((r for r in rows if r.topic_id in held and r.quote_mode == "live"
-                               and r.end_time_utc - now >= self.cfg.stop_before_close_s), key=lambda r: (r.end_time_utc, r.topic_id))
-        if not self._closes:
-            self._idle("nothing to sell: you hold no position in a close still open to trading" if not held else
-                       f"nothing to sell: your {len(held)} close{'' if len(held) == 1 else 's'} with positions "
-                       f"{'is' if len(held) == 1 else 'are'} about to close; the server settles them")
-            return
-        self._quiet = ("", 0.0)
-        row = self._next()
-        asset = self._asset_of(row.topic_id)
-        feed = self._feed(asset)
-        await feed.refresh(max_age=max(self.cfg.interval_s, 1.0))
-        if not feed.ready:
-            self.say(f"{self.tag(row)}  no {asset} price data yet, skipped")
-            return
-        await self._at(row, feed)
-
-    async def _visit(self, pic: Picture, took: float) -> bool:
-        """Sell what the market overpays on this close at a profit; otherwise say how near the nearest position is."""
-        self._mark(pic)
-        book, probs = pic.book, pic.probs
-        held = self.ledger.legs(self.key, self.mode, book.topic_id)
-        sells = exits(book, probs, held, self.cfg)
-        if sells:
-            return await self._exit(book, sells)
-        slow = f"  ·  picture took {took:.0f}s" if took >= 10 else ""
-        self.say(f"{self.tag(book)}  {self._nearest(book, probs, held)}{slow}")
-        return False
-
-    def _nearest(self, book: Book, probs: list[float], held: dict[int, tuple[float, float]]) -> str:
-        """Why nothing sold here: of the ranges held, the one closest to selling, what its next contract fetches after
-        the exit fee and what it would have to fetch (its worth by the picture plus `exit_edge`, or its cost)."""
-        at = {o: i for i, o in enumerate(book.option_ids)}
-        best = None
-        for o, (n, cost) in held.items():
-            i = at.get(o)
-            if i is None or n <= 0:
-                continue
-            fetch = (1 - P.FEE) * book.prices[i]
-            worth = probs[i] * PL.NET * (1 + self.cfg.exit_edge)
-            paid = cost / n if self.cfg.profit_only else 0.0
-            need = max(worth, paid, 1e-9)
-            if best is None or fetch / need > best[0]:
-                best = (fetch / need, i, fetch, need, "its cost" if paid >= worth else "its worth")
-        if best is None:
-            return "nothing held here any more"
-        _, i, fetch, need, what = best
-        k = len(held)
-        return (f"nothing to sell: {k} range{'' if k == 1 else 's'} held, nearest {fmt.span(*book.bins[i])} fetches "
-                f"{fetch:.2f} a contract, must beat {need:.2f} ({what})")

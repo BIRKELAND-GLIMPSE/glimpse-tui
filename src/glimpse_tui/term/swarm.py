@@ -25,10 +25,9 @@ STANCE = {"bullish": BULL, "bearish": BEAR, "neutral": FLAT, "sideways": FLAT, "
 def catalog():
     """Every forecasting bot this machine can run. The tests narrow it to a handful, so a pass stays quick. Bots
     trading on an opportunistic policy are left out: their stance is where they buy, not what they forecast, and
-    the zoo's pooled pictures would count their members twice. So are the Profit Taker, a pooled picture that only sells,
-    and the Arbitrageur, a pooled picture that trades covers across series, and any bot built for one series alone."""
+    the zoo's pooled pictures would count their members twice. So is any bot built for one series alone."""
     from .. import bots as B
-    return [b for b in B.discover() if b.policy is None and not b.sells_only and not b.arbitrage and not b.only_series]
+    return [b for b in B.discover() if b.policy is None and not b.only_series]
 
 
 def make_feed(asset: str):

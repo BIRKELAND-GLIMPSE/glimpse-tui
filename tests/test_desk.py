@@ -15,7 +15,7 @@ from glimpse_tui import bots
 from glimpse_tui import desk as D
 from glimpse_tui import policy as PL
 from glimpse_tui import pricing as P
-from glimpse_tui.api import Batch, Book, Fill, MarketRow, Wallet, parse_bin
+from glimpse_tui.api import Ambiguous, ApiError, Batch, Book, Fill, MarketRow, Position, Transient, Wallet, parse_bin
 from glimpse_tui.watch import Watch
 
 FIX = json.loads((Path(__file__).parent / "fixtures" / "estimates.json").read_text())
@@ -44,6 +44,7 @@ class TwoSeries:
         self.sold: list[tuple[int, list]] = []
         self.estimates = 0
         self.wallet_reads = 0
+        self.held: dict[tuple[int, int], float] = {}                # the account's positions: (topic, option) -> contracts
 
     async def close(self): ...
 
@@ -81,6 +82,7 @@ class TwoSeries:
             self.bought.append((t, legs))
             for o, c in legs:
                 self.books[t][o - 1] += c
+                self.held[(t, o)] = self.held.get((t, o), 0.0) + c
             self.balance -= raw + max(fee, 1.0)
             out.append(Fill(t, "t", raw, max(fee, 1.0)))
         return out
@@ -92,6 +94,7 @@ class TwoSeries:
             for o, c in legs:
                 got += P.sell_proceeds(self.books[t], ALPHA, o - 1, c)
                 self.books[t][o - 1] -= c
+                self.held[(t, o)] = self.held.get((t, o), 0.0) - c
             self.sold.append((t, legs))
             self.balance += got
             out.append(Fill(t, "t", got, got * P.FEE / (1 - P.FEE)))
@@ -102,7 +105,7 @@ class TwoSeries:
         return Wallet(self.balance, 0.0, 0.0)
 
     async def positions(self):
-        return []
+        return [Position(t, o, "m", NAMES[o - 1], n, 0.0, 0.0, self.ends[t], "active") for (t, o), n in self.held.items() if n > 0.005]
 
 
 class Silent:
@@ -136,7 +139,8 @@ async def make(api, tmp_path, b=None, live=False, budget=20_000.0, **cfg) -> D.D
     w = Watch(api, batches, list_s=3600)
     w.connect = Silent
     d = D.Desk(bot=b or bell(76_500, 1_500), api=api, batches=batches, live=live, budget=budget, watch=w,
-               cfg=D.DeskConfig(sweep_s=3600, refresh_s=3600, settle_s=0.0, **cfg), ledger=bots.Ledger(tmp_path / "ledger.json"),
+               cfg=D.DeskConfig(**{"sweep_s": 3600, "refresh_s": 3600, "settle_s": 0.0, **cfg}),
+               ledger=bots.Ledger(tmp_path / "ledger.json"),
                make_feed=lambda asset: Feed())
     return d
 
@@ -499,3 +503,260 @@ async def test_the_bots_screen_survives_a_running_desk(tmp_path, screen):  # noq
         d.ticks = max(d.ticks, 1)
         app.paint()
         assert app.query_one("#botlog").display
+
+
+# ── staying up: a slow or absent Glimpse must not stall the desk, and nothing but stop() ends it ──
+
+async def hang(*a, **kw):
+    """A request Glimpse never answers."""
+    await asyncio.sleep(3600)
+
+
+async def test_a_read_that_never_answers_costs_one_deadline_then_the_desk_holds_and_trades_again_when_glimpse_is_back(tmp_path):
+    api = TwoSeries("k")
+    d = await make(api, tmp_path, live=True, budget=0, max_book_age=-1.0, read_timeout_s=0.05, probe_s=0.2, probe_max_s=0.4)
+    await d.watch.start()                                      # max_book_age under zero: every book is read again before a buy
+    try:
+        await d.refresh_balance()
+        book, api.book = api.book, hang                        # the quotes endpoint stops answering
+        t0 = time.monotonic()
+        assert not await d.tick(force=True)
+        assert time.monotonic() - t0 < 2.0                     # eight closes, eight at once: one deadline, not three tries of 30 s each
+        assert api.bought == [] and d.holding and d.outages == 1
+        assert sum("Glimpse is not answering" in x for x in d.log) == 1
+        assert sum("cannot read its book" in x for x in d.log) <= d.cfg.trip_after     # then one line says it, not one a close
+        assert all(t in d._dirty for t in api.books)           # nothing was dropped: every close waits for the next attempt
+        api.book = boom = AsyncCounter(hang)
+        ticks = d.ticks
+        assert not await d.tick() and boom.calls == 0 and d.ticks == ticks      # holding: nothing is asked, nothing is sent
+        await asyncio.sleep(0.25)                              # the wait is up: it asks again, still nothing, and waits twice as long
+        assert not d.holding and not await d.tick()
+        assert 0 < boom.calls <= D.MAX_ESTIMATES and d.holding and d._probe_wait == pytest.approx(0.4)
+        assert sum("Glimpse is not answering" in x for x in d.log) == 1 and d.outages == 1
+        api.book = book                                        # Glimpse is back
+        await asyncio.sleep(0.45)
+        assert await d.tick()
+        assert len(api.bought) == 8 and not d.holding and not d._down_at
+        assert any("Glimpse is answering again" in x for x in d.log) and not d._stopping
+        assert "rode out 1 outage" in d.status()
+    finally:
+        await d.watch.stop()
+
+
+class AsyncCounter:
+    def __init__(self, fn):
+        self.fn, self.calls = fn, 0
+
+    async def __call__(self, *a, **kw):
+        self.calls += 1
+        return await self.fn(*a, **kw)
+
+
+async def test_an_order_that_gets_no_answer_is_settled_against_the_account_and_the_desk_never_stops(tmp_path):
+    api = TwoSeries("k")
+    d = await make(api, tmp_path, live=True, budget=0, probe_s=0.05, probe_max_s=0.1, max_orders_tick=4)
+    await d.watch.start()
+    try:
+        await d.refresh_balance()
+        buy = api.buy_many
+
+        async def filled_but_lost(groups):                     # the order goes through, and the connection drops before the answer
+            await buy(groups)
+            raise Ambiguous("Connection dropped mid-trade. The order may or may not have filled: check the portfolio before retrying.")
+        api.buy_many = filled_but_lost
+        assert not await d.tick(force=True)
+        sent = {t for t, _ in api.bought}
+        assert len(sent) == 4 and set(d._unsure) == sent and d.open_cost == 0      # sent, unanswered, not booked on a guess
+        assert not d._stopping and d.holding and d.unanswered == 1
+        assert any("got no answer (the connection dropped)" in x for x in d.log)
+        api.buy_many = buy
+        await asyncio.sleep(0.06)
+        await d.tick()                                         # the account is read: the contracts are there, so the buys are booked...
+        assert not d._unsure and all(d.ledger.legs("bell", "live", t) for t in sent)
+        assert sum("the unanswered buy did fill" in x for x in d.log) == 4
+        for t in sent:
+            assert {o: n for o, (n, _) in d.ledger.legs("bell", "live", t).items()} == \
+                {o: pytest.approx(n, abs=0.01) for (tt, o), n in api.held.items() if tt == t}
+        for _ in range(4):
+            await d.tick()
+        assert {t for t, _ in api.bought} == set(api.books)    # ...and the desk went on to the other four closes
+        assert sum(1 for t, _ in api.bought if t in sent) == 4   # without buying the first four twice
+
+        async def lost_before_it_arrived(groups):              # this time the order never reached the server
+            raise Ambiguous("Connection dropped mid-trade. The order may or may not have filled: check the portfolio before retrying.")
+        t = 100
+        held = d.ledger.legs("bell", "live", t)
+        o = max(held, key=lambda k: held[k][0])
+        shares = list(api.books[t])
+        shares[o - 1] += 3_000                                 # a crowd bids the held range up: the desk sells into it
+        api.books[t] = shares
+        d._on_event(d.watch.apply_update(message(t, "b-btc", shares)))
+        sell, api.sell_many = api.sell_many, lost_before_it_arrived
+        before = dict(held)
+        await d.tick()
+        assert t in d._unsure and d.ledger.legs("bell", "live", t) == before and not d._stopping
+        api.sell_many = sell
+        await asyncio.sleep(0.06)
+        await d.tick()                                         # the account still holds every contract: the sale never happened
+        assert any("the unanswered sell did not fill: planned again" in x for x in d.log)
+        for _ in range(3):
+            await d.tick()
+            if api.sold:
+                break
+        assert any(x[0] == t for x in api.sold) and d.gain_sats > 0      # so it is sold for real on the next pass
+        assert not d._stopping and not any(x.endswith("stopped") for x in d.log)
+    finally:
+        await d.watch.stop()
+
+
+async def test_an_order_cut_off_at_its_deadline_or_answered_with_a_server_error_is_unanswered_and_a_refusal_is_not(tmp_path):
+    api = TwoSeries("k")
+    d = await make(api, tmp_path, live=True, budget=0, order_timeout_s=0.05, probe_s=0.05, probe_max_s=0.1)
+    await d.watch.start()
+    try:
+        await d.refresh_balance()
+        buy, api.buy_many = api.buy_many, hang
+        assert not await d.tick(force=True)                    # no answer in time: nobody knows whether it filled
+        assert len(d._unsure) == 8 and any("got no answer (no answer in 0.05 s)" in x for x in d.log)
+        await asyncio.sleep(0.06)
+
+        async def bad_gateway(groups):
+            raise Transient("Glimpse 502: request failed", 502)
+        api.buy_many = bad_gateway
+        await d.tick()                                         # settled as not filled, planned again, and this time a 502
+        assert sum("did not fill" in x for x in d.log) == 8
+        for _ in range(3):
+            if d._unsure:
+                break
+            await asyncio.sleep(0.06)
+            await d.tick()
+        assert d._unsure and any("got no answer (Glimpse 502: request failed)" in x for x in d.log)
+        await asyncio.sleep(0.11)
+
+        async def refused(groups):
+            raise ApiError("Glimpse 400: bad order")
+        api.buy_many = refused
+        d._unsure.clear()
+        d._mark_all()
+        await d.tick()                                         # a refusal is an answer: nothing to settle, nothing held
+        assert not d._unsure and not d.holding and any("buy failed: Glimpse 400: bad order" in x for x in d.log)
+        api.buy_many = buy
+        d._mark_all()
+        assert await d.tick() and len(api.bought) == 8 and not d._stopping
+    finally:
+        await d.watch.stop()
+
+
+async def test_a_chunk_that_fails_does_not_cost_the_chunks_before_it_their_place_in_the_ledger(tmp_path, monkeypatch):
+    monkeypatch.setattr(D, "ORDER_CHUNK", 3)
+    api = TwoSeries("k")
+    d = await make(api, tmp_path, live=True, budget=0)
+    await d.watch.start()
+    try:
+        await d.refresh_balance()
+        buy, calls = api.buy_many, []
+
+        async def second_refused(groups):
+            calls.append(len(groups))
+            if len(calls) == 2:
+                raise ApiError("Glimpse 400: bad order")
+            return await buy(groups)
+        api.buy_many = second_refused
+        assert await d.tick(force=True)
+        assert calls == [3, 3, 2]                              # the third chunk still went out
+        filled = {t for t, _ in api.bought}
+        assert len(filled) == 5 and all(d.ledger.legs("bell", "live", t) for t in filled)   # and every fill is in the ledger
+    finally:
+        await d.watch.stop()
+
+
+async def test_a_loop_that_raises_is_started_again_and_only_stop_ends_the_desk(tmp_path):
+    api = TwoSeries()
+    d = await make(api, tmp_path, budget=20_000, sweep_s=0.05)
+    mark, raised = d._mark_all, []
+
+    def bad(batch_id=None):
+        if d.started_at and len(raised) < 2 and d.trades:      # twice, once the desk is trading
+            raised.append(1)
+            raise RuntimeError("an answer nobody expected")
+        return mark(batch_id)
+    d._mark_all = bad
+    D.RESTART_S, kept = (0.02, 0.05), D.RESTART_S
+    try:
+        d.start()
+        for _ in range(200):
+            await asyncio.sleep(0.05)
+            if len(raised) == 2 and d.trades >= 8:
+                break
+        await asyncio.sleep(0.2)
+        assert len(raised) == 2 and d.running                  # the sweep raised twice and the desk is still up
+        assert sum("the sweep failed, RuntimeError: an answer nobody expected" in x for x in d.log) == 2
+        ticks = d.ticks
+        d._mark_all = mark
+        await asyncio.sleep(0.3)
+        assert d.running and all(not t.done() for t in d._tasks)       # every loop is alive, the sweep among them
+        assert d.ticks > ticks                                 # the sweep it restarted is what keeps queueing closes for a tick
+        new = 104                                              # and it still trades: a close launched now is bought at the seed
+        api.batch_topics["b-btc"].append(new)
+        api.books[new] = [80.0] * 500
+        api.ends[new] = api.end + 4 * 3600
+        await d.watch.refresh_batch("b-btc")
+        for _ in range(100):
+            await asyncio.sleep(0.05)
+            if d.ledger.open_cost("bell", "paper", new) > 0:
+                break
+        assert d.ledger.open_cost("bell", "paper", new) > 0 and d.trades > 8
+    finally:
+        D.RESTART_S = kept
+        d.stop()
+        with contextlib.suppress(asyncio.CancelledError):
+            await d.wait()
+    assert not d.running and d.log[-1].endswith("stopped")
+
+
+async def test_a_wallet_or_an_account_that_cannot_be_read_never_raises_and_a_dead_close_does_not_keep_the_desk_ticking(tmp_path):
+    api = TwoSeries("k")
+    d = await make(api, tmp_path, live=True, budget=0, read_timeout_s=0.05)
+    await d.watch.start()
+    try:
+        await d.refresh_balance()
+        balance = d.balance
+
+        async def garbage():
+            raise ValueError("Expecting value: line 1 column 1 (char 0)")     # an HTML error page where JSON was due
+        wallet, api.wallet = api.wallet, garbage
+        await d.refresh_balance()                              # the last balance stands, and nothing raises
+        assert d.balance == balance and any("cannot read the wallet: an answer it could not read, ValueError" in x for x in d.log)
+        api.wallet = hang
+        await d.refresh_balance()
+        assert d.balance == balance and not d._down_at         # the wallet alone never makes the desk hold its orders
+        api.wallet = wallet
+        d._dirty[999_999] = time.time()                        # an update for a close that has ended, or is too far out to trade
+        d._urgent.add(999_999)
+        await d.tick()
+        assert 999_999 not in d._dirty and 999_999 not in d._urgent and not d._due()
+    finally:
+        await d.watch.stop()
+
+
+async def test_after_an_outage_a_read_is_asked_before_any_order_is_sent(tmp_path):
+    api = TwoSeries("k")
+    d = await make(api, tmp_path, live=True, budget=0, kelly=1.0, read_timeout_s=0.05, probe_s=0.05, probe_max_s=0.1)
+    await d.once()
+    t = 100
+    held = d.ledger.legs("bell", "live", t)
+    o = max(held, key=lambda k: held[k][0])
+    shares = list(api.books[t])
+    shares[o - 1] += 3_000                                     # a crowd bids the held range up: there is a sale to make
+    api.books[t] = shares
+    d._on_event(d.watch.apply_update(message(t, "b-btc", shares)))
+    d._net_fail(Transient("Glimpse timed out."), at_once=True)     # and Glimpse has just stopped answering
+    assert d.holding and not await d.tick() and api.sold == []
+    book, api.book = api.book, hang
+    await asyncio.sleep(0.06)                                  # the wait is up: the close's book is asked first, and no answer comes
+    assert not await d.tick()
+    assert api.sold == [] and d.holding and t in d._dirty and not d._unsure    # so no order went into the dark
+    api.book = book
+    await asyncio.sleep(0.11)
+    assert await d.tick()                                      # Glimpse answers the read: the sale goes out
+    assert any(x[0] == t for x in api.sold) and not d._down_at and d.gain_sats > 0

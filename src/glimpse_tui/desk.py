@@ -28,6 +28,21 @@ Every order is checked against the server's estimate first and dropped if the bo
 in one request, and every close planned in a tick shares one request. The ledger is the bots' (`bots.Ledger`, the same
 key as the Runner's, so a position the Runner opened is managed here too). Dry run by default: a paper Desk keeps a paper
 ledger, lays its paper fills over the books it sees, and settles them against the price feed when a close ends.
+
+A live Desk is built to stay up through a slow or absent Glimpse, because a desk that waits on one request trades nothing:
+
+- No request holds a tick. A book read, an estimate and the wallet are asked once and given `read_timeout_s` to answer; an
+  order and the account's positions are given `order_timeout_s`. A close whose read went unanswered is queued again.
+  (The client's own three tries of 30 s each once held a tick for minutes on six closes. Measured on 14 November 2026 a
+  read takes 0.7 s on a warm connection and about 3 s on a new one, 5.4 s at worst.)
+- When Glimpse stops answering (`trip_after` requests in a row, or one order) the desk holds its orders instead of sending
+  more into the dark, asks again after `probe_s` seconds, then twice as long each time up to `probe_max_s`, and re-plans
+  every close the moment an answer comes. What it asks is a read (an estimate, a book), never an order. Two lines in the
+  log, one when it goes and one when it is back.
+- An order whose answer never came may or may not have filled. The desk does not stop for it: it leaves those closes alone,
+  reads the account's positions, books the order if its contracts are there and plans it again if they are not (`_settle`).
+- Each of its loops is restarted if it ever raises, so one bad answer cannot take the desk down. Only `stop()` ends it, or
+  a service that refuses the account outright.
 """
 from __future__ import annotations
 
@@ -43,7 +58,7 @@ import numpy as np
 from . import fmt
 from . import policy as PL
 from . import pricing as P
-from .api import ApiError, Batch, Book, Glimpse, NoServiceAuth
+from .api import Ambiguous, ApiError, Batch, Book, Glimpse, NoServiceAuth, Position, Transient
 from .auth import config_dir
 from .bots import PORTFOLIO, Bot, Ledger, ctx_of, off_loop, shown_series
 from .policy import Leg
@@ -52,6 +67,8 @@ from .watch import Event, Watch
 PRICE_SERIES = ("BTC", "BTC 1D", "ETH", "SOL", "XAU", "XAU 1D", "XAUTBTC", "WTIBTC")   # every series with a price feed and a walk
 MAX_ESTIMATES = 8                   # pre-trade estimates in flight at once (the public client allows 240 a minute)
 ORDER_CHUNK = 12                    # markets in one enter or exit request
+SLOW_TICK_S = 30.0                  # a tick that took this long is said in the log: nothing else traded while it ran
+RESTART_S = (1.0, 30.0)             # a loop that raised is started again after this long, doubled each time up to this
 
 
 @dataclass(frozen=True)
@@ -81,6 +98,11 @@ class DeskConfig:
     max_orders_tick: int = 48        # most closes bought on in one tick; the rest stay queued for the next
     weekend_lean: float = 0.0        # how much of the bot's directional lean survives a quiet hour (0: sideways)
     portfolio_s: float = 60.0        # managing: how often the account's positions are read
+    read_timeout_s: float = 10.0     # live: a book read, an estimate or the wallet is asked once and given this long to answer
+    order_timeout_s: float = 30.0    # live: an order, or the account's positions, is given this long; an order past it is unanswered
+    trip_after: int = 3              # requests in a row Glimpse does not answer before the desk holds its orders
+    probe_s: float = 2.0             # holding: the wait before asking again, doubled each time it still does not answer...
+    probe_max_s: float = 30.0        # ...up to this
 
     @classmethod
     def load(cls, **override) -> DeskConfig:
@@ -116,6 +138,22 @@ class Plan:
     buys: list[Leg] = field(default_factory=list)
     free: float = 0.0
     why: str = ""                                                            # when nothing is bought: the reason
+
+
+@dataclass
+class Unsure:
+    """An order that was sent and never answered: the connection dropped, no reply came in time, or the reply was a server
+    error. It may or may not have filled, and its close is left alone until the account says which."""
+    side: str                        # "buy" or "sell"
+    batch: Batch
+    plan: Plan
+    sats: float                      # a buy: its charge as the server's estimate confirmed it; a sale: its planned proceeds
+
+
+def lasted(seconds: float) -> str:
+    """`45 s`, `3m 10s`, `2h 05m`: how long an outage ran."""
+    n = int(max(seconds, 0))
+    return f"{n} s" if n < 60 else f"{n // 60}m {n % 60:02d}s" if n < 3600 else f"{n // 3600}h {n % 3600 // 60:02d}m"
 
 
 def sideways(probs, base, scale: float) -> list[float]:
@@ -163,6 +201,8 @@ class Desk:
     launches: int = 0                # closes planned while still at their seed
     skipped_small: int = 0           # plans left unsent because they fell under the dead-band (min_gain_sats, rebalance_share)
     ticks: int = 0
+    outages: int = 0                 # times Glimpse stopped answering and the desk held its orders until it did
+    unanswered: int = 0              # orders sent and never answered, settled against the account
     started_at: float = 0.0
     _task: asyncio.Task | None = None
     _tasks: list[asyncio.Task] = field(default_factory=list)
@@ -176,6 +216,15 @@ class Desk:
     _synced_at: float = 0.0
     _saved_at: float = 0.0
     _quiet: tuple[str, float] = ("", 0.0)
+    _fails: int = 0                                                           # requests in a row that Glimpse did not answer
+    _down_at: float = 0.0                                                     # when it stopped answering; 0 while it answers
+    _probe_at: float = 0.0                                                    # holding: when it is asked again
+    _probe_wait: float = 0.0
+    _unsure: dict[int, Unsure] = field(default_factory=dict)                 # topic -> the order there that was never answered
+    _settle_at: float = 0.0                                                   # when the account is next read to settle them
+    _settle_wait: float = 0.0
+    _sync_at: float = 0.0                                                     # managing: a failed portfolio read is not repeated before this
+    _sync_wait: float = 0.0
 
     # ── identity ────────────────────────────────────────────
 
@@ -198,10 +247,6 @@ class Desk:
     @property
     def running(self) -> bool:
         return self._task is not None and not self._task.done()
-
-    @property
-    def buys(self) -> bool:
-        return True
 
     @property
     def batch_id(self) -> str:
@@ -258,14 +303,173 @@ class Desk:
         return sum(s for _, s in self.spent)
 
     async def refresh_balance(self) -> None:
+        """Live: the wallet's balance, asked once. While it cannot be read the last balance stands."""
         if not self.live:
             return
         try:
-            w = await self.api.wallet()
+            w = await self._ask(self.api.wallet(), trips=False)
         except ApiError as e:
-            self.say(f"cannot read the wallet: {e}")
+            if not self._down_at:
+                self._idle(f"cannot read the wallet: {e}")
             return
         self.balance, self.balance_at = w.balance_sats, time.time()
+
+    # ── staying up ──────────────────────────────────────────
+
+    @property
+    def holding(self) -> bool:
+        """Glimpse has stopped answering and the next attempt is not due: until it is, nothing is asked and no order is sent."""
+        return self._down_at > 0 and time.time() < self._probe_at
+
+    @property
+    def link(self) -> str:
+        """`stream up`, `polling`, or how long Glimpse has not answered."""
+        if self.live and self._down_at:
+            return f"Glimpse not answering for {lasted(time.time() - self._down_at)}, orders held"
+        return "stream up" if self.watch and self.watch.streaming else "polling"
+
+    def _net_ok(self) -> None:
+        """Glimpse answered: if the desk was holding, it trades again and every close is planned afresh."""
+        if self._down_at:
+            self.say(f"Glimpse is answering again after {lasted(time.time() - self._down_at)}: every close re-planned")
+            self._down_at = 0.0
+            self._mark_all()
+        self._fails, self._probe_wait = 0, 0.0
+
+    def _net_fail(self, e: ApiError, at_once: bool = False) -> None:
+        """Glimpse did not answer a request. After `trip_after` in a row (or one order, `at_once`) the desk holds: nothing more
+        is sent until `probe_s` has passed, and each attempt that still gets no answer doubles the wait, up to `probe_max_s`."""
+        now = time.time()
+        self._fails += 1
+        if self._down_at:
+            if now >= self._probe_at:           # asked again, and still nothing
+                self._probe_wait = min(max(self._probe_wait * 2, self.cfg.probe_s), self.cfg.probe_max_s)
+                self._probe_at = now + self._probe_wait
+            return
+        if at_once or self._fails >= self.cfg.trip_after:
+            self._down_at, self._probe_wait = now, self.cfg.probe_s
+            self._probe_at = now + self._probe_wait
+            self.outages += 1
+            self.say(f"Glimpse is not answering ({str(e).rstrip('.')}): orders held, asking again every few seconds until it does")
+
+    async def _ask(self, request, timeout: float | None = None, trips: bool = True):
+        """One read with a deadline: its answer, or `Transient` if none came within `timeout` seconds (`read_timeout_s`), the
+        client's own retries included, or if what came could not be read. Any answer, a refusal too, says Glimpse is up; with
+        `trips`, none counts toward holding. Nothing but `ApiError` leaves here, so a bad answer is a line in the log."""
+        limit = self.cfg.read_timeout_s if timeout is None else timeout
+        try:
+            out = await asyncio.wait_for(request, limit)
+        except TimeoutError:
+            e = Transient(f"no answer in {limit:g} s")
+        except Transient as x:
+            e = x
+        except ApiError:
+            self._net_ok()
+            raise
+        except Exception as x:
+            e = Transient(f"an answer it could not read, {type(x).__name__}: {x}")
+        else:
+            self._net_ok()
+            return out
+        if trips:
+            self._net_fail(e)
+        raise e
+
+    async def _order(self, request):
+        """An order sent with a deadline of `order_timeout_s`. A refusal is an answer (`ApiError`), and so is being told to
+        slow down. Anything else that is not a fill leaves it unknown whether the order went through, and is `Ambiguous`: no
+        answer in time, a dropped connection, a server error, or an answer that cannot be read."""
+        limit = self.cfg.order_timeout_s
+        try:
+            out = await asyncio.wait_for(request, limit)
+        except TimeoutError:
+            raise Ambiguous(f"no answer in {limit:g} s") from None
+        except Ambiguous:
+            raise Ambiguous("the connection dropped") from None
+        except Transient as e:
+            if e.status == 429:
+                self._net_fail(e)
+                raise
+            raise Ambiguous(str(e).rstrip(".")) from None
+        except ApiError:
+            self._net_ok()
+            raise
+        except Exception as e:
+            raise Ambiguous(f"an answer it could not read, {type(e).__name__}: {e}") from None
+        self._net_ok()
+        return out
+
+    def _requeue(self, topics) -> None:
+        """These closes are planned again on the next tick (once Glimpse answers, if the desk is holding)."""
+        now = time.time()
+        for t in topics:
+            self._dirty[t] = now
+
+    def _unanswered(self, side: str, items: list[tuple[Batch, Plan, float]], e: ApiError) -> None:
+        """An order went out and no answer came back. Its closes are left alone until the account says whether it filled
+        (`_settle`), and the desk holds at once: a connection that lost one order is not one to send the next through."""
+        for b, p, sats in items:
+            self._unsure[p.book.topic_id] = Unsure(side, b, p, sats)
+        self.unanswered += 1
+        self._settle_at = 0.0
+        one = len(items) == 1
+        self.say(f"{side} on {len(items)} close{'' if one else 's'} got no answer ({e}): {'it' if one else 'they'} may or may not "
+                 f"have filled, so {'that close waits' if one else 'those closes wait'} until the account says which")
+        self._net_fail(e, at_once=True)
+
+    def _believed(self, topic_id: int, option_id: int) -> float:
+        """The contracts the account is believed to hold on one range, before an unanswered order: managing, the portfolio as
+        last read and traded since; otherwise what every bot on this machine holds there with real sats, by the ledger."""
+        owners = [PORTFOLIO] if self.manage else [k for k in list(self.ledger.data) if k != PORTFOLIO]
+        return sum(self.ledger.legs(k, "live", topic_id).get(option_id, (0.0, 0.0))[0] for k in owners)
+
+    async def _settle(self) -> None:
+        """Every order that was sent and never answered, settled against the account. The account's positions are read, and
+        on each order's ranges what it holds now is set against what it was believed to hold before: where the contracts of
+        a buy have arrived the buy filled, and is booked at the charge the server's estimate confirmed; where the contracts
+        of a sale have gone it filled, and is booked at its planned proceeds; otherwise the order never happened and its
+        close is planned again. An order counts as filled when at least half its contracts moved. Until the account can be
+        read those closes are left alone, and it is asked again after `probe_s`, doubling to `probe_max_s`."""
+        now = time.time()
+        for t in [t for t, u in self._unsure.items() if u.plan.book.end_time_utc <= now]:
+            del self._unsure[t]                 # the close ended: the server settles whatever the account holds there
+        if not self._unsure or now < self._settle_at:
+            return
+        n = len(self._unsure)
+        try:
+            held = await self._ask(self.api.positions(), self.cfg.order_timeout_s)
+        except ApiError as e:
+            self._settle_wait = min(max(self._settle_wait * 2, self.cfg.probe_s), self.cfg.probe_max_s)
+            self._settle_at = time.time() + self._settle_wait
+            if not self._down_at:
+                self._idle(f"cannot read the account to settle {n} unanswered order{'' if n == 1 else 's'}: {e}")
+            return
+        self._settle_wait = 0.0
+        have: dict[tuple[int, int], float] = {}
+        for x in held:
+            have[(x.topic_id, x.option_id)] = have.get((x.topic_id, x.option_id), 0.0) + x.shares
+        for t, u in list(self._unsure.items()):
+            del self._unsure[t]
+            book, sign = u.plan.book, 1.0 if u.side == "buy" else -1.0
+            legs = ([(book.option_ids[x.index], x.contracts) for x in u.plan.buys] if u.side == "buy" else
+                    [(book.option_ids[i], c) for i, c, _ in u.plan.sells])
+            moved = sum(min(max(sign * (have.get((t, o), 0.0) - self._believed(t, o)), 0.0), c) for o, c in legs)
+            tag = fmt.question(u.batch.short, book.end_time_utc)[:-4]
+            if moved < 0.5 * sum(c for _, c in legs):
+                self.say(f"{tag}  the unanswered {u.side} did not fill: planned again")
+            elif u.side == "buy":
+                self.say(f"{tag}  the unanswered buy did fill: booked at the {fmt.sats(u.sats)} the server's estimate confirmed")
+                self._book(u.batch, u.plan, u.sats, u.sats)
+            else:
+                self.say(f"{tag}  the unanswered sell did fill: booked at its planned {fmt.sats(u.sats)}")
+                self._book_sale(u.plan, u.sats)
+            self._dirty[t] = time.time()
+        if self.manage:
+            self._adopt(held)                   # the account's own record wins over what was booked
+        self.ledger.save()
+        self._saved_at = time.time()
+        if self.on_trade:
+            self.on_trade()
 
     def tradable(self, batch: Batch, now: float | None = None) -> list[Book]:
         """The batch's closes the Desk may trade now: open, not about to close, within max_hours."""
@@ -349,26 +553,51 @@ class Desk:
 
         core.WEEKEND_LEAN = float(self.cfg.weekend_lean)
 
+    async def _keep(self, name: str, loop) -> None:
+        """One of the desk's loops, for as long as the desk runs: if it ever raises, that is one line in the log and the loop
+        starts again, after a second at first and up to half a minute if it keeps failing. Only `stop()` ends it."""
+        wait = RESTART_S[0]
+        while not self._stopping:
+            began = time.monotonic()
+            try:
+                await loop()
+                return
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                if time.monotonic() - began > 60:
+                    wait = RESTART_S[0]             # it ran a while before this: not a loop that fails as it starts
+                self.say(f"{name} failed, {type(e).__name__}: {e}; starting it again in {wait:g} s")
+            await asyncio.sleep(wait)
+            wait = min(wait * 2, RESTART_S[1])
+
     async def _run(self) -> None:
         self._set_lean()
-        try:
-            await self._open_watch()
-        except ApiError as e:
-            self.say(f"cannot list the series: {e}")
-            return
+        wait = RESTART_S[0]
+        while True:                             # a desk started while Glimpse is away waits for it; it does not give up
+            try:
+                await self._open_watch()
+                break
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                self.say(f"cannot list the series, {type(e).__name__}: {e}; trying again in {wait:g} s")
+            await asyncio.sleep(wait)
+            wait = min(wait * 2, RESTART_S[1])
         for b in self.batches:
             self._feed(b.asset or "BTC")
         await asyncio.gather(*(f.refresh(max_age=1.0) for f in self.feeds.values()), return_exceptions=True)
         await self.refresh_balance()
         self.say(f"started  {self._intro()}")
         self._mark_all()
-        self._tasks = [asyncio.create_task(self._events()), asyncio.create_task(self._feeds_loop()),
-                       asyncio.create_task(self._sweeps()), asyncio.create_task(self._wallet_loop())]
+        self._tasks = [asyncio.create_task(self._keep(name, loop)) for name, loop in (
+            ("the trading loop", self._events), ("the price feeds", self._feeds_loop), ("the sweep", self._sweeps),
+            ("the wallet loop", self._wallet_loop))]
         try:
             await asyncio.gather(*self._tasks)
-        except asyncio.CancelledError:
-            raise
         finally:
+            for t in self._tasks:
+                t.cancel()
             await self.watch.stop()
 
     async def once(self) -> None:
@@ -418,13 +647,21 @@ class Desk:
                     self._on_event(self.watch.events.get_nowait())
             except TimeoutError:
                 pass
-            if self._due():
+            if self._due() or self._owed():
+                began = time.monotonic()
                 try:
                     await self.tick()
                 except asyncio.CancelledError:
                     raise
                 except Exception as e:                  # one bad tick must not stop the desk
                     self.say(f"tick failed: {type(e).__name__}: {e}")
+                took = time.monotonic() - began
+                if took >= SLOW_TICK_S:
+                    self.say(f"that tick took {took:.0f} s, and nothing else traded while it ran")
+
+    def _owed(self) -> bool:
+        """An order was never answered and it is time to ask the account whether it filled: a tick is due for that alone."""
+        return bool(self._unsure) and time.time() >= self._settle_at and not self.holding
 
     def _due(self) -> list[int]:
         """The dirty closes whose turn it is: a launch at once, a re-queued close at once, the rest once `settle_s` has passed
@@ -559,9 +796,16 @@ class Desk:
         return plan
 
     async def tick(self, force: bool = False) -> bool:
-        """Plan every due close, then send every sale and every buy, each close's legs in one order, all closes in one request."""
-        self.ticks += 1
+        """Plan every due close, then send every sale and every buy, each close's legs in one order, all closes in one request.
+        While Glimpse is not answering nothing is planned or sent: what is due stays queued for the next attempt."""
         now = time.time()
+        if self.live and (self.holding or (self.manage and now < self._sync_at)):
+            return False
+        if self.live and self._unsure:
+            await self._settle()                # orders never answered, settled against the account before anything is planned
+            if self.holding:
+                return False
+        self.ticks += 1
         due = set(self._due()) if not force else set()
         if force:
             for b in self.batches:
@@ -576,11 +820,14 @@ class Desk:
         hour_left = self.cfg.hour_turnover * self.bankroll - self.spent_last_hour()
         pool_left = self.deployable - self.open_cost
         plans: list[tuple[Batch, Plan]] = []
+        seen: set[int] = set()
         for b in self.batches:
             books = [c for c in self.tradable(b, now) if c.topic_id in due]
             for t in [c.topic_id for c in books]:
                 self._dirty.pop(t, None)
                 self._planned_at[t] = now
+                seen.add(t)
+            books = [c for c in books if c.topic_id not in self._unsure]     # an order there was never answered: left alone
             if not books:
                 continue
             pics = await self.pictures_for(b, books)
@@ -603,6 +850,8 @@ class Desk:
                     plans.append((b, plan))
         for t in [t for t in due if t in self._urgent]:
             self._urgent.discard(t)
+        for t in due - seen:                    # a close the desk may not trade (ended, about to, too far out) has no turn to wait for
+            self._dirty.pop(t, None)
         if not plans:
             return False
         traded = await self._sell(plans)
@@ -647,18 +896,36 @@ class Desk:
                 self.say(f"{self._tag(book)}  {'SELL' if self.live else 'would sell'} {fmt.span(*book.bins[i])}  "
                          f"{fmt.contracts(contracts)}{part} for ₿{proceeds:,.0f}"
                          + ("" if gain is None else f"  {fmt.sats(gain, signed=True)} on cost"))
+        if self.live and self._down_at and self.watch:      # Glimpse had stopped answering and the wait is up: a book read
+            try:                                            # asks whether it is back, so that an order is never the question
+                await self._ask(self.watch.refresh_book(groups[0][1].book.topic_id))
+            except ApiError:
+                pass
+            if self._down_at:
+                self._requeue(p.book.topic_id for _, p in groups)
+                return False
         traded = False
         for k in range(0, len(groups), ORDER_CHUNK):
             chunk = groups[k:k + ORDER_CHUNK]
             got = {p.book.topic_id: sum(x[2] for x in p.sells) for _, p in chunk}
             if self.live:
+                if self.holding:                    # an order before this one went unanswered: these wait for Glimpse
+                    self._requeue(p.book.topic_id for _, p in chunk)
+                    continue
                 try:
-                    fills = await self.api.sell_many([(p.book.topic_id, [(p.book.option_ids[i], c) for i, c, _ in p.sells]) for _, p in chunk])
+                    fills = await self._order(self.api.sell_many(
+                        [(p.book.topic_id, [(p.book.option_ids[i], c) for i, c, _ in p.sells]) for _, p in chunk]))
+                except Ambiguous as e:              # it may or may not have filled: the account says which, the desk goes on
+                    self._unanswered("sell", [(b, p, got[p.book.topic_id]) for b, p in chunk], e)
+                    continue
                 except ApiError as e:
                     self.say(f"sell failed: {e}")
-                    if "may or may not" in str(e) or isinstance(e, NoServiceAuth):
+                    if isinstance(e, NoServiceAuth):
                         self.stop()
-                    return traded
+                        return traded
+                    if isinstance(e, Transient):
+                        self._requeue(p.book.topic_id for _, p in chunk)
+                    continue
                 ok = {}
                 for f in fills:
                     if f.error:
@@ -667,30 +934,33 @@ class Desk:
                         ok[f.topic_id] = f.cost_sats
                 got = ok
             for _, p in chunk:
-                if p.book.topic_id not in got:
-                    continue
-                basis = 0.0
-                for i, contracts, _ in p.sells:
-                    held, cost = self.ledger.legs(self.key, self.mode, p.book.topic_id).get(p.book.option_ids[i], (contracts, 0.0))
-                    basis += cost * contracts / held if held > 0 else 0.0
-                    self.ledger.reduce(self.key, self.mode, p.book.topic_id, p.book.option_ids[i], contracts)
-                self.sold_sats += got[p.book.topic_id]
-                self.gain_sats += got[p.book.topic_id] - basis
-                self.trades += 1
-                traded = True
-                self._dirty[p.book.topic_id] = time.time()          # buy against the book the sale left, next tick
-                if self.live and self.watch:
-                    asyncio.ensure_future(self._reread(p.book.topic_id))
+                if p.book.topic_id in got:
+                    self._book_sale(p, got[p.book.topic_id])
+                    traded = True
         if traded and self.live:
             await self.refresh_balance()
         return traded
+
+    def _book_sale(self, p: Plan, got: float) -> None:
+        """A filled sale out of the ledger and into the session's figures; its close is planned again against the book it left."""
+        basis = 0.0
+        for i, contracts, _ in p.sells:
+            held, cost = self.ledger.legs(self.key, self.mode, p.book.topic_id).get(p.book.option_ids[i], (contracts, 0.0))
+            basis += cost * contracts / held if held > 0 else 0.0
+            self.ledger.reduce(self.key, self.mode, p.book.topic_id, p.book.option_ids[i], contracts)
+        self.sold_sats += got
+        self.gain_sats += got - basis
+        self.trades += 1
+        self._dirty[p.book.topic_id] = time.time()          # buy against the book the sale left, next tick
+        if self.live and self.watch:
+            asyncio.ensure_future(self._reread(p.book.topic_id))
 
     async def _reread(self, topic_id: int) -> None:
         """The close's book read again after a sale moved it; a close the watch has since dropped (it ended) is left alone."""
         if topic_id not in self.watch.books:
             return
         try:
-            await self.watch.refresh_book(topic_id)
+            await self._ask(self.watch.refresh_book(topic_id), trips=False)
         except (ApiError, asyncio.CancelledError):
             pass
 
@@ -715,23 +985,30 @@ class Desk:
             kept = await self._estimated(kept)
             if not kept:
                 return False
-            traded = False
-            for k in range(0, len(kept), ORDER_CHUNK):
+            for k in range(0, len(kept), ORDER_CHUNK):  # a chunk that fails never costs the chunks before it their place in the ledger
                 chunk = kept[k:k + ORDER_CHUNK]
+                if self.holding:                    # an order before this one went unanswered: these wait for Glimpse
+                    self._requeue(p.book.topic_id for _, p, _ in chunk)
+                    continue
                 try:
-                    fills = await self.api.buy_many([(p.book.topic_id, [(p.book.option_ids[x.index], x.contracts) for x in p.buys])
-                                                     for _, p, _ in chunk])
+                    fills = await self._order(self.api.buy_many(
+                        [(p.book.topic_id, [(p.book.option_ids[x.index], x.contracts) for x in p.buys]) for _, p, _ in chunk]))
+                except Ambiguous as e:              # it may or may not have filled: the account says which, the desk goes on
+                    self._unanswered("buy", chunk, e)
+                    continue
                 except ApiError as e:
                     self.say(f"buy failed: {e}")
-                    if "may or may not" in str(e) or isinstance(e, NoServiceAuth):
+                    if isinstance(e, NoServiceAuth):
                         self.stop()
-                    return traded
+                        break
+                    if isinstance(e, Transient):
+                        self._requeue(p.book.topic_id for _, p, _ in chunk)
+                    continue
                 for f in fills:
                     if f.error:
                         self.say(f"buy rejected on {f.topic_id}: {f.error}")
                     else:
                         charges[f.topic_id] = f.cost_sats + f.fee_sats
-                        traded = True
         else:                                   # a paper fill pays what the server would: the cost, the fee at least one sat
             charges = {p.book.topic_id: cost / (1 + P.FEE) + max(cost * P.FEE / (1 + P.FEE), P.MIN_FEE_SATS) for _, p, cost in kept}
         done = False
@@ -753,11 +1030,14 @@ class Desk:
         async def one(item):
             b, p, local = item
             async with sem:
+                if self.holding:                    # Glimpse stopped answering the closes before this one: it waits its turn
+                    self._requeue([p.book.topic_id])
+                    return None, ""
                 if self.watch and self.watch.age(p.book.topic_id) > self.cfg.max_book_age:
                     try:
-                        fresh = self._paper_book(await self.watch.refresh_book(p.book.topic_id))
+                        fresh = self._paper_book(await self._ask(self.watch.refresh_book(p.book.topic_id)))
                     except ApiError as e:
-                        return None, f"{self._tag(p.book)}  cannot read its book: {e}"
+                        return None, self._unchecked(p, "cannot read its book", e)
                     q0 = PL.Quote(fresh.shares, fresh.alpha)
                     cost = 0.0
                     for x in p.buys:
@@ -768,9 +1048,10 @@ class Desk:
                         self._dirty[p.book.topic_id] = time.time()
                         return None, f"{self._tag(p.book)}  book moved since it was planned, re-queued"
                 try:
-                    raw, fee = await self.api.estimate_legs(p.book.topic_id, [(p.book.option_ids[x.index], x.contracts) for x in p.buys])
+                    raw, fee = await self._ask(self.api.estimate_legs(
+                        p.book.topic_id, [(p.book.option_ids[x.index], x.contracts) for x in p.buys]))
                 except ApiError as e:
-                    return None, f"{self._tag(p.book)}  no estimate: {e}"
+                    return None, self._unchecked(p, "no estimate", e)
                 charge = raw + max(fee, P.MIN_FEE_SATS)
                 if abs(charge - local) > self.cfg.estimate_tolerance * local + 5:
                     self._dirty[p.book.topic_id] = time.time()
@@ -785,6 +1066,15 @@ class Desk:
             if item is not None:
                 out.append(item)
         return out
+
+    def _unchecked(self, p: Plan, what: str, e: ApiError) -> str:
+        """The line for a close whose order could not be checked against the server. If Glimpse merely did not answer, the
+        close is planned again on the next tick, and once the desk is holding its one line has said so already."""
+        if isinstance(e, Transient):
+            self._requeue([p.book.topic_id])
+            if self._down_at:
+                return ""
+        return f"{self._tag(p.book)}  {what}: {e}"
 
     def _book(self, batch: Batch, p: Plan, charge: float, local: float) -> None:
         """A filled buy into the ledger, the marks and the log."""
@@ -866,22 +1156,35 @@ class Desk:
     # ── managing the account's portfolio ────────────────────
 
     async def sync(self) -> bool:
+        """Managing: the account's positions into the ledger, read every `portfolio_s` when live. False while they cannot be
+        read: a desk does not trade a portfolio it cannot see, and asks again after `probe_s`, doubling to `probe_max_s`."""
         if not self.manage or (self._synced_at and (not self.live or time.time() - self._synced_at < self.cfg.portfolio_s)):
             return True
+        if self.live and time.time() < self._sync_at:
+            return False
         try:
-            held = await self.api.positions() if self.api.authenticated else []
+            held = await self._ask(self.api.positions(), self.cfg.order_timeout_s) if self.api.authenticated else []
         except ApiError as e:
-            self.say(f"cannot read your portfolio: {e}")
             if self.live:
+                self._sync_wait = min(max(self._sync_wait * 2, self.cfg.probe_s), self.cfg.probe_max_s)
+                self._sync_at = time.time() + self._sync_wait
+                if not self._down_at:
+                    self.say(f"cannot read your portfolio: {e}; asking again in {self._sync_wait:g} s")
                 return False
+            self.say(f"cannot read your portfolio: {e}")
             held = []
+        self._sync_wait = 0.0
+        self._adopt(held)
+        return True
+
+    def _adopt(self, held: list[Position]) -> None:
+        """The account's positions, as just read, become the managed portfolio in the ledger."""
         rows = [r for b in self.batches for r in self.watch.rows.get(b.batch_id, [])]
         self.ledger.replace(PORTFOLIO, self.mode, rows, lambda t: (self.watch.batch_of[t].asset or "BTC") if t in self.watch.batch_of else "BTC",
                             held)
         self._synced_at = time.time()
         if not self.live:
             self._seed = {r.topic_id: {o: n for o, (n, _) in self.ledger.legs(PORTFOLIO, self.mode, r.topic_id).items()} for r in rows}
-        return True
 
     # ── status ──────────────────────────────────────────────
 
@@ -891,6 +1194,13 @@ class Desk:
         closes = {x[2] for x in held}
         w = self.watch
         stream = ("stream up" if w and w.streaming else "stream down, polling") + (f", {w.messages} updates, {w.launches} launches" if w else "")
+        if self.live and self._down_at:
+            stream += f"  ·  Glimpse not answering for {lasted(time.time() - self._down_at)}, orders held"
+        if self._unsure:
+            stream += f"  ·  {len(self._unsure)} closes wait on an unanswered order"
+        if self.outages or self.unanswered:
+            stream += (f"  ·  rode out {self.outages} outage{'' if self.outages == 1 else 's'}, "
+                       f"{self.unanswered} unanswered order{'' if self.unanswered == 1 else 's'}")
         n = sum(len(self.tradable(b)) for b in self.batches)
         return (f"bankroll {fmt.sats(self.bankroll)}  deployed {fmt.sats(self.open_cost)} in {len(closes)} of {n} closes  ·  "
                 f"bought {fmt.sats(self.paid_sats)}  sold {fmt.sats(self.sold_sats)} ({fmt.sats(self.gain_sats, signed=True)} on cost)"
@@ -915,7 +1225,11 @@ def desk_note(cfg: DeskConfig | None = None) -> str:
         f"exclusive outcomes on the LS-LMSR, at {c.kelly:g} of the Kelly optimum, never a contract whose return after both fees "
         f"falls under {c.min_edge:.0%}. Every close's legs go in one order, every close planned in a tick in one request, each "
         f"checked first against the server's estimate. In quiet hours (the weekend; CME's closed hours for gold and oil) the "
-        f"picture is pooled toward the clock's driftless walk by the share of busy hours left, so the bot bets sideways."
+        f"picture is pooled toward the clock's driftless walk by the share of busy hours left, so the bot bets sideways. A live "
+        f"desk does not stop for a slow or absent Glimpse: a read is asked once and given {c.read_timeout_s:g} s, after "
+        f"{c.trip_after} unanswered in a row it holds its orders and asks again every {c.probe_s:g} to {c.probe_max_s:g} s until "
+        f"an answer comes, and an order that was sent and never answered is settled against the account's positions (booked if "
+        f"its contracts are there, planned again if not) rather than left for a human."
     )
 
 

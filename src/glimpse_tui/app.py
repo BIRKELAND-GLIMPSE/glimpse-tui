@@ -18,11 +18,10 @@ from textual.screen import ModalScreen
 from textual.widget import Widget
 from textual.widgets import Input, Static
 
-from . import advview, auth, bots, botsview, charts, chrome, fmt, noc, nocview
 from . import api as api_mod
+from . import auth, bots, botsview, charts, chrome, fmt, noc, nocview
 from . import policy as PL
 from . import pricing as P
-from .advview import AdvancedPane, AdvLogPane
 from .api import ApiError, Batch, Book, Candle, Glimpse, KeyRejected, MarketRow, Order, Position, Summary, Wallet, parse_bin
 from .botsview import SORTS, TABS, BotDetailPane, BotListPane, BotLogPane, Scan
 from .heatmap import ANSI256, P_FLOOR, TRUECOLOR, ZOOMS, Grid, HeatmapPane, fit_zoom, origin, scales, wants_truecolor
@@ -52,7 +51,7 @@ HELP = """\
  chance of it and the odds it pays. h moves to the list of closes beside it, l back to the odds, v selects a
  range and b bets on it. Everything else is behind the bar along the top, which names every screen and every
  series with the key that reaches it: t the front page (the rest of the terminal: charts, the chain, the news,
- the world), f the forecast, o the odds, B bots, A advanced bots, M the monitor, p portfolio, [ and ] the previous and next series
+ the world), f the forecast, o the odds, B bots, M the monitor, p portfolio, [ and ] the previous and next series
  (BTC,
  BTC 1D, ETH, SOL, XAU, XAU 1D, XAUTBTC, an ounce of Tether Gold in satoshis, and WTIBTC, a barrel of WTI
  crude in satoshis).
@@ -76,7 +75,7 @@ HELP = """\
            zf the whole forecast   za auto-fit   zm median   v box   V the 80% band   o other corner   gv reselect   esc clear
            ma 'a mark, jump   '' jump back   enter open the close   tab bet slip   P every position   + - S size   b BET
            / : price, command   [ ] series
-           t front page   f forecast   o odds   p portfolio   B bots   A advanced bots   M monitor   L O log in / out   c colours
+           t front page   f forecast   o odds   p portfolio   B bots   M monitor   L O log in / out   c colours
            r refresh
            ctrl-l redraw   q ZZ :q quit
            ? every key, and this page scrolls: j k ↓ ↑ a line, ctrl-d ctrl-u half a page, g G the ends, esc closes
@@ -109,8 +108,6 @@ HELP = """\
                R instead lets the bot manage your portfolio: every position your account holds in the series,
                whoever opened it, sold and bought by the same rules. Its budget is the fresh sats it may add;
                what it sells, it may buy with again. One bot at a time manages a series.
-               Profit Taker (Portfolio, at the end of the list) only sells: enter runs it across your whole
-               portfolio, every series, selling the part of any position the market overpays at a profit.
                profit_only = false in bots.toml lets any bot also trim overpriced losers.
                With your API key loaded (L) it asks whether to trade real sats: type LIVE. Otherwise it practises on paper.
                D runs the bot as a desk: every price series at once, every open close's book kept current over
@@ -120,24 +117,8 @@ HELP = """\
                without the screen:  glimpse-tui run <bot> --series BTC --budget 20000
                or as a desk:        glimpse-tui desk <bot> --budget 200000
 
- ADVANCED (A)  The bots that trade several markets at once, and those markets side by side while they do. The
-               Triangulator makes one forecast of Bitcoin and gold and bets it across three books: Bitcoin, gold and
-               Tether Gold in satoshis close at the same second, and an ounce in sats is an ounce in dollars × 10⁸
-               over Bitcoin in dollars, so each pair of books implies the third. Its lens (m picks it; the Session
-               Walk by default, a Student-t walk over the hours the market actually trades, so gold's weekend closes
-               come out still) draws each close, each is pooled with what the other two imply, and the bot bets on
-               the likely outcomes: the band holding 80% of its picture, bought as a set of equal contracts in every
-               book that sells it under what it pays, filled only while the last set still returns 25% on cost. A
-               risk-free cover comes first when a pair of books offers one; profit is taken where a book overpays.
-               One column per market: the market's picture, the triangle's, the band, and on each range what it
-               buys, holds or sold. Above them the three medians, what two imply for the third, and the gap. Before
-               you run it the screen watches on paper: h l walk the instants. enter runs it (budget, then paper or
-               LIVE), i explains it, P shows its portfolio. The Oil Triangulator does the same for Bitcoin and
-               WTI/BTC, with oil's dollar price as a model in place of the missing third market. The Arbitrageurs
-               are here too, each book of a cover in its own column.
-
  MONITOR (M)  Every bot trading on this computer on one screen, the way a desk watches its book. FLEET lists them: a bot
-               walking a series, a manager, a desk, a Triangulator, the Profit Taker, each with what it holds at cost, what
+               walking a series, a manager, a desk, each with what it holds at cost, what
                that would fetch sold back into the books now after the fee, and the difference; ● is running (red on real
                sats, green on paper), ◐ running but silent for three minutes, ○ stopped, ◌ a bot the ledger says still holds
                positions though nothing here runs it (one from an earlier session, or one a `glimpse-tui run` in another
@@ -189,7 +170,7 @@ TERM_HELP = """\
                and previous story; h or esc goes back to the headlines.
  SEARCH        : (or SPC SPC) lists everything that can be opened. Type to filter, ctrl-j ctrl-k to choose, enter.
  SPC MENU      SPC w windows (/ - split, d close, m maximize)   SPC b buffers (b list, n p, d close)
-               SPC t this page   SPC f the forecast   SPC o the odds   SPC B bots   SPC A advanced bots   SPC p portfolio
+               SPC t this page   SPC f the forecast   SPC o the odds   SPC B bots   SPC M monitor   SPC p portfolio
 
  THE PAGE      Bitcoin's next 24 hours and the odds on its next hour · gold's, and the odds on its next hour ·
                hashrate and the difficulty adjustment · the news and world prices · the power law of Bitcoin in
@@ -683,10 +664,6 @@ class Terminal(App):
     BotListPane {{ width: {botsview.LIST_WIDTH}; }}
     #botright {{ width: 1fr; }}
     BotLogPane {{ height: 12; display: none; }}
-    #advanced {{ display: none; height: 1fr; }}
-    AdvancedPane, AdvLogPane {{ border: round {RULE}; border-title-color: {DIM}; }}
-    AdvancedPane {{ height: 1fr; border: round {ORANGE}; border-title-color: {ORANGE}; }}
-    AdvLogPane {{ height: {advview.LOG_HEIGHT}; }}
     #noc {{ display: none; height: 1fr; }}
     #nocleft {{ width: {nocview.LEFT_WIDTH}; }}
     #nocright {{ width: 1fr; }}
@@ -758,9 +735,6 @@ class Terminal(App):
         self.bot_zoom = 0                               # - and +: how far the ladder and chart are zoomed out (above 0) or in
         self.bot_ahead: dict[tuple[str, int], Scan] = {}   # (bot id, topic id) -> that bot's picture of that close
         self._ahead_for: tuple | None = None            # the bot and data the walk ahead was started for
-        self.adv_cur, self.adv_when = 0, 0              # the advanced screen: which bot, which instant (while watching)
-        self.adv_lens = ""                              # the lens the Triangulator starts from; "" reads bots.toml's [triangle]
-        self.adv_watch = None                           # tri.Triangulator drawing on paper for the advanced screen, never trading
         self.noc = noc.Monitor()                        # the monitor screen: the fleet, the tape, the books it watches
         self._noc_goto: int | None = None               # a close the monitor asked the odds to open, once its series has loaded
         self.feeds: dict[str, object] = {}              # asset -> zoo.data.Feed
@@ -1303,9 +1277,6 @@ class Terminal(App):
                     with Vertical(id="botright"):
                         yield BotDetailPane(id="botdetail")
                         yield BotLogPane(id="botlog")
-                with Vertical(id="advanced"):
-                    yield AdvancedPane(id="advdesk")
-                    yield AdvLogPane(id="advlog")
                 with Horizontal(id="noc"):
                     with Vertical(id="nocleft"):
                         yield FleetPane(id="nocfleet")
@@ -1395,16 +1366,6 @@ class Terminal(App):
         self.slip_cur = max(0, min(self.slip_cur, len(self.slip_fields()) - 1))
         self.query_one("#portfolio").display = self.view == "portfolio"
         self.query_one("#bots").display = self.view == "bots"
-        adv = self.query_one("#advanced")
-        adv.display = self.view == "advanced"
-        if adv.display:
-            self.ensure_watch()
-            self.query_one("#advdesk").border_title = advview.desk_title(self)
-            self.query_one("#advlog").border_title = advview.log_title(self)
-            self.query_one("#advdesk").refresh()
-            self.query_one("#advlog").refresh()
-        elif self.adv_watch is not None and self.adv_watch.running:
-            self.stop_watch()                            # the live view costs API calls: only while the screen shows
         mon = self.query_one("#noc")
         mon.display = self.view == "noc"
         if mon.display:
@@ -1897,10 +1858,6 @@ class Terminal(App):
             if self.view == "bots":
                 self.load_bots()
                 self.scan_bots()
-        elif ch == "A":
-            self.view = "main" if self.view == "advanced" else "advanced"
-            if self.view == "advanced":
-                self.load_bots()
         elif ch == "M":
             if self.view == "noc":
                 self.view = "main"
@@ -1981,23 +1938,6 @@ class Terminal(App):
                 self.stop_bot(everything=True)
             elif ch == "P":
                 self.bot_portfolio()
-        elif self.view == "advanced":
-            if k == "enter":
-                self.toggle_bot()
-            elif ch == "i":
-                self.about_bot()
-            elif ch == "e":
-                self.edit_bot_budget()
-            elif ch == "x":
-                self.stop_bot()
-            elif ch == "X":
-                self.stop_bot(everything=True)
-            elif ch == "P":
-                self.bot_portfolio()
-            elif ch == "m":
-                self.next_lens()
-            elif k in ("l", "right", "h", "left"):
-                self.adv_step(n if k in ("l", "right") else -n)
         elif self.view == "bots":
             if k == "enter":
                 self.toggle_bot()
@@ -2075,8 +2015,6 @@ class Terminal(App):
                 self.hm_bin = max(0, min(self.hm_bin - d * self.hm_bpc, self.hm_grid.n - 1))
         elif self.view == "portfolio":
             self.p_cur = max(0, min(self.p_cur + d, len(self.positions) - 1))
-        elif self.view == "advanced":
-            self.adv_cur = max(0, min(self.adv_cur + d, len(advview.advanced(self)) - 1))
         elif self.view == "noc":
             m = self.noc
             if m.focus == 1:
@@ -2337,8 +2275,6 @@ class Terminal(App):
         return float(self._budgets.get(bot_id) or self._budget_default)
 
     def _selected_bot(self) -> bots.Bot | None:
-        if self.view == "advanced":
-            return advview.selected(self)
         if self.view == "noc":
             u = self.noc.unit
             if u is None or not u.is_bot:
@@ -2433,71 +2369,6 @@ class Terminal(App):
         elif self.views and self._loading is None:
             self._noc_goto = None
             self.say("That close has ended.", 3)
-
-    # the advanced screen ────────────────────────────────────
-
-    def lens_candidates(self) -> list[bots.Bot]:
-        """The models the Triangulator may start from: the baselines (the Session Walk first), the smoothing family and Benter."""
-        from .tri import LENS_FAMILIES
-
-        return [b for b in self.bots if b.family in LENS_FAMILIES and not b.error]
-
-    def lens_bot(self) -> bots.Bot | None:
-        from .tri import Rules
-
-        want = self.adv_lens or Rules.load().lens
-        return next((b for b in self.lens_candidates() if b.id == want), None) or next(iter(self.lens_candidates()), None)
-
-    def next_lens(self) -> None:
-        """m: the next lens. A Triangulator already running keeps the lens it started with."""
-        cands = self.lens_candidates()
-        cur = self.lens_bot()
-        if not cands or cur is None:
-            return
-        nxt = cands[(cands.index(cur) + 1) % len(cands)]
-        self.adv_lens = nxt.id
-        b = advview.selected(self)
-        r = self.runners.get(b.id) if b else None
-        self.say(f"Lens: {nxt.name}. {nxt.blurb}" + (f" {r.name} keeps {r.lens_name} until it is run again." if r and r.running else ""), 5)
-
-    def adv_source(self):
-        return advview.source(self, advview.selected(self))
-
-    def adv_step(self, d: int) -> None:
-        """h l: the instant the watcher draws. A running bot picks its own instants; the desk follows it."""
-        src = self.adv_source()
-        if src is None or not getattr(src, "instants", None):
-            return
-        if not getattr(src, "watch", False):
-            self.say("The desk follows the bot while it runs: it shows the instant it visited last.", 3)
-            return
-        self.adv_when = max(0, min(self.adv_when + d, len(src.instants) - 1))
-        src.focus_end = src.instants[self.adv_when]
-
-    def ensure_watch(self) -> None:
-        """The advanced screen's live view: a Triangulator for the selected triangle bot that draws and never trades,
-        while no runner of it is running. Rebuilt when the bot, the lens or the budget changes."""
-        from . import tri
-
-        b = advview.selected(self)
-        r = self.runners.get(b.id) if b else None
-        if b is None or tri.triangle_of(b) is None or (r is not None and r.running):
-            self.stop_watch()
-            return
-        lens, budget = self.lens_bot(), self.bot_budget(b.id)
-        w = self.adv_watch
-        if w is None or w.bot is not b or w.lens is not lens or w.cfg.bankroll_sats != budget or not w.running:
-            self.stop_watch()
-            self.adv_watch = w = tri.Triangulator(bot=b, api=self.api, batch_id="", feed=None, live=False, ledger=self.ledger,
-                                                  cfg=bots.BotConfig.load().with_budget(budget), make_feed=self.feed, lens=lens, watch=True)
-            w.start()
-        if w.instants:
-            self.adv_when = max(0, min(self.adv_when, len(w.instants) - 1))
-            w.focus_end = w.instants[self.adv_when]
-
-    def stop_watch(self) -> None:
-        if self.adv_watch is not None and self.adv_watch.running:
-            self.adv_watch.stop()
 
     @work(exclusive=True, group="bots")
     async def load_bots(self) -> None:
@@ -2660,12 +2531,6 @@ class Terminal(App):
         closes = self.bot_closes
         if b is None or b.error or not closes:
             return
-        if b.sells_only:
-            self.say(f"{b.name} never buys. enter runs it on your portfolio: it sells what the market overpays at a profit.", 5)
-            return
-        if b.arbitrage:
-            self.say(f"{b.name} trades two closes at once, across series. enter runs it; it covers a pair when the cover pays either way.", 5)
-            return
         v = closes[max(0, min(self.bot_when, len(closes) - 1))]
         feed, budget = self.feed(), self.bot_budget(b.id)
         try:
@@ -2776,24 +2641,14 @@ class Terminal(App):
         if desk:
             await self.run_desk(b)
             return
-        if b.sells_only:
-            await self.take_profit(b)
-            return
-        if b.arbitrage in ("triangle", "oil"):
-            await self.triangulate(b)
-            return
-        if b.arbitrage:
-            await self.arbitrage(b)
-            return
         if manage:
             if not self.api.authenticated:
                 self.say("Managing your portfolio means reading it: press L to log in with your API key first.", 5)
                 return
             other = next((x for x in self.runners.values() if x.running and x.manage
-                          and (getattr(x, "batch_id", "") == self.batch.batch_id or not x.buys)), None)
+                          and getattr(x, "batch_id", "") == self.batch.batch_id), None)
             if other:
-                self.say(f"{other.name} already manages your {'portfolio' if not other.buys else self.asset + ' portfolio'}. "
-                         "Stop it first (x on it, or X).", 5)
+                self.say(f"{other.name} already manages your {self.asset} portfolio. Stop it first (x on it, or X).", 5)
                 return
         every = bots.BotConfig.load().interval_s
         what = (f"Manages every position your account holds in {self.asset}'s open closes, not only what it buys. Every {every:g} s "
@@ -2856,9 +2711,6 @@ class Terminal(App):
         sized by fractional Kelly against the wallet. A budget, then real sats or paper."""
         from . import desk as D
 
-        if b.sells_only or b.arbitrage:
-            self.say(f"{b.name} has a runner of its own: enter runs it. The desk runs a bot that draws a picture of a close.", 5)
-            return
         cfg = D.DeskConfig.load()
         chosen = D.chosen_batches(self.batches, cfg, b)
         if not chosen:
@@ -2897,129 +2749,6 @@ class Terminal(App):
         r.start()
         self.say(f"{b.name} runs as a desk across {len(chosen)} series: " + ("LIVE, real sats, the wallet as the bankroll." if live else
                  f"on paper with {fmt.sats(budget)}."), 10)
-
-    async def arbitrage(self, b: bots.Bot) -> None:
-        """enter on an Arbitrageur: a budget, then real sats or paper. It reads its scheme's series whatever series the
-        screen shows, and buys both legs of a cover in one request."""
-        from . import arb
-
-        scheme = arb.scheme_of(b)
-        every = bots.BotConfig.load().for_bot(b).interval_s
-        v = await self.push_screen_wait(Prompt(
-            f"RUN · {b.name}",
-            f"{b.blurb}\n\nRuns on this computer while the terminal is open, across the {scheme.label} series whatever this "
-            f"screen shows. Every {every:g} s it takes two closes at the same instant in two of them, the nearest pair every other "
-            "visit, reads both books and finds the cheapest set of ranges across the two that holds the settlement price wherever "
-            "it lands. When that cover pays more than it costs either way, it buys both legs in one request and holds them to the "
-            "close. It never backs a direction, and every visit is logged below.\n"
-            "Budget in sats: the most it may have at risk across those series. Enter accepts the figure shown.",
-            placeholder=f"{self.bot_budget(b.id):,.0f}"))
-        if v is None:
-            return
-        budget = self._parse_budget(v, self.bot_budget(b.id))
-        if budget is None:
-            return
-        live = False
-        if self.api.authenticated:
-            c = bots.BotConfig.load().with_budget(budget).for_bot(b)
-            typed = await self.push_screen_wait(Prompt(
-                "REAL SATS OR PAPER?",
-                f"Type LIVE to let {b.name} trade real sats through your API key {self.key_mask}: at most {fmt.sats(c.bankroll_sats)} "
-                f"at risk across {scheme.label}, {fmt.sats(c.max_per_hour_sats)} per hour, both legs of each cover in one "
-                "request and a leg filled alone sold straight back.\nPress enter alone to practise on paper instead.", placeholder="LIVE"))
-            if typed is None:
-                return
-            live = typed.strip() == "LIVE"
-        self.bot_live[b.id] = live
-        self._save_budget(b.id, budget)
-        self.runners[b.id] = r = arb.Arbitrageur(
-            bot=b, api=self.api, batch_id="", feed=None, live=live, ledger=self.ledger,
-            cfg=bots.BotConfig.load().with_budget(budget), on_trade=self._after_bot_trade, make_feed=self.feed)
-        r.start()
-        self.say(f"{b.name} is covering coinciding closes across {scheme.label} with {fmt.sats(budget)}: "
-                 + ("LIVE, real sats." if live else "on paper."), 10)
-
-    async def triangulate(self, b: bots.Bot) -> None:
-        """enter on the Triangulator: a budget, then real sats or paper. It reads the triangle's three series whatever series
-        the screen shows, and trades every leg of an instant in one request through the lens the advanced screen names."""
-        from . import tri
-
-        lens = self.lens_bot()
-        cfg = bots.BotConfig.load().for_bot(b)
-        t = tri.triangle_of(b) or tri.TRIANGLE
-        across = " and ".join(t.series) if len(t.series) == 2 else ", ".join(t.series[:-1]) + " and " + t.series[-1]
-        legs = (f"the two closes at one instant and a model of {t.quote}'s dollar price" if t.synthetic else
-                "the three closes at one instant")
-        v = await self.push_screen_wait(Prompt(
-            f"RUN · {b.name}",
-            f"{b.blurb}\n\nRuns on this computer while the terminal is open, across {across} whatever this screen shows. "
-            f"Every {cfg.interval_s:g} s it takes {legs}, the nearest every other visit, draws "
-            f"{lens.name if lens else 'the consensus'}'s picture of each close and pools it with the one the other two legs imply. Then "
-            "it bets on the likely outcomes: the band holding 80% of that picture, bought as a set of equal contracts in every book "
-            f"that sells it under what it pays, filled only while the last set returns {cfg.min_edge:.0%} on cost, at most "
-            f"{cfg.edge_close_share:.0%} of the budget in one close. A risk-free cover comes first when a pair of books offers one, "
-            "and profit is taken where a book overpays. Watch it on this screen (A); every visit is logged below.\n"
-            f"Budget in sats: the most it may have at risk across {across}. Enter accepts the figure shown.",
-            placeholder=f"{self.bot_budget(b.id):,.0f}"))
-        if v is None:
-            return
-        budget = self._parse_budget(v, self.bot_budget(b.id))
-        if budget is None:
-            return
-        live = False
-        if self.api.authenticated:
-            c = cfg.with_budget(budget)
-            typed = await self.push_screen_wait(Prompt(
-                "REAL SATS OR PAPER?",
-                f"Type LIVE to let {b.name} trade real sats through your API key {self.key_mask}: at most {fmt.sats(c.bankroll_sats)} "
-                f"at risk across {across}, {fmt.sats(c.bankroll_sats * tri.Rules.load().instant_share)} in one instant, "
-                f"{fmt.sats(c.max_per_hour_sats)} per hour, every leg checked against the server's estimate first.\n"
-                "Press enter alone to practise on paper instead.", placeholder="LIVE"))
-            if typed is None:
-                return
-            live = typed.strip() == "LIVE"
-        self.bot_live[b.id] = live
-        self._save_budget(b.id, budget)
-        self.stop_watch()
-        self.runners[b.id] = r = tri.Triangulator(
-            bot=b, api=self.api, batch_id="", feed=None, live=live, ledger=self.ledger,
-            cfg=bots.BotConfig.load().with_budget(budget), on_trade=self._after_bot_trade, make_feed=self.feed, lens=lens)
-        r.start()
-        self.say(f"{b.name} is trading the triangle across {across} through {r.lens_name} with {fmt.sats(budget)}: "
-                 + ("LIVE, real sats." if live else "on paper."), 10)
-
-    async def take_profit(self, b: bots.Bot) -> None:
-        """enter on the Profit Taker: it sells, across your whole portfolio, the part of any position the market overpays
-        at a profit, and never buys. No budget to ask for; it needs the API key to read the portfolio, even on paper."""
-        if not self.api.authenticated:
-            self.say("Taking profit means reading your portfolio: press L to log in with your API key first.", 5)
-            return
-        other = next((x for x in self.runners.values() if x.running and x.manage), None)
-        if other:
-            self.say(f"{other.name} already manages your {other.series + ' ' if other.buys else ''}portfolio and would sell "
-                     "the same positions. Stop it first (x on it, or X).", 5)
-            return
-        c = bots.BotConfig.load().for_bot(b)
-        mine = [x for x in self.runners.values() if x.running and x.live and not x.manage]
-        typed = await self.push_screen_wait(Prompt(
-            f"TAKE PROFIT · {b.name}",
-            f"{b.blurb}\n\nEvery {c.interval_s:g} s it visits the next close you hold a position in, across every series, "
-            "nearest to farthest and round again. It sells as many of your contracts there as the market pays more for, after "
-            f"the 2% exit fee, than {b.name}'s forecast says they are worth"
-            + (" and than they cost you (fees included), so it never sells at a loss" if c.profit_only else "")
-            + ". It keeps the rest, and it never buys.\n"
-            + (f"It will also sell what {', '.join(x.name for x in mine)} bought; their own records go stale.\n" if mine else "")
-            + f"Type LIVE to sell real positions through your API key {self.key_mask}. Press enter alone to try it on paper: "
-              "a copy of your portfolio, no orders sent.", placeholder="LIVE"))
-        if typed is None:
-            return
-        live = typed.strip() == "LIVE"
-        self.bot_live[b.id] = live
-        self.runners[b.id] = r = bots.ProfitTaker(
-            bot=b, api=self.api, batch_id="", feed=None, live=live, ledger=self.ledger, cfg=bots.BotConfig.load(),
-            on_trade=self._after_bot_trade, make_feed=self.feed)
-        r.start()
-        self.say(f"{b.name} is taking profit on your whole portfolio: " + ("LIVE, real sats." if live else "on paper."), 10)
 
     def _after_bot_trade(self) -> None:
         """A bot's fill moved the book: show it now rather than on the next 5 s reload."""
@@ -3070,9 +2799,6 @@ class Terminal(App):
         r = self.runners.get(b.id) if b else None
         if r is None:
             self.say("Choose a bot that has been started here: its bankroll is changed while it runs. B opens the zoo.", 5)
-            return
-        if not r.buys:
-            self.say(f"{r.name} only sells: it has no bankroll.", 4)
             return
         desk = funding.is_desk(r)
         if r.live and desk:
@@ -3148,7 +2874,6 @@ class Terminal(App):
     async def on_unmount(self) -> None:
         for r in self.runners.values():
             r.stop()
-        self.stop_watch()
         await self.noc.close()
         self.workers.cancel_all()                       # loaders started by timers must not outlive the client
         await self.shell.stop()

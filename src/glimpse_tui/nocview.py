@@ -43,8 +43,7 @@ UP = ((0.0, (5, 34, 22)), (0.45, (9, 84, 54)), (0.8, (12, 140, 90)), (1.0, (70, 
 DOWN = ((0.0, (40, 9, 14)), (0.45, (104, 22, 36)), (0.8, (170, 40, 60)), (1.0, (230, 96, 112)))
 CLOUD_FLOOR = 0.05              # rows holding under 5% of their column's likeliest row stay dark
 SPARKS = "▁▂▃▄▅▆▇█"
-KIND = {"desk": "desk", "runner": "bot", "manager": "manager", "taker": "taker", "triangle": "triangle", "arbitrage": "arb",
-        "idle": "idle", ACCOUNT: "account", ALL: ""}
+KIND = {"desk": "desk", "runner": "bot", "manager": "manager", "idle": "idle", ACCOUNT: "account", ALL: ""}
 
 
 @lru_cache(maxsize=256)
@@ -210,8 +209,7 @@ def detail(t: Terminal, u: Unit, width: int) -> list[Text]:
     else:
         from .botsview import progress
 
-        what = {"desk": f"a desk across {r.series}", "manager": f"manages your {r.series} portfolio", "taker": "takes profit on your portfolio",
-                "triangle": f"the triangle across {r.series}", "arbitrage": f"covers across {r.series}"}.get(u.kind, f"trades {r.series}")
+        what = {"desk": f"a desk across {r.series}", "manager": f"manages your {r.series} portfolio"}.get(u.kind, f"trades {r.series}")
         head = (f" {what}" + ("" if u.funds else f" · {'bankroll' if is_desk(r) else 'budget'} {fmt.sats(u.budget)}") + "\n"
                 f" {progress(r)} · bought {fmt.sats(u.paid)} · sold {fmt.sats(u.sold)} ({fmt.sats(u.taken, signed=True)} on cost)")
     out = [_line(width, (x, DIM)) for x in head.split("\n")]

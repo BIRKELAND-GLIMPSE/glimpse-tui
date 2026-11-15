@@ -62,12 +62,9 @@ class Funds:
         return self.deployed / self.bankroll if self.bankroll > 0 else 0.0
 
 
-def funds(r, value: float | None = None, wallet: float | None = None, carried: float = 0.0) -> Funds | None:
-    """The runner's account now; None for one with no bankroll (the Profit Taker only sells). `value` is what its open
-    positions would fetch (their cost when unknown), `wallet` the account's free balance, `carried` what earlier
-    sessions realised (see `Equity.carry`)."""
-    if not getattr(r, "buys", True):
-        return None
+def funds(r, value: float | None = None, wallet: float | None = None, carried: float = 0.0) -> Funds:
+    """The runner's account now. `value` is what its open positions would fetch (their cost when unknown), `wallet` the
+    account's free balance, `carried` what earlier sessions realised (see `Equity.carry`)."""
     cost = float(r.open_cost)
     value = cost if value is None else value
     if is_desk(r):
